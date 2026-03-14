@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>سهم — مجتمع المتداولين السعوديين</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #0B0E13;
+  --bg2:       #111620;
+  --bg3:       #181E2A;
+  --border:    #1E2738;
+  --border2:   #2A3448;
+  --text:      #E8EDF5;
+  --text2:     #8B96A8;
+  --text3:     #5A6578;
+  --primary:   #3B7DDD;
+  --primary2:  #2563C4;
+  --green:     #22C55E;
+  --green-bg:  rgba(34,197,94,.1);
+  --red:       #EF4444;
+  --red-bg:    rgba(239,68,68,.1);
+  --gold:      #F59E0B;
+  --gold-bg:   rgba(245,158,11,.08);
+  --radius:    12px;
+  --radius2:   8px;
+  --shadow:    0 4px 24px rgba(0,0,0,.4);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* ── Layout ── */
+#app { display: flex; flex-direction: column; min-height: 100vh; }
+
+.navbar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(11,14,19,.92);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 60px;
+  display: flex; align-items: center; gap: 16px;
+}
+
+.navbar-logo {
+  display: flex; align-items: center; gap: 10px;
+  cursor: pointer; text-decoration: none;
+  font-size: 22px; font-weight: 700; color: var(--text);
+  letter-spacing: -0.5px;
+}
+.navbar-logo .logo-icon {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: linear-gradient(135deg, var(--primary), #1D4ED8);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+}
+
+.navbar-search {
+  flex: 1; max-width: 380px; position: relative;
+}
+.navbar-search input {
+  width: 100%; padding: 8px 16px 8px 40px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 24px; color: var(--text); font-family: inherit;
+  font-size: 14px; outline: none; transition: border-color .2s;
+}
+.navbar-search input:focus { border-color: var(--primary); }
+.navbar-search .search-icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text3); }
+.search-results {
+  position: absolute; top: calc(100% + 8px); right: 0; left: 0;
+  background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--radius);
+  box-shadow: var(--shadow); z-index: 200; overflow: hidden; display: none;
+}
+.search-results.show { display: block; }
+.search-result-item {
+  padding: 10px 16px; cursor: pointer; display: flex; align-items: center; gap: 10px;
+  transition: background .15s;
+}
+.search-result-item:hover { background: var(--bg3); }
+
+.navbar-actions { display: flex; align-items: center; gap: 8px; margin-right: auto; }
+
+.btn {
+  padding: 8px 18px; border-radius: var(--radius2); border: none;
+  font-family: inherit; font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: all .2s; display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary2); transform: translateY(-1px); }
+.btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border2); }
+.btn-ghost:hover { background: var(--bg3); color: var(--text); }
+.btn-sm { padding: 6px 14px; font-size: 13px; }
+.btn-danger { background: var(--red-bg); color: var(--red); border: 1px solid var(--red); }
+
+.icon-btn {
+  width: 38px; height: 38px; border-radius: var(--radius2);
+  background: var(--bg3); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--text2); transition: all .2s; position: relative;
+}
+.icon-btn:hover { background: var(--border); color: var(--text); }
+.notif-badge {
+  position: absolute; top: -4px; right: -4px;
+  background: var(--red); color: #fff; font-size: 10px;
+  min-width: 18px; height: 18px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; padding: 0 4px;
+}
+
+.main-layout {
+  display: flex; max-width: 1200px; margin: 0 auto;
+  width: 100%; padding: 24px 16px; gap: 24px; flex: 1;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 240px; flex-shrink: 0; position: sticky;
+  top: 80px; height: fit-content;
+}
+
+.sidebar-nav { display: flex; flex-direction: column; gap: 4px; }
+.nav-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 14px; border-radius: var(--radius2);
+  color: var(--text2); cursor: pointer; transition: all .2s;
+  font-size: 15px; font-weight: 500; text-decoration: none;
+}
+.nav-item:hover, .nav-item.active {
+  background: var(--bg3); color: var(--text);
+}
+.nav-item.active { color: var(--primary); }
+.nav-icon { width: 20px; text-align: center; font-size: 18px; }
+
+.sidebar-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; margin-top: 16px;
+}
+.sidebar-card-title {
+  font-size: 13px; font-weight: 600; color: var(--text3);
+  text-transform: uppercase; letter-spacing: .5px; margin-bottom: 12px;
+}
+
+.stock-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px; border-radius: 20px;
+  background: var(--bg3); border: 1px solid var(--border);
+  font-size: 12px; font-weight: 600; color: var(--primary);
+  cursor: pointer; transition: all .15s; margin: 3px 2px;
+}
+.stock-chip:hover { background: var(--bg3); border-color: var(--primary); }
+
+/* ── Feed ── */
+.feed { flex: 1; min-width: 0; }
+
+.feed-tabs {
+  display: flex; gap: 4px; margin-bottom: 20px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 4px;
+}
+.feed-tab {
+  flex: 1; padding: 8px 16px; border-radius: var(--radius2);
+  border: none; background: transparent; color: var(--text2);
+  font-family: inherit; font-size: 14px; font-weight: 500;
+  cursor: pointer; transition: all .2s; text-align: center;
+}
+.feed-tab.active { background: var(--bg3); color: var(--text); }
+
+/* ── Compose ── */
+.compose-box {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; margin-bottom: 20px;
+}
+.compose-textarea {
+  width: 100%; background: transparent; border: none;
+  color: var(--text); font-family: inherit; font-size: 15px;
+  resize: none; outline: none; min-height: 80px;
+  placeholder-color: var(--text3);
+}
+.compose-textarea::placeholder { color: var(--text3); }
+.compose-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+  gap: 8px; flex-wrap: wrap;
+}
+.compose-actions { display: flex; gap: 8px; align-items: center; }
+.compose-type-select {
+  padding: 6px 12px; background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: var(--radius2); color: var(--text2); font-family: inherit;
+  font-size: 13px; outline: none; cursor: pointer;
+}
+.compose-hint { font-size: 12px; color: var(--text3); margin-top: 6px; }
+
+.analysis-fields {
+  display: none; gap: 10px; margin-top: 12px;
+  padding-top: 12px; border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.analysis-fields.show { display: flex; }
+.analysis-input {
+  flex: 1; min-width: 120px; padding: 8px 12px;
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: var(--radius2); color: var(--text); font-family: inherit;
+  font-size: 13px; outline: none;
+}
+.analysis-input::placeholder { color: var(--text3); }
+.direction-btns { display: flex; gap: 6px; }
+.dir-btn {
+  padding: 7px 14px; border-radius: var(--radius2);
+  border: 1px solid var(--border2); background: transparent;
+  font-family: inherit; font-size: 13px; cursor: pointer; transition: all .2s;
+  color: var(--text2);
+}
+.dir-btn.bullish.active { background: var(--green-bg); border-color: var(--green); color: var(--green); }
+.dir-btn.bearish.active { background: var(--red-bg); border-color: var(--red); color: var(--red); }
+.char-count { font-size: 12px; color: var(--text3); }
+.char-count.warn { color: var(--gold); }
+.char-count.error { color: var(--red); }
+
+/* ── Post Card ── */
+.post-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; margin-bottom: 12px;
+  transition: border-color .2s;
+  animation: fadeIn .3s ease;
+}
+.post-card:hover { border-color: var(--border2); }
+@keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+
+.post-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), #7C3AED);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 15px; color: #fff; flex-shrink: 0;
+  overflow: hidden; cursor: pointer;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.post-meta { flex: 1; }
+.post-author {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.author-name {
+  font-weight: 600; color: var(--text); cursor: pointer;
+  font-size: 14px;
+}
+.author-name:hover { color: var(--primary); text-decoration: underline; }
+.author-handle { color: var(--text3); font-size: 13px; }
+.verified-badge { color: var(--primary); font-size: 14px; }
+.level-badge {
+  font-size: 11px; padding: 2px 7px; border-radius: 10px;
+  background: var(--bg3); color: var(--text2); border: 1px solid var(--border2);
+}
+.post-time { color: var(--text3); font-size: 12px; margin-top: 2px; }
+.post-menu { margin-right: auto; color: var(--text3); cursor: pointer; padding: 4px; }
+
+.post-content { font-size: 15px; line-height: 1.7; color: var(--text); margin-bottom: 12px; word-break: break-word; }
+.post-symbol {
+  color: var(--primary); font-weight: 600; cursor: pointer;
+}
+.post-symbol:hover { text-decoration: underline; }
+
+.post-image {
+  width: 100%; border-radius: var(--radius2); margin-bottom: 12px;
+  max-height: 480px; object-fit: cover; cursor: pointer;
+}
+
+.analysis-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 20px;
+  font-size: 12px; font-weight: 600; margin-bottom: 10px;
+}
+.analysis-badge.bullish { background: var(--green-bg); color: var(--green); border: 1px solid var(--green); }
+.analysis-badge.bearish { background: var(--red-bg); color: var(--red); border: 1px solid var(--red); }
+.analysis-badge.neutral { background: var(--gold-bg); color: var(--gold); border: 1px solid var(--gold); }
+
+.analysis-targets {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;
+}
+.target-tag {
+  font-size: 12px; padding: 4px 10px; border-radius: var(--radius2);
+  background: var(--bg3); border: 1px solid var(--border2); color: var(--text2);
+}
+.target-tag span { font-weight: 600; }
+
+.post-actions {
+  display: flex; align-items: center; gap: 6px;
+  padding-top: 10px; border-top: 1px solid var(--border);
+}
+.action-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 6px 10px; border-radius: var(--radius2);
+  border: none; background: transparent; color: var(--text3);
+  font-family: inherit; font-size: 13px; cursor: pointer;
+  transition: all .15s;
+}
+.action-btn:hover { background: var(--bg3); color: var(--text); }
+.action-btn.upvote:hover, .action-btn.upvote.active { color: var(--green); background: var(--green-bg); }
+.action-btn.downvote:hover, .action-btn.downvote.active { color: var(--red); background: var(--red-bg); }
+.action-btn.comment-btn:hover { color: var(--primary); }
+
+/* ── Comments ── */
+.comments-section {
+  margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid var(--border);
+  display: none;
+}
+.comments-section.show { display: block; }
+.comment-input-row {
+  display: flex; gap: 10px; margin-bottom: 14px;
+}
+.comment-input {
+  flex: 1; padding: 8px 14px; background: var(--bg3);
+  border: 1px solid var(--border2); border-radius: var(--radius2);
+  color: var(--text); font-family: inherit; font-size: 14px; outline: none;
+}
+.comment-item {
+  display: flex; gap: 10px; margin-bottom: 12px;
+}
+.comment-body { flex: 1; }
+.comment-meta { display: flex; gap: 8px; align-items: center; margin-bottom: 3px; flex-wrap: wrap; }
+.comment-author { font-weight: 600; font-size: 13px; cursor: pointer; }
+.comment-author:hover { color: var(--primary); }
+.comment-time { font-size: 12px; color: var(--text3); }
+.comment-text { font-size: 14px; color: var(--text); }
+.avatar-sm { width: 32px; height: 32px; font-size: 12px; }
+
+/* ── Right Panel ── */
+.right-panel { width: 280px; flex-shrink: 0; }
+.panel-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; margin-bottom: 16px;
+}
+.panel-title {
+  font-size: 14px; font-weight: 700; color: var(--text);
+  margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+}
+
+.leaderboard-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.leaderboard-item:last-child { border-bottom: none; }
+.rank-num { font-size: 13px; font-weight: 700; color: var(--text3); width: 24px; text-align: center; }
+.rank-num.gold { color: var(--gold); }
+.leaderboard-info { flex: 1; }
+.leaderboard-name { font-size: 13px; font-weight: 600; cursor: pointer; }
+.leaderboard-name:hover { color: var(--primary); }
+.leaderboard-rep { font-size: 12px; color: var(--text3); }
+.rep-score { font-weight: 600; color: var(--primary); font-size: 13px; }
+
+/* ── Pages ── */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── Profile ── */
+.profile-header {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px; margin-bottom: 20px;
+}
+.profile-cover {
+  height: 120px; border-radius: var(--radius2);
+  background: linear-gradient(135deg, #1B3A6E, #2563C4, #7C3AED);
+  margin-bottom: -50px;
+}
+.profile-avatar-wrap { padding-top: 0; display: flex; align-items: flex-end; justify-content: space-between; }
+.profile-avatar { width: 90px; height: 90px; font-size: 32px; border: 4px solid var(--bg2); }
+.profile-name { font-size: 20px; font-weight: 700; margin-top: 12px; }
+.profile-handle { color: var(--text3); font-size: 14px; }
+.profile-bio { color: var(--text2); font-size: 14px; margin: 10px 0; line-height: 1.6; }
+.profile-stats { display: flex; gap: 24px; margin-top: 14px; }
+.stat-item { text-align: center; }
+.stat-num { font-size: 18px; font-weight: 700; color: var(--text); }
+.stat-label { font-size: 12px; color: var(--text3); }
+
+/* ── Auth Modal ── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.7);
+  z-index: 1000; display: flex; align-items: center; justify-content: center;
+  padding: 20px; backdrop-filter: blur(4px);
+  opacity: 0; pointer-events: none; transition: opacity .25s;
+}
+.modal-overlay.show { opacity: 1; pointer-events: all; }
+.modal {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 16px; padding: 32px; width: 100%; max-width: 440px;
+  box-shadow: var(--shadow); transform: translateY(16px); transition: transform .25s;
+}
+.modal-overlay.show .modal { transform: translateY(0); }
+.modal-title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+.modal-subtitle { color: var(--text2); font-size: 14px; margin-bottom: 24px; }
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
+.form-input {
+  width: 100%; padding: 11px 14px; background: var(--bg3);
+  border: 1px solid var(--border2); border-radius: var(--radius2);
+  color: var(--text); font-family: inherit; font-size: 14px; outline: none;
+  transition: border-color .2s;
+}
+.form-input:focus { border-color: var(--primary); }
+.form-error { color: var(--red); font-size: 13px; margin-top: 12px; text-align: center; }
+.form-switch { text-align: center; margin-top: 20px; color: var(--text2); font-size: 14px; }
+.form-switch a { color: var(--primary); cursor: pointer; font-weight: 600; }
+.modal-close {
+  position: absolute; top: 16px; left: 16px;
+  background: var(--bg3); border: none; border-radius: 50%;
+  width: 32px; height: 32px; cursor: pointer; color: var(--text2);
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+}
+.modal-close:hover { color: var(--text); }
+
+/* ── Toast ── */
+#toast-container { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.toast {
+  padding: 12px 20px; border-radius: var(--radius2);
+  font-size: 14px; font-weight: 500; box-shadow: var(--shadow);
+  animation: toastIn .3s ease; white-space: nowrap; max-width: 90vw;
+}
+@keyframes toastIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+.toast-success { background: var(--green); color: #fff; }
+.toast-error { background: var(--red); color: #fff; }
+.toast-info { background: var(--primary); color: #fff; }
+
+/* ── Notif Panel ── */
+.notif-panel {
+  position: fixed; top: 64px; left: 80px;
+  width: 360px; background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: var(--radius); box-shadow: var(--shadow); z-index: 500;
+  max-height: 480px; overflow-y: auto; display: none;
+}
+.notif-panel.show { display: block; animation: fadeIn .2s ease; }
+.notif-header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.notif-item { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; cursor: pointer; }
+.notif-item:hover { background: var(--bg3); }
+.notif-item.unread { background: rgba(59,125,221,.05); }
+.notif-text { font-size: 13px; color: var(--text); flex: 1; }
+.notif-time { font-size: 11px; color: var(--text3); margin-top: 3px; }
+
+/* ── Loading ── */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg2) 25%, var(--bg3) 50%, var(--bg2) 75%);
+  background-size: 200% 100%; animation: shimmer 1.5s infinite;
+  border-radius: var(--radius2);
+}
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* ── Empty State ── */
+.empty-state {
+  text-align: center; padding: 60px 20px; color: var(--text3);
+}
+.empty-icon { font-size: 48px; margin-bottom: 16px; opacity: .5; }
+.empty-title { font-size: 18px; font-weight: 600; color: var(--text2); margin-bottom: 8px; }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .right-panel { display: none; }
+  .main-layout { padding: 16px 12px; }
+}
+@media (max-width: 640px) {
+  .sidebar { display: none; }
+  .navbar-search { max-width: 100%; }
+  .post-card { padding: 14px; }
+}
+
+/* ── Stock Page ── */
+.stock-header {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px; margin-bottom: 20px;
+}
+.stock-symbol { font-size: 28px; font-weight: 700; color: var(--primary); }
+.stock-name { font-size: 16px; color: var(--text2); margin-top: 4px; }
+.stock-sentiment {
+  display: flex; gap: 12px; margin-top: 16px;
+}
+.sentiment-bar { flex: 1; }
+.sentiment-label { font-size: 12px; color: var(--text3); margin-bottom: 4px; display: flex; justify-content: space-between; }
+.sentiment-track { height: 8px; background: var(--bg3); border-radius: 4px; overflow: hidden; }
+.sentiment-fill { height: 100%; border-radius: 4px; transition: width .5s ease; }
+.sentiment-fill.bullish { background: var(--green); }
+.sentiment-fill.bearish { background: var(--red); }
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- Navbar -->
+<nav class="navbar">
+  <a class="navbar-logo" onclick="navigate('home')">
+    <div class="logo-icon">📈</div>
+    سهم
+  </a>
+  <div class="navbar-search">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="search-input" placeholder="ابحث عن مستخدم أو سهم..." autocomplete="off">
+    <div class="search-results" id="search-results"></div>
+  </div>
+  <div class="navbar-actions">
+    <div id="auth-actions"></div>
+  </div>
+</nav>
+
+<!-- Main Layout -->
+<div class="main-layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <nav class="sidebar-nav">
+      <a class="nav-item active" id="nav-home" onclick="navigate('home')">
+        <span class="nav-icon">🏠</span> الرئيسية
+      </a>
+      <a class="nav-item" id="nav-explore" onclick="navigate('explore')">
+        <span class="nav-icon">🔥</span> استكشاف
+      </a>
+      <a class="nav-item" id="nav-leaderboard" onclick="navigate('leaderboard')">
+        <span class="nav-icon">🏆</span> المتصدرون
+      </a>
+      <a class="nav-item" id="nav-ipos" onclick="navigate('ipos')">
+        <span class="nav-icon">🆕</span> الاكتتابات
+      </a>
+      <a class="nav-item" id="nav-profile" onclick="navigate('profile')">
+        <span class="nav-icon">👤</span> حسابي
+      </a>
+    </nav>
+
+    <div class="sidebar-card">
+      <div class="sidebar-card-title">أسهم شائعة</div>
+      <div id="popular-stocks"></div>
+    </div>
+  </aside>
+
+  <!-- Feed -->
+  <main class="feed">
+    <!-- Home Page -->
+    <div class="page active" id="page-home">
+      <div id="compose-area"></div>
+      <div class="feed-tabs">
+        <button class="feed-tab active" onclick="switchTab('discover')">🔥 الاكتشاف</button>
+        <button class="feed-tab" onclick="switchTab('following')">👥 المتابَعون</button>
+        <button class="feed-tab" onclick="switchTab('analysis')">📊 تحاليل</button>
+      </div>
+      <div id="posts-feed"></div>
+      <div id="load-more-container"></div>
+    </div>
+
+    <!-- Explore Page -->
+    <div class="page" id="page-explore">
+      <h2 style="margin-bottom:20px">🔥 استكشاف الأسهم</h2>
+      <div id="explore-stocks-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:24px"></div>
+      <h3 style="margin-bottom:16px">المنشورات الأكثر تفاعلاً</h3>
+      <div id="explore-feed"></div>
+    </div>
+
+    <!-- Leaderboard Page -->
+    <div class="page" id="page-leaderboard">
+      <div class="panel-card">
+        <div class="panel-title">🏆 لوحة المتصدرين</div>
+        <div id="full-leaderboard"></div>
+      </div>
+    </div>
+
+    <!-- IPOs Page -->
+    <div class="page" id="page-ipos">
+      <div class="panel-card">
+        <div class="panel-title">🆕 الاكتتابات القادمة</div>
+        <div id="ipos-content"></div>
+      </div>
+    </div>
+
+    <!-- Profile Page -->
+    <div class="page" id="page-profile">
+      <div id="profile-content"></div>
+    </div>
+
+    <!-- Stock Page -->
+    <div class="page" id="page-stock">
+      <div id="stock-content"></div>
+    </div>
+  </main>
+
+  <!-- Right Panel -->
+  <aside class="right-panel">
+    <div class="panel-card">
+      <div class="panel-title">🏆 أبرز المحللين</div>
+      <div id="leaderboard-panel"></div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-title">📊 أكثر الأسهم نقاشاً</div>
+      <div id="trending-stocks"></div>
+    </div>
+  </aside>
+</div>
+</div>
+
+<!-- Auth Modal -->
+<div class="modal-overlay" id="auth-modal">
+  <div class="modal" style="position:relative">
+    <button class="modal-close" onclick="closeModal('auth-modal')">✕</button>
+    <div id="auth-modal-content"></div>
+  </div>
+</div>
+
+<!-- Notifications Panel -->
+<div class="notif-panel" id="notif-panel">
+  <div class="notif-header">
+    <span style="font-weight:700">الإشعارات</span>
+    <button class="btn btn-ghost btn-sm" onclick="markNotifRead()">تعليم كمقروء</button>
+  </div>
+  <div id="notif-list"></div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════════
+let currentUser = null;
+let currentTab = 'discover';
+let currentPage = 'home';
+let feedPage = 0;
+let isLoading = false;
+let selectedDirection = '';
+let notifCount = 0;
+
+// ══════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════
+async function init() {
+  await checkAuth();
+  loadPopularStocks();
+  loadLeaderboardPanel();
+  loadTrendingStocks();
+  renderFeed();
+  if (currentUser) pollNotifications();
+}
+
+async function checkAuth() {
+  const res = await fetch('/api/me');
+  const data = await res.json();
+  currentUser = data.user;
+  renderAuthArea();
+  renderComposeArea();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════════════════════════
+function navigate(page, param = '') {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  currentPage = page;
+  const nav = document.getElementById('nav-' + page);
+  if (nav) nav.classList.add('active');
+
+  if (page === 'home') {
+    document.getElementById('page-home').classList.add('active');
+    renderFeed();
+  } else if (page === 'explore') {
+    document.getElementById('page-explore').classList.add('active');
+    loadExplorePage();
+  } else if (page === 'leaderboard') {
+    document.getElementById('page-leaderboard').classList.add('active');
+    loadFullLeaderboard();
+  } else if (page === 'ipos') {
+    document.getElementById('page-ipos').classList.add('active');
+    loadIPOs();
+  } else if (page === 'profile') {
+    document.getElementById('page-profile').classList.add('active');
+    const username = param || (currentUser ? currentUser.username : '');
+    if (username) loadProfile(username);
+    else showLoginModal();
+  } else if (page === 'stock') {
+    document.getElementById('page-stock').classList.add('active');
+    loadStockPage(param);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// AUTH UI
+// ══════════════════════════════════════════════════════════════════
+function renderAuthArea() {
+  const el = document.getElementById('auth-actions');
+  if (currentUser) {
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="icon-btn" onclick="toggleNotif()" id="notif-btn">
+          🔔<span class="notif-badge" id="notif-badge" style="display:none">${notifCount}</span>
+        </div>
+        <div class="avatar" style="width:34px;height:34px;font-size:13px;cursor:pointer" onclick="navigate('profile')">
+          ${currentUser.avatar ? `<img src="${currentUser.avatar}" alt="">` : currentUser.display_name[0]}
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="logout()">خروج</button>
+      </div>`;
+  } else {
+    el.innerHTML = `
+      <button class="btn btn-ghost btn-sm" onclick="showLoginModal()">دخول</button>
+      <button class="btn btn-primary btn-sm" onclick="showRegisterModal()">انضم الآن</button>`;
+  }
+}
+
+function renderComposeArea() {
+  const el = document.getElementById('compose-area');
+  if (!currentUser) {
+    el.innerHTML = `
+      <div class="compose-box" style="text-align:center;padding:24px">
+        <div style="font-size:28px;margin-bottom:10px">📊</div>
+        <p style="color:var(--text2);margin-bottom:14px">انضم لمجتمع المتداولين السعوديين</p>
+        <button class="btn btn-primary" onclick="showRegisterModal()">إنشاء حساب مجاني</button>
+        <span style="margin:0 10px;color:var(--text3)">أو</span>
+        <button class="btn btn-ghost" onclick="showLoginModal()">تسجيل الدخول</button>
+      </div>`;
+    return;
+  }
+  el.innerHTML = `
+    <div class="compose-box">
+      <textarea class="compose-textarea" id="compose-text" placeholder="شارك تحليلك أو رأيك... استخدم $2222 للإشارة لأرامكو مثلاً" maxlength="2000" oninput="updateCharCount(this)"></textarea>
+      <p class="compose-hint">استخدم $رمز للإشارة لسهم — مثال: $2222 $1120</p>
+      <div class="analysis-fields" id="analysis-fields">
+        <div class="direction-btns">
+          <button class="dir-btn bullish" onclick="setDirection('bullish')">📈 صاعد</button>
+          <button class="dir-btn bearish" onclick="setDirection('bearish')">📉 هابط</button>
+        </div>
+        <input class="analysis-input" id="target-price" type="number" placeholder="الهدف (ريال)" min="0" step="0.01">
+        <input class="analysis-input" id="stop-loss" type="number" placeholder="وقف الخسارة" min="0" step="0.01">
+        <select class="compose-type-select" id="timeframe-select">
+          <option value="">المدة الزمنية</option>
+          <option value="day">يومي</option>
+          <option value="week">أسبوعي</option>
+          <option value="month">شهري</option>
+          <option value="quarter">ربع سنوي</option>
+        </select>
+      </div>
+      <div class="compose-footer">
+        <div class="compose-actions">
+          <label class="btn btn-ghost btn-sm" style="cursor:pointer">
+            🖼️ صورة <input type="file" id="post-image" accept="image/*" style="display:none" onchange="previewImage(this)">
+          </label>
+          <select class="compose-type-select" id="post-type" onchange="toggleAnalysisFields(this.value)">
+            <option value="opinion">💬 رأي</option>
+            <option value="analysis">📊 تحليل فني</option>
+            <option value="news">📰 خبر</option>
+            <option value="question">❓ سؤال</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="char-count" id="char-count">0 / 2000</span>
+          <button class="btn btn-primary" onclick="submitPost()">نشر ✨</button>
+        </div>
+      </div>
+      <div id="image-preview" style="margin-top:8px"></div>
+    </div>`;
+}
+
+function toggleAnalysisFields(type) {
+  const el = document.getElementById('analysis-fields');
+  if (type === 'analysis') el.classList.add('show');
+  else el.classList.remove('show');
+}
+
+function setDirection(dir) {
+  selectedDirection = selectedDirection === dir ? '' : dir;
+  document.querySelectorAll('.dir-btn').forEach(b => b.classList.remove('active'));
+  if (selectedDirection) document.querySelector(`.dir-btn.${selectedDirection}`).classList.add('active');
+}
+
+function updateCharCount(el) {
+  const count = el.value.length;
+  const span = document.getElementById('char-count');
+  span.textContent = `${count} / 2000`;
+  span.className = 'char-count' + (count > 1800 ? ' warn' : '') + (count >= 2000 ? ' error' : '');
+}
+
+function previewImage(input) {
+  const preview = document.getElementById('image-preview');
+  if (input.files[0]) {
+    const url = URL.createObjectURL(input.files[0]);
+    preview.innerHTML = `<img src="${url}" style="max-height:200px;border-radius:8px;max-width:100%">
+      <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="clearImage()">حذف الصورة</button>`;
+  }
+}
+function clearImage() {
+  document.getElementById('post-image').value = '';
+  document.getElementById('image-preview').innerHTML = '';
+}
+
+// ══════════════════════════════════════════════════════════════════
+// POSTS
+// ══════════════════════════════════════════════════════════════════
+async function submitPost() {
+  if (!currentUser) { showLoginModal(); return; }
+  const content = document.getElementById('compose-text').value.trim();
+  if (!content) { toast('اكتب شيئاً أولاً', 'error'); return; }
+
+  const formData = new FormData();
+  formData.append('content', content);
+  formData.append('post_type', document.getElementById('post-type').value);
+  formData.append('direction', selectedDirection);
+  const img = document.getElementById('post-image');
+  if (img && img.files[0]) formData.append('image', img.files[0]);
+  if (document.getElementById('target-price')) formData.append('target_price', document.getElementById('target-price').value || 0);
+  if (document.getElementById('stop-loss')) formData.append('stop_loss', document.getElementById('stop-loss').value || 0);
+  if (document.getElementById('timeframe-select')) formData.append('timeframe', document.getElementById('timeframe-select').value);
+
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'جاري النشر...';
+
+  const res = await fetch('/api/posts', { method:'POST', body:formData });
+  const data = await res.json();
+  btn.disabled = false; btn.textContent = 'نشر ✨';
+
+  if (data.error) { toast(data.error, 'error'); return; }
+
+  document.getElementById('compose-text').value = '';
+  clearImage();
+  document.getElementById('char-count').textContent = '0 / 2000';
+  selectedDirection = '';
+  document.querySelectorAll('.dir-btn').forEach(b => b.classList.remove('active'));
+
+  const feed = document.getElementById('posts-feed');
+  const card = createPostCard(data.post);
+  feed.insertAdjacentHTML('afterbegin', card);
+  toast('تم النشر بنجاح! 🎉', 'success');
+}
+
+async function renderFeed(reset = true) {
+  if (reset) { feedPage = 0; document.getElementById('posts-feed').innerHTML = ''; }
+  if (isLoading) return;
+  isLoading = true;
+
+  let url = `/api/posts?page=${feedPage}`;
+  if (currentTab === 'following') url += '&feed=following';
+  else if (currentTab === 'analysis') url += '&feed=discover';
+
+  const res = await fetch(url);
+  const data = await res.json();
+  const feed = document.getElementById('posts-feed');
+
+  let posts = data.posts;
+  if (currentTab === 'analysis') posts = posts.filter(p => p.post_type === 'analysis');
+
+  if (posts.length === 0 && feedPage === 0) {
+    feed.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div>
+      <div class="empty-title">لا توجد منشورات بعد</div>
+      <p>${currentTab === 'following' ? 'تابع بعض المحللين لترى منشوراتهم هنا' : 'كن أول من ينشر!'}</p></div>`;
+  } else {
+    posts.forEach(p => feed.insertAdjacentHTML('beforeend', createPostCard(p)));
+  }
+
+  const lm = document.getElementById('load-more-container');
+  if (posts.length === 20) {
+    lm.innerHTML = `<button class="btn btn-ghost" style="width:100%;margin:16px 0" onclick="loadMore()">تحميل المزيد</button>`;
+  } else { lm.innerHTML = ''; }
+
+  isLoading = false;
+}
+
+function loadMore() {
+  feedPage++;
+  renderFeed(false);
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.feed-tab').forEach((t, i) => {
+    t.classList.toggle('active', ['discover','following','analysis'][i] === tab);
+  });
+  renderFeed();
+}
+
+function createPostCard(p) {
+  const avatarHtml = p.avatar
+    ? `<img src="${p.avatar}" alt="">`
+    : `<span>${(p.display_name||'?')[0]}</span>`;
+
+  const symbolsHtml = p.stock_symbols
+    ? p.stock_symbols.split(',').filter(Boolean).map(s =>
+        `<span class="post-symbol" onclick="navigate('stock','${s}')">${s}</span>`
+      ).join(' ')
+    : '';
+
+  const contentHtml = p.content
+    .replace(/\$[A-Za-z0-9\u0600-\u06FF]{1,10}/g, s => `<span class="post-symbol" onclick="navigate('stock','${s}')">${s}</span>`)
+    .replace(/\n/g, '<br>');
+
+  let analysisBadge = '';
+  if (p.post_type === 'analysis' && p.direction) {
+    const d = p.direction === 'bullish' ? { cls:'bullish', icon:'📈', label:'صاعد' }
+              : p.direction === 'bearish' ? { cls:'bearish', icon:'📉', label:'هابط' }
+              : { cls:'neutral', icon:'↔️', label:'محايد' };
+    analysisBadge = `<div class="analysis-badge ${d.cls}">${d.icon} تحليل ${d.label}</div>`;
+  }
+
+  let targetsHtml = '';
+  if (p.post_type === 'analysis' && (p.target_price || p.stop_loss)) {
+    targetsHtml = `<div class="analysis-targets">
+      ${p.target_price ? `<span class="target-tag">🎯 الهدف: <span style="color:var(--green)">${p.target_price}</span></span>` : ''}
+      ${p.stop_loss ? `<span class="target-tag">🛑 وقف الخسارة: <span style="color:var(--red)">${p.stop_loss}</span></span>` : ''}
+      ${p.timeframe ? `<span class="target-tag">⏱️ ${timeframeLabel(p.timeframe)}</span>` : ''}
+    </div>`;
+  }
+
+  const isOwner = currentUser && currentUser.id === p.user_id;
+  const upActive = p.my_vote === 'up' ? 'active' : '';
+  const downActive = p.my_vote === 'down' ? 'active' : '';
+
+  return `<div class="post-card" id="post-${p.id}">
+    <div class="post-header">
+      <div class="avatar" onclick="navigate('profile','${p.username}')">${avatarHtml}</div>
+      <div class="post-meta">
+        <div class="post-author">
+          <span class="author-name" onclick="navigate('profile','${p.username}')">${p.display_name}</span>
+          ${p.is_verified ? '<span class="verified-badge" title="موثّق">✓</span>' : ''}
+          <span class="level-badge">${p.level_name}</span>
+          <span class="author-handle">@${p.username}</span>
+        </div>
+        <div class="post-time">${p.time_ago}</div>
+      </div>
+      ${isOwner ? `<div class="post-menu" onclick="deletePost('${p.id}')">🗑️</div>` : ''}
+    </div>
+    ${analysisBadge}
+    <div class="post-content">${contentHtml}</div>
+    ${targetsHtml}
+    ${p.image ? `<img src="${p.image}" class="post-image" onclick="openImage('${p.image}')" alt="تحليل">` : ''}
+    <div class="post-actions">
+      <button class="action-btn upvote ${upActive}" id="up-${p.id}" onclick="vote('${p.id}','up')">
+        👍 <span id="upvotes-${p.id}">${p.upvotes}</span>
+      </button>
+      <button class="action-btn downvote ${downActive}" id="down-${p.id}" onclick="vote('${p.id}','down')">
+        👎 <span id="downvotes-${p.id}">${p.downvotes}</span>
+      </button>
+      <button class="action-btn comment-btn" onclick="toggleComments('${p.id}')">
+        💬 <span id="comments-count-${p.id}">${p.comments_count}</span>
+      </button>
+      <button class="action-btn" onclick="sharePost('${p.id}')">🔗</button>
+    </div>
+    <div class="comments-section" id="comments-${p.id}">
+      ${currentUser ? `<div class="comment-input-row">
+        <div class="avatar avatar-sm">${currentUser.avatar ? `<img src="${currentUser.avatar}">` : currentUser.display_name[0]}</div>
+        <input class="comment-input" id="comment-input-${p.id}" placeholder="أضف تعليقاً..." onkeydown="if(event.key==='Enter')submitComment('${p.id}')">
+        <button class="btn btn-primary btn-sm" onclick="submitComment('${p.id}')">إرسال</button>
+      </div>` : ''}
+      <div id="comments-list-${p.id}"></div>
+    </div>
+  </div>`;
+}
+
+function timeframeLabel(tf) {
+  return { day:'يومي', week:'أسبوعي', month:'شهري', quarter:'ربع سنوي' }[tf] || tf;
+}
+
+async function vote(postId, type) {
+  if (!currentUser) { showLoginModal(); return; }
+  const res = await fetch('/api/vote', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ target_id:postId, target_type:'post', vote_type:type }) });
+  const data = await res.json();
+  if (data.error) { toast(data.error, 'error'); return; }
+  document.getElementById(`upvotes-${postId}`).textContent = data.upvotes ?? document.getElementById(`upvotes-${postId}`).textContent;
+  document.getElementById(`downvotes-${postId}`).textContent = data.downvotes ?? document.getElementById(`downvotes-${postId}`).textContent;
+  const upBtn = document.getElementById(`up-${postId}`);
+  const downBtn = document.getElementById(`down-${postId}`);
+  if (data.action === 'removed') { upBtn.classList.remove('active'); downBtn.classList.remove('active'); }
+  else if (type === 'up') { upBtn.classList.add('active'); downBtn.classList.remove('active'); }
+  else { downBtn.classList.add('active'); upBtn.classList.remove('active'); }
+}
+
+async function toggleComments(postId) {
+  const section = document.getElementById(`comments-${postId}`);
+  section.classList.toggle('show');
+  if (section.classList.contains('show')) loadComments(postId);
+}
+
+async function loadComments(postId) {
+  const res = await fetch(`/api/posts/${postId}/comments`);
+  const data = await res.json();
+  const list = document.getElementById(`comments-list-${postId}`);
+  if (data.comments.length === 0) { list.innerHTML = '<p style="color:var(--text3);font-size:13px;padding:8px 0">لا توجد تعليقات — كن أول من يعلّق!</p>'; return; }
+  list.innerHTML = data.comments.map(c => `
+    <div class="comment-item">
+      <div class="avatar avatar-sm" onclick="navigate('profile','${c.username}')">
+        ${c.avatar ? `<img src="${c.avatar}">` : c.display_name[0]}
+      </div>
+      <div class="comment-body">
+        <div class="comment-meta">
+          <span class="comment-author" onclick="navigate('profile','${c.username}')">${c.display_name}</span>
+          <span class="level-badge" style="font-size:10px">${c.level_name}</span>
+          <span class="comment-time">${c.time_ago}</span>
+        </div>
+        <div class="comment-text">${c.content.replace(/\n/g,'<br>')}</div>
+      </div>
+    </div>`).join('');
+}
+
+async function submitComment(postId) {
+  if (!currentUser) { showLoginModal(); return; }
+  const input = document.getElementById(`comment-input-${postId}`);
+  const content = input.value.trim();
+  if (!content) return;
+  input.value = '';
+
+  const res = await fetch(`/api/posts/${postId}/comments`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content}) });
+  const data = await res.json();
+  if (data.error) { toast(data.error, 'error'); return; }
+
+  const count = document.getElementById(`comments-count-${postId}`);
+  if (count) count.textContent = parseInt(count.textContent) + 1;
+  loadComments(postId);
+}
+
+async function deletePost(postId) {
+  if (!confirm('هل أنت متأكد من حذف المنشور؟')) return;
+  const res = await fetch(`/api/posts/${postId}`, { method:'DELETE' });
+  const data = await res.json();
+  if (data.success) {
+    document.getElementById(`post-${postId}`)?.remove();
+    toast('تم حذف المنشور', 'info');
+  }
+}
+
+function sharePost(postId) {
+  const url = `${window.location.origin}/post/${postId}`;
+  navigator.clipboard?.writeText(url).then(() => toast('تم نسخ الرابط 📋', 'success'));
+}
+
+function openImage(src) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:pointer;';
+  overlay.innerHTML = `<img src="${src}" style="max-width:90vw;max-height:90vh;border-radius:12px">`;
+  overlay.onclick = () => overlay.remove();
+  document.body.appendChild(overlay);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// PROFILE
+// ══════════════════════════════════════════════════════════════════
+async function loadProfile(username) {
+  const el = document.getElementById('profile-content');
+  el.innerHTML = `<div class="skeleton" style="height:200px;margin-bottom:16px"></div>`;
+
+  const res = await fetch(`/api/users/${username}`);
+  const data = await res.json();
+  if (data.error) { el.innerHTML = `<div class="empty-state"><div class="empty-title">المستخدم غير موجود</div></div>`; return; }
+
+  const u = data.user;
+  const isMe = currentUser && currentUser.id === u.id;
+  const isFollowing = data.is_following;
+
+  el.innerHTML = `
+    <div class="profile-header">
+      <div class="profile-cover"></div>
+      <div class="profile-avatar-wrap">
+        <div class="avatar profile-avatar">${u.avatar ? `<img src="${u.avatar}">` : u.display_name[0]}</div>
+        ${isMe
+          ? `<button class="btn btn-ghost btn-sm" onclick="showEditProfile()">✏️ تعديل الملف</button>`
+          : currentUser
+            ? `<button class="btn ${isFollowing ? 'btn-ghost' : 'btn-primary'} btn-sm" id="follow-btn-${u.id}" onclick="toggleFollow('${u.id}','${u.username}')">
+                ${isFollowing ? '✓ متابَع' : '+ متابعة'}
+               </button>`
+            : `<button class="btn btn-primary btn-sm" onclick="showLoginModal()">+ متابعة</button>`
+        }
+      </div>
+      <div class="profile-name">${u.display_name} ${u.is_verified ? '<span class="verified-badge">✓</span>' : ''}</div>
+      <div class="profile-handle">@${u.username} · <span style="color:var(--primary)">${u.level_name}</span></div>
+      ${u.bio ? `<div class="profile-bio">${u.bio}</div>` : ''}
+      <div class="profile-stats">
+        <div class="stat-item"><div class="stat-num">${u.posts_count}</div><div class="stat-label">منشور</div></div>
+        <div class="stat-item"><div class="stat-num">${u.followers_count}</div><div class="stat-label">متابع</div></div>
+        <div class="stat-item"><div class="stat-num">${u.following_count}</div><div class="stat-label">يتابع</div></div>
+        <div class="stat-item"><div class="stat-num" style="color:var(--gold)">${u.reputation}</div><div class="stat-label">نقطة سمعة</div></div>
+      </div>
+    </div>
+    <h3 style="margin-bottom:16px">منشورات @${u.username}</h3>
+    <div id="user-posts"></div>`;
+
+  const postsRes = await fetch(`/api/posts?user_id=${u.id}`);
+  const postsData = await postsRes.json();
+  const up = document.getElementById('user-posts');
+  if (postsData.posts.length === 0) {
+    up.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">لا توجد منشورات بعد</div></div>`;
+  } else {
+    postsData.posts.forEach(p => up.insertAdjacentHTML('beforeend', createPostCard(p)));
+  }
+}
+
+async function toggleFollow(userId, username) {
+  if (!currentUser) { showLoginModal(); return; }
+  const res = await fetch(`/api/follow/${userId}`, { method:'POST' });
+  const data = await res.json();
+  if (data.error) { toast(data.error, 'error'); return; }
+  const btn = document.getElementById(`follow-btn-${userId}`);
+  if (btn) {
+    btn.textContent = data.following ? '✓ متابَع' : '+ متابعة';
+    btn.className = `btn ${data.following ? 'btn-ghost' : 'btn-primary'} btn-sm`;
+  }
+  toast(data.following ? `أنت الآن تتابع @${username}` : `توقفت عن متابعة @${username}`, 'info');
+}
+
+function showEditProfile() {
+  if (!currentUser) return;
+  document.getElementById('auth-modal-content').innerHTML = `
+    <div class="modal-title">✏️ تعديل الملف الشخصي</div>
+    <div class="modal-subtitle">حدّث معلوماتك</div>
+    <form onsubmit="submitEditProfile(event)" enctype="multipart/form-data">
+      <div class="form-group">
+        <label class="form-label">الاسم</label>
+        <input class="form-input" name="display_name" value="${currentUser.display_name}" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">النبذة</label>
+        <textarea class="form-input" name="bio" rows="3" style="resize:none">${currentUser.bio||''}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">الصورة الشخصية</label>
+        <input class="form-input" type="file" name="avatar" accept="image/*">
+      </div>
+      <div id="edit-error" class="form-error"></div>
+      <button type="submit" class="btn btn-primary" style="width:100%;margin-top:8px;justify-content:center">حفظ التغييرات</button>
+    </form>`;
+  showModal('auth-modal');
+}
+
+async function submitEditProfile(e) {
+  e.preventDefault();
+  const form = e.target;
+  const formData = new FormData(form);
+  const res = await fetch('/api/profile', { method:'POST', body:formData });
+  const data = await res.json();
+  if (data.error) { document.getElementById('edit-error').textContent = data.error; return; }
+  toast('تم تحديث الملف الشخصي ✅', 'success');
+  closeModal('auth-modal');
+  await checkAuth();
+  loadProfile(currentUser.username);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// STOCK PAGE
+// ══════════════════════════════════════════════════════════════════
+async function loadStockPage(symbol) {
+  const el = document.getElementById('stock-content');
+  const statsRes = await fetch(`/api/stocks/${symbol}/stats`);
+  const stats = await statsRes.json();
+  const total = stats.bullish + stats.bearish || 1;
+  const bullishPct = Math.round((stats.bullish / total) * 100);
+  const bearishPct = 100 - bullishPct;
+
+  const stockInfo = [
+    {symbol:'$2222',name:'أرامكو'},{symbol:'$1120',name:'الراجحي'},{symbol:'$1010',name:'الرياض'},
+    {symbol:'$2010',name:'سابك'},{symbol:'$7010',name:'STC'}
+  ].find(s => s.symbol === symbol);
+
+  el.innerHTML = `
+    <div class="stock-header">
+      <div class="stock-symbol">${symbol}</div>
+      ${stockInfo ? `<div class="stock-name">${stockInfo.name}</div>` : ''}
+      <div style="margin-top:14px;display:flex;gap:16px;flex-wrap:wrap">
+        <span style="color:var(--text2);font-size:14px">📊 ${stats.total_posts} منشور</span>
+        <span style="color:var(--green);font-size:14px">📈 ${stats.bullish} صاعد</span>
+        <span style="color:var(--red);font-size:14px">📉 ${stats.bearish} هابط</span>
+      </div>
+      <div class="stock-sentiment" style="margin-top:16px">
+        <div class="sentiment-bar">
+          <div class="sentiment-label"><span style="color:var(--green)">📈 صاعد</span><span>${bullishPct}%</span></div>
+          <div class="sentiment-track"><div class="sentiment-fill bullish" style="width:${bullishPct}%"></div></div>
+        </div>
+        <div class="sentiment-bar">
+          <div class="sentiment-label"><span style="color:var(--red)">📉 هابط</span><span>${bearishPct}%</span></div>
+          <div class="sentiment-track"><div class="sentiment-fill bearish" style="width:${bearishPct}%"></div></div>
+        </div>
+      </div>
+    </div>
+    <h3 style="margin-bottom:16px">منشورات ${symbol}</h3>
+    <div id="stock-posts"></div>`;
+
+  const postsRes = await fetch(`/api/posts?symbol=${symbol}`);
+  const postsData = await postsRes.json();
+  const sp = document.getElementById('stock-posts');
+  if (postsData.posts.length === 0) {
+    sp.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div>
+      <div class="empty-title">لا توجد منشورات بعد لهذا السهم</div>
+      <p>كن أول من ينشر تحليلاً عن ${symbol}</p></div>`;
+  } else {
+    postsData.posts.forEach(p => sp.insertAdjacentHTML('beforeend', createPostCard(p)));
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// EXPLORE
+// ══════════════════════════════════════════════════════════════════
+async function loadExplorePage() {
+  const res = await fetch('/api/stocks/popular');
+  const data = await res.json();
+  const grid = document.getElementById('explore-stocks-grid');
+  grid.innerHTML = data.stocks.map(s => `
+    <div class="panel-card" style="cursor:pointer;transition:border-color .2s" onclick="navigate('stock','${s.symbol}')"
+      onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--border)'">
+      <div style="font-size:22px;font-weight:700;color:var(--primary)">${s.symbol}</div>
+      <div style="font-size:15px;font-weight:600;margin-top:4px">${s.name}</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:4px">${s.sector}</div>
+    </div>`).join('');
+
+  const postsRes = await fetch('/api/posts?page=0');
+  const postsData = await postsRes.json();
+  const feed = document.getElementById('explore-feed');
+  postsData.posts.slice(0,10).forEach(p => feed.insertAdjacentHTML('beforeend', createPostCard(p)));
+}
+
+// ══════════════════════════════════════════════════════════════════
+// LEADERBOARD
+// ══════════════════════════════════════════════════════════════════
+async function loadLeaderboardPanel() {
+  const res = await fetch('/api/leaderboard');
+  const data = await res.json();
+  const el = document.getElementById('leaderboard-panel');
+  el.innerHTML = data.users.slice(0,5).map((u,i) => `
+    <div class="leaderboard-item">
+      <div class="rank-num ${i===0?'gold':''}">${['🥇','🥈','🥉'][i]||i+1}</div>
+      <div class="avatar" style="width:32px;height:32px;font-size:12px;cursor:pointer" onclick="navigate('profile','${u.username}')">
+        ${u.avatar ? `<img src="${u.avatar}">` : u.display_name[0]}
+      </div>
+      <div class="leaderboard-info">
+        <div class="leaderboard-name" onclick="navigate('profile','${u.username}')">${u.display_name} ${u.is_verified?'✓':''}</div>
+        <div class="leaderboard-rep">${u.level_name}</div>
+      </div>
+      <div class="rep-score">${u.reputation}★</div>
+    </div>`).join('');
+}
+
+async function loadFullLeaderboard() {
+  const res = await fetch('/api/leaderboard');
+  const data = await res.json();
+  document.getElementById('full-leaderboard').innerHTML = data.users.map((u,i) => `
+    <div class="leaderboard-item">
+      <div class="rank-num ${i<3?'gold':''}">${['🥇','🥈','🥉'][i]||i+1}</div>
+      <div class="avatar" style="width:38px;height:38px;font-size:14px;cursor:pointer" onclick="navigate('profile','${u.username}')">
+        ${u.avatar ? `<img src="${u.avatar}">` : u.display_name[0]}
+      </div>
+      <div class="leaderboard-info" style="flex:1">
+        <div class="leaderboard-name" onclick="navigate('profile','${u.username}')" style="font-size:15px">${u.display_name} ${u.is_verified?'<span style="color:var(--primary)">✓</span>':''}</div>
+        <div class="leaderboard-rep">${u.level_name} · ${u.posts_count} منشور · ${u.followers_count} متابع</div>
+      </div>
+      <div class="rep-score" style="font-size:16px">${u.reputation}★</div>
+    </div>`).join('') || '<p style="color:var(--text3);padding:20px">لا يوجد مستخدمون بعد</p>';
+}
+
+// ══════════════════════════════════════════════════════════════════
+// POPULAR STOCKS & TRENDING
+// ══════════════════════════════════════════════════════════════════
+async function loadPopularStocks() {
+  const res = await fetch('/api/stocks/popular');
+  const data = await res.json();
+  document.getElementById('popular-stocks').innerHTML = data.stocks
+    .map(s => `<span class="stock-chip" onclick="navigate('stock','${s.symbol}')">${s.symbol}<span style="font-size:10px;color:var(--text3);font-weight:400">${s.name}</span></span>`)
+    .join('');
+}
+
+async function loadTrendingStocks() {
+  const res = await fetch('/api/stocks/popular');
+  const data = await res.json();
+  document.getElementById('trending-stocks').innerHTML = data.stocks.slice(0,6).map((s,i) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer"
+      onclick="navigate('stock','${s.symbol}')">
+      <div>
+        <div style="font-weight:600;font-size:13px;color:var(--primary)">${s.symbol}</div>
+        <div style="font-size:12px;color:var(--text3)">${s.name}</div>
+      </div>
+      <div style="font-size:12px;color:var(--text3)">${s.sector}</div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// IPOs
+// ══════════════════════════════════════════════════════════════════
+function loadIPOs() {
+  const ipos = [
+    { name: 'قيد الإضافة', sector: 'انتظر الإعلانات الرسمية من هيئة السوق المالية', date: '—', status: 'قادم' },
+  ];
+  document.getElementById('ipos-content').innerHTML = `
+    <div class="empty-state">
+      <div class="empty-icon">📋</div>
+      <div class="empty-title">قسم الاكتتابات</div>
+      <p style="color:var(--text2);margin-bottom:16px">سيتم إضافة الاكتتابات القادمة هنا بمجرد الإعلان الرسمي عنها من هيئة السوق المالية</p>
+      <p style="font-size:13px;color:var(--text3)">يمكن لأي عضو مشاركة خبر اكتتاب من خلال نشر تحليل في الفيد الرئيسي باستخدام وسم $اكتتاب</p>
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// SEARCH
+// ══════════════════════════════════════════════════════════════════
+let searchTimer;
+document.getElementById('search-input').addEventListener('input', function() {
+  clearTimeout(searchTimer);
+  const q = this.value.trim();
+  if (q.length < 2) { document.getElementById('search-results').classList.remove('show'); return; }
+  searchTimer = setTimeout(() => doSearch(q), 300);
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.navbar-search')) document.getElementById('search-results').classList.remove('show');
+});
+
+async function doSearch(q) {
+  const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+  const data = await res.json();
+  const el = document.getElementById('search-results');
+  let html = '';
+  if (data.users.length > 0) {
+    html += `<div style="padding:8px 16px;font-size:11px;color:var(--text3);font-weight:700;letter-spacing:.5px">المستخدمون</div>`;
+    html += data.users.map(u => `
+      <div class="search-result-item" onclick="navigate('profile','${u.username}');document.getElementById('search-results').classList.remove('show')">
+        <div class="avatar" style="width:30px;height:30px;font-size:11px">${u.avatar?`<img src="${u.avatar}">`:u.display_name[0]}</div>
+        <div><div style="font-size:13px;font-weight:600">${u.display_name}</div><div style="font-size:11px;color:var(--text3)">@${u.username} · ${u.level_name}</div></div>
+      </div>`).join('');
+  }
+  if (data.posts.length > 0) {
+    html += `<div style="padding:8px 16px;font-size:11px;color:var(--text3);font-weight:700;letter-spacing:.5px">المنشورات</div>`;
+    html += data.posts.slice(0,3).map(p => `
+      <div class="search-result-item" style="cursor:default">
+        <div style="font-size:13px;color:var(--text)">${p.content.slice(0,60)}${p.content.length>60?'...':''}</div>
+      </div>`).join('');
+  }
+  if (!html) html = `<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">لا نتائج لـ "${q}"</div>`;
+  el.innerHTML = html;
+  el.classList.add('show');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// NOTIFICATIONS
+// ══════════════════════════════════════════════════════════════════
+function toggleNotif() {
+  const panel = document.getElementById('notif-panel');
+  panel.classList.toggle('show');
+  if (panel.classList.contains('show')) loadNotifications();
+}
+
+async function loadNotifications() {
+  const res = await fetch('/api/notifications');
+  const data = await res.json();
+  const list = document.getElementById('notif-list');
+  if (data.notifications.length === 0) {
+    list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text3)">لا توجد إشعارات</div>`;
+    return;
+  }
+  list.innerHTML = data.notifications.map(n => `
+    <div class="notif-item ${n.is_read?'':'unread'}" onclick="navigate(${n.link?`'profile'`:`'home'`})">
+      <div class="avatar" style="width:32px;height:32px;font-size:12px">
+        ${n.from_avatar?`<img src="${n.from_avatar}">`:n.from_name?n.from_name[0]:'📢'}
+      </div>
+      <div>
+        <div class="notif-text">${n.message}</div>
+        <div class="notif-time">${n.time_ago}</div>
+      </div>
+    </div>`).join('');
+}
+
+async function markNotifRead() {
+  await fetch('/api/notifications/read', { method:'POST' });
+  notifCount = 0;
+  document.getElementById('notif-badge').style.display = 'none';
+  loadNotifications();
+}
+
+async function pollNotifications() {
+  const res = await fetch('/api/notifications/count');
+  const data = await res.json();
+  notifCount = data.count;
+  const badge = document.getElementById('notif-badge');
+  if (badge) {
+    badge.style.display = notifCount > 0 ? 'flex' : 'none';
+    badge.textContent = notifCount;
+  }
+  setTimeout(pollNotifications, 30000);
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#notif-panel') && !e.target.closest('#notif-btn'))
+    document.getElementById('notif-panel').classList.remove('show');
+});
+
+// ══════════════════════════════════════════════════════════════════
+// AUTH MODALS
+// ══════════════════════════════════════════════════════════════════
+function showLoginModal() {
+  document.getElementById('auth-modal-content').innerHTML = `
+    <div class="modal-title">مرحباً بعودتك 👋</div>
+    <div class="modal-subtitle">سجّل دخولك للمشاركة في المجتمع</div>
+    <div class="form-group">
+      <label class="form-label">البريد الإلكتروني</label>
+      <input class="form-input" id="login-email" type="email" placeholder="example@email.com" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label class="form-label">كلمة المرور</label>
+      <input class="form-input" id="login-pass" type="password" placeholder="••••••••" autocomplete="current-password"
+        onkeydown="if(event.key==='Enter')submitLogin()">
+    </div>
+    <div id="login-error" class="form-error"></div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;padding:12px" onclick="submitLogin()">دخول</button>
+    <div class="form-switch">ليس لديك حساب؟ <a onclick="showRegisterModal()">سجّل الآن مجاناً</a></div>`;
+  showModal('auth-modal');
+}
+
+function showRegisterModal() {
+  document.getElementById('auth-modal-content').innerHTML = `
+    <div class="modal-title">انضم لمجتمع سهم 📈</div>
+    <div class="modal-subtitle">شارك تحليلاتك وابنِ سمعتك</div>
+    <div class="form-group">
+      <label class="form-label">الاسم الظاهر</label>
+      <input class="form-input" id="reg-name" type="text" placeholder="اسمك في المنصة">
+    </div>
+    <div class="form-group">
+      <label class="form-label">اسم المستخدم</label>
+      <input class="form-input" id="reg-username" type="text" placeholder="مثال: trader_ali" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label class="form-label">البريد الإلكتروني</label>
+      <input class="form-input" id="reg-email" type="email" placeholder="example@email.com" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label class="form-label">كلمة المرور</label>
+      <input class="form-input" id="reg-pass" type="password" placeholder="8 أحرف على الأقل" autocomplete="new-password"
+        onkeydown="if(event.key==='Enter')submitRegister()">
+    </div>
+    <div id="reg-error" class="form-error"></div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;padding:12px" onclick="submitRegister()">إنشاء الحساب مجاناً</button>
+    <div class="form-switch">لديك حساب؟ <a onclick="showLoginModal()">سجّل الدخول</a></div>`;
+  showModal('auth-modal');
+}
+
+async function submitLogin() {
+  const email = document.getElementById('login-email').value;
+  const password = document.getElementById('login-pass').value;
+  if (!email || !password) { document.getElementById('login-error').textContent = 'يرجى ملء جميع الحقول'; return; }
+  const res = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email,password}) });
+  const data = await res.json();
+  if (data.error) { document.getElementById('login-error').textContent = data.error; return; }
+  closeModal('auth-modal');
+  await checkAuth();
+  renderFeed();
+  toast('أهلاً وسهلاً! 🎉', 'success');
+}
+
+async function submitRegister() {
+  const display_name = document.getElementById('reg-name').value;
+  const username = document.getElementById('reg-username').value;
+  const email = document.getElementById('reg-email').value;
+  const password = document.getElementById('reg-pass').value;
+  if (!display_name || !username || !email || !password) { document.getElementById('reg-error').textContent = 'يرجى ملء جميع الحقول'; return; }
+  const res = await fetch('/api/register', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username,display_name,email,password}) });
+  const data = await res.json();
+  if (data.error) { document.getElementById('reg-error').textContent = data.error; return; }
+  closeModal('auth-modal');
+  await checkAuth();
+  renderFeed();
+  toast('مرحباً بك في مجتمع سهم! 🎉', 'success');
+}
+
+async function logout() {
+  await fetch('/api/logout', { method:'POST' });
+  currentUser = null;
+  renderAuthArea();
+  renderComposeArea();
+  renderFeed();
+  toast('تم تسجيل الخروج', 'info');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// MODAL HELPERS
+// ══════════════════════════════════════════════════════════════════
+function showModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+document.getElementById('auth-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal('auth-modal');
+});
+
+// ══════════════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════════════
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.style.opacity = '0', 2700);
+  setTimeout(() => el.remove(), 3000);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// START
+// ══════════════════════════════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
