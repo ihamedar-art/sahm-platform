@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة تحكم سهم</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0B0E13; --bg2: #111620; --bg3: #181E2A;
+  --border: #1E2738; --border2: #2A3448;
+  --text: #E8EDF5; --text2: #8B96A8; --text3: #5A6578;
+  --primary: #3B7DDD; --green: #22C55E; --red: #EF4444;
+  --gold: #F59E0B; --orange: #F97316;
+  --radius: 12px; --radius2: 8px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'IBM Plex Sans Arabic',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+
+/* Login */
+.login-wrap { display:flex; align-items:center; justify-content:center; min-height:100vh; }
+.login-box { background:var(--bg2); border:1px solid var(--border2); border-radius:16px; padding:40px; width:360px; text-align:center; }
+.login-logo { font-size:48px; margin-bottom:16px; }
+.login-title { font-size:22px; font-weight:700; margin-bottom:6px; }
+.login-sub { color:var(--text2); font-size:14px; margin-bottom:28px; }
+.inp { width:100%; padding:12px 14px; background:var(--bg3); border:1px solid var(--border2); border-radius:var(--radius2); color:var(--text); font-family:inherit; font-size:14px; outline:none; margin-bottom:14px; }
+.inp:focus { border-color:var(--primary); }
+.btn { padding:11px 20px; border-radius:var(--radius2); border:none; font-family:inherit; font-size:14px; font-weight:600; cursor:pointer; transition:all .2s; }
+.btn-primary { background:var(--primary); color:#fff; width:100%; }
+.btn-primary:hover { background:#2563C4; }
+.btn-sm { padding:6px 12px; font-size:12px; }
+.btn-ghost { background:transparent; border:1px solid var(--border2); color:var(--text2); }
+.btn-ghost:hover { background:var(--bg3); color:var(--text); }
+.btn-danger { background:rgba(239,68,68,.1); color:var(--red); border:1px solid var(--red); }
+.btn-danger:hover { background:rgba(239,68,68,.2); }
+.btn-success { background:rgba(34,197,94,.1); color:var(--green); border:1px solid var(--green); }
+.btn-success:hover { background:rgba(34,197,94,.2); }
+.error-msg { color:var(--red); font-size:13px; margin-top:8px; }
+
+/* Layout */
+.admin-wrap { display:flex; min-height:100vh; }
+.sidebar { width:220px; background:var(--bg2); border-left:1px solid var(--border); padding:20px 0; flex-shrink:0; position:sticky; top:0; height:100vh; overflow-y:auto; }
+.sidebar-logo { display:flex; align-items:center; gap:10px; padding:0 20px 20px; border-bottom:1px solid var(--border); margin-bottom:12px; }
+.sidebar-logo .icon { width:36px; height:36px; background:linear-gradient(135deg,var(--primary),#1D4ED8); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; }
+.sidebar-logo span { font-size:16px; font-weight:700; }
+.nav-link { display:flex; align-items:center; gap:10px; padding:11px 20px; color:var(--text2); cursor:pointer; font-size:14px; font-weight:500; transition:all .15s; border:none; background:transparent; width:100%; text-align:right; }
+.nav-link:hover, .nav-link.active { background:var(--bg3); color:var(--text); }
+.nav-link.active { border-left:3px solid var(--primary); color:var(--primary); }
+.nav-icon { font-size:16px; width:20px; text-align:center; }
+.logout-btn { margin-top:auto; padding:20px; border-top:1px solid var(--border); }
+
+.main { flex:1; overflow-y:auto; }
+.topbar { padding:16px 24px; background:rgba(11,14,19,.9); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:10; display:flex; align-items:center; justify-content:space-between; }
+.page-title { font-size:18px; font-weight:700; }
+.content { padding:24px; }
+
+/* Stats */
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:16px; margin-bottom:28px; }
+.stat-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:20px; }
+.stat-icon { font-size:28px; margin-bottom:10px; }
+.stat-num { font-size:28px; font-weight:700; color:var(--text); }
+.stat-label { font-size:13px; color:var(--text2); margin-top:4px; }
+.stat-card.green { border-color:rgba(34,197,94,.3); }
+.stat-card.blue { border-color:rgba(59,125,221,.3); }
+.stat-card.gold { border-color:rgba(245,158,11,.3); }
+.stat-card.red { border-color:rgba(239,68,68,.3); }
+
+/* Table */
+.table-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; margin-bottom:20px; }
+.table-header { padding:16px 20px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); flex-wrap:wrap; gap:10px; }
+.table-title { font-size:15px; font-weight:700; }
+.search-inp { padding:8px 14px; background:var(--bg3); border:1px solid var(--border2); border-radius:var(--radius2); color:var(--text); font-family:inherit; font-size:13px; outline:none; width:220px; }
+.search-inp:focus { border-color:var(--primary); }
+table { width:100%; border-collapse:collapse; }
+th { padding:12px 16px; text-align:right; font-size:12px; font-weight:600; color:var(--text3); text-transform:uppercase; letter-spacing:.5px; background:var(--bg3); border-bottom:1px solid var(--border); }
+td { padding:12px 16px; font-size:13px; border-bottom:1px solid var(--border); vertical-align:middle; }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:rgba(255,255,255,.02); }
+.badge { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+.badge-green { background:rgba(34,197,94,.1); color:var(--green); }
+.badge-blue { background:rgba(59,125,221,.1); color:var(--primary); }
+.badge-gray { background:var(--bg3); color:var(--text3); }
+.badge-red { background:rgba(239,68,68,.1); color:var(--red); }
+.badge-gold { background:rgba(245,158,11,.1); color:var(--gold); }
+.actions { display:flex; gap:6px; }
+.avatar-xs { width:28px; height:28px; border-radius:50%; background:linear-gradient(135deg,var(--primary),#7C3AED); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; overflow:hidden; }
+.avatar-xs img { width:100%; height:100%; object-fit:cover; }
+.user-cell { display:flex; align-items:center; gap:8px; }
+.post-content-cell { max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text2); }
+
+/* Pagination */
+.pagination { display:flex; gap:8px; justify-content:center; padding:16px; }
+.page-btn { padding:6px 14px; border-radius:var(--radius2); border:1px solid var(--border2); background:transparent; color:var(--text2); cursor:pointer; font-family:inherit; font-size:13px; }
+.page-btn.active, .page-btn:hover { background:var(--primary); color:#fff; border-color:var(--primary); }
+
+/* Toast */
+#toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); padding:12px 20px; border-radius:var(--radius2); font-size:14px; font-weight:500; z-index:9999; display:none; }
+#toast.show { display:block; animation:fadeIn .3s ease; }
+#toast.success { background:var(--green); color:#fff; }
+#toast.error { background:var(--red); color:#fff; }
+#toast.info { background:var(--primary); color:#fff; }
+@keyframes fadeIn { from{opacity:0;transform:translateX(-50%) translateY(10px)} to{opacity:1;transform:translateX(-50%)} }
+
+/* Empty */
+.empty { text-align:center; padding:40px; color:var(--text3); font-size:14px; }
+
+/* Loading */
+.loading { text-align:center; padding:40px; color:var(--text3); }
+
+/* Confirm */
+.confirm-overlay { position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:1000; display:none; align-items:center; justify-content:center; }
+.confirm-overlay.show { display:flex; }
+.confirm-box { background:var(--bg2); border:1px solid var(--border2); border-radius:16px; padding:28px; max-width:360px; width:90%; text-align:center; }
+.confirm-title { font-size:18px; font-weight:700; margin-bottom:8px; }
+.confirm-msg { color:var(--text2); font-size:14px; margin-bottom:24px; }
+.confirm-actions { display:flex; gap:10px; justify-content:center; }
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login-page" class="login-wrap">
+  <div class="login-box">
+    <div class="login-logo">🔐</div>
+    <div class="login-title">لوحة تحكم سهم</div>
+    <div class="login-sub">للمشرفين فقط</div>
+    <input class="inp" type="password" id="admin-pass" placeholder="كلمة المرور" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="btn btn-primary" onclick="doLogin()">دخول</button>
+    <div class="error-msg" id="login-error"></div>
+  </div>
+</div>
+
+<!-- Admin Panel -->
+<div id="admin-panel" class="admin-wrap" style="display:none">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="icon">📈</div>
+      <span>لوحة سهم</span>
+    </div>
+    <button class="nav-link active" onclick="showPage('dashboard')" id="nav-dashboard"><span class="nav-icon">📊</span> الإحصائيات</button>
+    <button class="nav-link" onclick="showPage('users')" id="nav-users"><span class="nav-icon">👥</span> المستخدمون</button>
+    <button class="nav-link" onclick="showPage('posts')" id="nav-posts"><span class="nav-icon">📝</span> المنشورات</button>
+    <div style="margin-top:auto;padding:20px;border-top:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm" style="width:100%" onclick="doLogout()">🚪 خروج</button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="page-title" id="current-page-title">📊 الإحصائيات</div>
+      <div style="font-size:13px;color:var(--text3)">منصة سهم — لوحة التحكم</div>
+    </div>
+    <div class="content">
+
+      <!-- Dashboard -->
+      <div id="page-dashboard">
+        <div class="stats-grid" id="stats-grid">
+          <div class="loading">جاري التحميل...</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="table-card">
+            <div class="table-header"><div class="table-title">🆕 آخر المستخدمين</div></div>
+            <div id="recent-users"></div>
+          </div>
+          <div class="table-card">
+            <div class="table-header"><div class="table-title">🔥 آخر المنشورات</div></div>
+            <div id="recent-posts"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Users -->
+      <div id="page-users" style="display:none">
+        <div class="table-card">
+          <div class="table-header">
+            <div class="table-title">👥 المستخدمون</div>
+            <input class="search-inp" id="users-search" placeholder="🔍 بحث باسم أو إيميل..." oninput="searchUsers(this.value)">
+          </div>
+          <div id="users-table-wrap"><div class="loading">جاري التحميل...</div></div>
+          <div class="pagination" id="users-pagination"></div>
+        </div>
+      </div>
+
+      <!-- Posts -->
+      <div id="page-posts" style="display:none">
+        <div class="table-card">
+          <div class="table-header">
+            <div class="table-title">📝 المنشورات</div>
+            <input class="search-inp" id="posts-search" placeholder="🔍 بحث في المحتوى..." oninput="searchPosts(this.value)">
+          </div>
+          <div id="posts-table-wrap"><div class="loading">جاري التحميل...</div></div>
+          <div class="pagination" id="posts-pagination"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Dialog -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <div class="confirm-title" id="confirm-title">تأكيد الحذف</div>
+    <div class="confirm-msg" id="confirm-msg">هل أنت متأكد؟</div>
+    <div class="confirm-actions">
+      <button class="btn btn-danger" onclick="confirmYes()">نعم، احذف</button>
+      <button class="btn btn-ghost" onclick="confirmNo()">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+let usersPage = 0, postsPage = 0;
+let usersSearch = '', postsSearch = '';
+let confirmCallback = null;
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+async function checkAdmin() {
+  const res = await fetch('/api/admin/check');
+  const data = await res.json();
+  if (data.isAdmin) showAdmin();
+}
+
+async function doLogin() {
+  const pass = document.getElementById('admin-pass').value;
+  const res = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:pass}) });
+  const data = await res.json();
+  if (data.error) { document.getElementById('login-error').textContent = data.error; return; }
+  showAdmin();
+}
+
+async function doLogout() {
+  await fetch('/api/admin/logout', { method:'POST' });
+  document.getElementById('admin-panel').style.display = 'none';
+  document.getElementById('login-page').style.display = 'flex';
+  document.getElementById('admin-pass').value = '';
+}
+
+function showAdmin() {
+  document.getElementById('login-page').style.display = 'none';
+  document.getElementById('admin-panel').style.display = 'flex';
+  loadDashboard();
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function showPage(page) {
+  ['dashboard','users','posts'].forEach(p => {
+    document.getElementById('page-'+p).style.display = p===page ? 'block' : 'none';
+    document.getElementById('nav-'+p).classList.toggle('active', p===page);
+  });
+  const titles = { dashboard:'📊 الإحصائيات', users:'👥 المستخدمون', posts:'📝 المنشورات' };
+  document.getElementById('current-page-title').textContent = titles[page];
+  if (page === 'users') loadUsers();
+  if (page === 'posts') loadPosts();
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  const res = await fetch('/api/admin/stats');
+  const s = await res.json();
+
+  document.getElementById('stats-grid').innerHTML = `
+    <div class="stat-card blue"><div class="stat-icon">👥</div><div class="stat-num">${s.totalUsers}</div><div class="stat-label">إجمالي المستخدمين</div></div>
+    <div class="stat-card green"><div class="stat-icon">📝</div><div class="stat-num">${s.totalPosts}</div><div class="stat-label">إجمالي المنشورات</div></div>
+    <div class="stat-card gold"><div class="stat-icon">💬</div><div class="stat-num">${s.totalComments}</div><div class="stat-label">إجمالي التعليقات</div></div>
+    <div class="stat-card red"><div class="stat-icon">👍</div><div class="stat-num">${s.totalVotes}</div><div class="stat-label">إجمالي التصويتات</div></div>
+    <div class="stat-card green"><div class="stat-icon">🆕</div><div class="stat-num">${s.newUsersToday}</div><div class="stat-label">مستخدمون اليوم</div></div>
+    <div class="stat-card blue"><div class="stat-icon">✍️</div><div class="stat-num">${s.newPostsToday}</div><div class="stat-label">منشورات اليوم</div></div>`;
+
+  // آخر المستخدمين
+  const ures = await fetch('/api/admin/users?page=0');
+  const udata = await ures.json();
+  document.getElementById('recent-users').innerHTML = `<table>
+    <tr><th>المستخدم</th><th>المستوى</th><th>انضم</th></tr>
+    ${udata.users.slice(0,5).map(u => `<tr>
+      <td><div class="user-cell"><div class="avatar-xs">${u.display_name[0]}</div>${u.display_name}</div></td>
+      <td><span class="badge badge-blue">${u.level_name}</span></td>
+      <td style="color:var(--text3)">${u.joined}</td>
+    </tr>`).join('')}
+  </table>`;
+
+  // آخر المنشورات
+  const pres = await fetch('/api/admin/posts?page=0');
+  const pdata = await pres.json();
+  document.getElementById('recent-posts').innerHTML = `<table>
+    <tr><th>الناشر</th><th>المحتوى</th><th>الوقت</th></tr>
+    ${pdata.posts.slice(0,5).map(p => `<tr>
+      <td style="font-weight:600;font-size:12px">@${p.username}</td>
+      <td class="post-content-cell">${p.content}</td>
+      <td style="color:var(--text3);font-size:12px">${p.time_ago}</td>
+    </tr>`).join('')}
+  </table>`;
+}
+
+// ── Users ─────────────────────────────────────────────────────────────────────
+let usersTimer;
+function searchUsers(val) { usersSearch = val; usersPage = 0; clearTimeout(usersTimer); usersTimer = setTimeout(loadUsers, 400); }
+
+async function loadUsers() {
+  document.getElementById('users-table-wrap').innerHTML = '<div class="loading">جاري التحميل...</div>';
+  const res = await fetch(`/api/admin/users?page=${usersPage}&search=${encodeURIComponent(usersSearch)}`);
+  const data = await res.json();
+
+  if (!data.users.length) { document.getElementById('users-table-wrap').innerHTML = '<div class="empty">لا يوجد مستخدمون</div>'; return; }
+
+  document.getElementById('users-table-wrap').innerHTML = `<table>
+    <thead><tr><th>المستخدم</th><th>البريد</th><th>المستوى</th><th>منشورات</th><th>السمعة</th><th>انضم</th><th>إجراءات</th></tr></thead>
+    <tbody>${data.users.map(u => `<tr id="user-row-${u.id}">
+      <td><div class="user-cell">
+        <div class="avatar-xs">${u.display_name[0]}</div>
+        <div><div style="font-weight:600">${u.display_name} ${u.is_verified?'<span style="color:var(--primary)">✓</span>':''}</div>
+        <div style="font-size:11px;color:var(--text3)">@${u.username}</div></div>
+      </div></td>
+      <td style="color:var(--text2);font-size:12px">${u.email}</td>
+      <td><span class="badge badge-blue">${u.level_name}</span></td>
+      <td style="color:var(--text2)">${u.posts_count}</td>
+      <td><span style="color:var(--gold);font-weight:600">${u.reputation}★</span></td>
+      <td style="color:var(--text3);font-size:12px">${u.joined}</td>
+      <td><div class="actions">
+        <button class="btn btn-sm ${u.is_verified?'btn-ghost':'btn-success'}" onclick="verifyUser('${u.id}','${u.display_name}')">
+          ${u.is_verified ? '✓ موثّق' : '+ توثيق'}
+        </button>
+        <button class="btn btn-sm btn-danger" onclick="deleteUser('${u.id}','${u.display_name}')">🗑️</button>
+      </div></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+
+  document.getElementById('users-pagination').innerHTML =
+    (usersPage > 0 ? `<button class="page-btn" onclick="usersPage--;loadUsers()">→ السابق</button>` : '') +
+    `<span class="page-btn active">صفحة ${usersPage+1}</span>` +
+    (data.users.length === 20 ? `<button class="page-btn" onclick="usersPage++;loadUsers()">← التالي</button>` : '');
+}
+
+async function verifyUser(id, name) {
+  const res = await fetch(`/api/admin/users/${id}/verify`, { method:'POST' });
+  const data = await res.json();
+  if (data.error) { toast(data.error,'error'); return; }
+  toast(data.is_verified ? `✓ تم توثيق ${name}` : `تم إلغاء توثيق ${name}`, 'success');
+  loadUsers();
+}
+
+function deleteUser(id, name) {
+  confirm(`حذف المستخدم "${name}"؟`, 'سيتم حذف جميع منشوراته وتعليقاته بشكل نهائي', async () => {
+    const res = await fetch(`/api/admin/users/${id}`, { method:'DELETE' });
+    const data = await res.json();
+    if (data.success) { toast(`تم حذف ${name}`, 'success'); loadUsers(); }
+  });
+}
+
+// ── Posts ─────────────────────────────────────────────────────────────────────
+let postsTimer;
+function searchPosts(val) { postsSearch = val; postsPage = 0; clearTimeout(postsTimer); postsTimer = setTimeout(loadPosts, 400); }
+
+async function loadPosts() {
+  document.getElementById('posts-table-wrap').innerHTML = '<div class="loading">جاري التحميل...</div>';
+  const res = await fetch(`/api/admin/posts?page=${postsPage}&search=${encodeURIComponent(postsSearch)}`);
+  const data = await res.json();
+
+  if (!data.posts.length) { document.getElementById('posts-table-wrap').innerHTML = '<div class="empty">لا يوجد منشورات</div>'; return; }
+
+  document.getElementById('posts-table-wrap').innerHTML = `<table>
+    <thead><tr><th>الناشر</th><th>المحتوى</th><th>النوع</th><th>الأسهم</th><th>👍</th><th>💬</th><th>الوقت</th><th>إجراءات</th></tr></thead>
+    <tbody>${data.posts.map(p => `<tr id="post-row-${p.id}">
+      <td style="font-weight:600">@${p.username}</td>
+      <td class="post-content-cell" style="max-width:200px">${p.content}</td>
+      <td><span class="badge ${p.post_type==='analysis'?'badge-gold':p.post_type==='news'?'badge-blue':'badge-gray'}">${typeLabel(p.post_type)}</span></td>
+      <td style="color:var(--primary);font-size:12px">${p.stock_symbols||'—'}</td>
+      <td style="color:var(--green)">${p.upvotes}</td>
+      <td style="color:var(--text2)">${p.comments_count}</td>
+      <td style="color:var(--text3);font-size:12px">${p.time_ago}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="deletePost('${p.id}')">🗑️ حذف</button></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+
+  document.getElementById('posts-pagination').innerHTML =
+    (postsPage > 0 ? `<button class="page-btn" onclick="postsPage--;loadPosts()">→ السابق</button>` : '') +
+    `<span class="page-btn active">صفحة ${postsPage+1}</span>` +
+    (data.posts.length === 20 ? `<button class="page-btn" onclick="postsPage++;loadPosts()">← التالي</button>` : '');
+}
+
+function typeLabel(t) { return {opinion:'رأي',analysis:'تحليل',news:'خبر',question:'سؤال'}[t]||t; }
+
+function deletePost(id) {
+  confirm('حذف المنشور؟', 'سيتم حذف المنشور وتعليقاته بشكل نهائي', async () => {
+    const res = await fetch(`/api/admin/posts/${id}`, { method:'DELETE' });
+    const data = await res.json();
+    if (data.success) { toast('تم حذف المنشور', 'success'); loadPosts(); }
+  });
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function toast(msg, type='info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = `show ${type}`;
+  setTimeout(() => el.className = '', 3000);
+}
+
+function confirm(title, msg, cb) {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-msg').textContent = msg;
+  document.getElementById('confirm-overlay').classList.add('show');
+  confirmCallback = cb;
+}
+function confirmYes() { document.getElementById('confirm-overlay').classList.remove('show'); if(confirmCallback) confirmCallback(); }
+function confirmNo() { document.getElementById('confirm-overlay').classList.remove('show'); confirmCallback = null; }
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+checkAdmin();
+</script>
+</body>
+</html>
