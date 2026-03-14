@@ -491,6 +491,80 @@ app.get('/api/leaderboard', (req, res) => {
   res.json({ users });
 });
 
+// ══════════════════════════════════════════════════════════════════════════════
+// ADMIN ROUTES
+// ══════════════════════════════════════════════════════════════════════════════
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'sahm-admin-2026';
+
+function requireAdmin(req, res, next) {
+  if (!req.session.isAdmin) return res.status(401).json({ error: 'غير مصرح' });
+  next();
+}
+
+app.post('/api/admin/login', (req, res) => {
+  if (req.body.password === ADMIN_PASSWORD) { req.session.isAdmin = true; res.json({ success: true }); }
+  else res.json({ error: 'كلمة المرور غير صحيحة' });
+});
+app.post('/api/admin/logout', (req, res) => { req.session.isAdmin = false; res.json({ success: true }); });
+app.get('/api/admin/check', (req, res) => res.json({ isAdmin: !!req.session.isAdmin }));
+
+app.get('/api/admin/stats', requireAdmin, (req, res) => {
+  res.json({
+    totalUsers:    db.prepare('SELECT COUNT(*) as c FROM users').get().c,
+    totalPosts:    db.prepare('SELECT COUNT(*) as c FROM posts').get().c,
+    totalComments: db.prepare('SELECT COUNT(*) as c FROM comments').get().c,
+    totalVotes:    db.prepare('SELECT COUNT(*) as c FROM votes').get().c,
+    newUsersToday: db.prepare("SELECT COUNT(*) as c FROM users WHERE DATE(created_at)=DATE('now')").get().c,
+    newPostsToday: db.prepare("SELECT COUNT(*) as c FROM posts WHERE DATE(created_at)=DATE('now')").get().c,
+    topStocks:     db.prepare("SELECT stock_symbols, COUNT(*) as c FROM posts WHERE stock_symbols!='' GROUP BY stock_symbols ORDER BY c DESC LIMIT 5").all(),
+  });
+});
+
+app.get('/api/admin/users', requireAdmin, (req, res) => {
+  const { search, page } = req.query;
+  const limit = 20, offset = (parseInt(page)||0)*limit;
+  const like = `%${search||''}%`;
+  const users = search
+    ? db.prepare('SELECT id,username,display_name,email,reputation,level,posts_count,followers_count,is_verified,created_at FROM users WHERE username LIKE ? OR display_name LIKE ? OR email LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(like,like,like,limit,offset)
+    : db.prepare('SELECT id,username,display_name,email,reputation,level,posts_count,followers_count,is_verified,created_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?').all(limit,offset);
+  res.json({ users: users.map(u => ({ ...u, level_name: getLevelName(u.level), joined: formatTime(u.created_at) })) });
+});
+
+app.post('/api/admin/users/:id/verify', requireAdmin, (req, res) => {
+  const user = db.prepare('SELECT is_verified FROM users WHERE id=?').get(req.params.id);
+  if (!user) return res.json({ error: 'غير موجود' });
+  const v = user.is_verified ? 0 : 1;
+  db.prepare('UPDATE users SET is_verified=? WHERE id=?').run(v, req.params.id);
+  res.json({ success: true, is_verified: v });
+});
+
+app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
+  ['DELETE FROM comments WHERE user_id=?','DELETE FROM votes WHERE user_id=?',
+   'DELETE FROM follows WHERE follower_id=? OR following_id=?','DELETE FROM posts WHERE user_id=?',
+   'DELETE FROM notifications WHERE user_id=? OR from_user_id=?','DELETE FROM users WHERE id=?'
+  ].forEach((q,i) => i===2||i===4 ? db.prepare(q).run(req.params.id,req.params.id) : db.prepare(q).run(req.params.id));
+  res.json({ success: true });
+});
+
+app.get('/api/admin/posts', requireAdmin, (req, res) => {
+  const { search, page } = req.query;
+  const limit = 20, offset = (parseInt(page)||0)*limit;
+  const like = `%${search||''}%`;
+  const posts = search
+    ? db.prepare('SELECT p.*,u.username,u.display_name FROM posts p JOIN users u ON p.user_id=u.id WHERE p.content LIKE ? OR u.username LIKE ? ORDER BY p.created_at DESC LIMIT ? OFFSET ?').all(like,like,limit,offset)
+    : db.prepare('SELECT p.*,u.username,u.display_name FROM posts p JOIN users u ON p.user_id=u.id ORDER BY p.created_at DESC LIMIT ? OFFSET ?').all(limit,offset);
+  res.json({ posts: posts.map(p => ({ ...p, time_ago: formatTime(p.created_at) })) });
+});
+
+app.delete('/api/admin/posts/:id', requireAdmin, (req, res) => {
+  db.prepare('DELETE FROM comments WHERE post_id=?').run(req.params.id);
+  db.prepare('DELETE FROM votes WHERE target_id=? AND target_type="post"').run(req.params.id);
+  db.prepare('DELETE FROM posts WHERE id=?').run(req.params.id);
+  res.json({ success: true });
+});
+
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
+
 // ── SPA Routing ───────────────────────────────────────────────────────────────
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
