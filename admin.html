@@ -17,8 +17,6 @@
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:'IBM Plex Sans Arabic',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
 .login-wrap { background: linear-gradient(135deg, #EFF6FF 0%, #F0F4FA 50%, #F5F3FF 100%); }
-
-/* Login */
 .login-wrap { display:flex; align-items:center; justify-content:center; min-height:100vh; }
 .login-box { background:var(--bg2); border:1px solid var(--border2); border-radius:16px; padding:40px; width:360px; text-align:center; }
 .login-logo { font-size:48px; margin-bottom:16px; }
@@ -27,7 +25,7 @@ body { font-family:'IBM Plex Sans Arabic',sans-serif; background:var(--bg); colo
 .inp { width:100%; padding:12px 14px; background:var(--bg3); border:1px solid var(--border2); border-radius:var(--radius2); color:var(--text); font-family:inherit; font-size:14px; outline:none; margin-bottom:14px; }
 .inp:focus { border-color:var(--primary); }
 .btn { padding:11px 20px; border-radius:var(--radius2); border:none; font-family:inherit; font-size:14px; font-weight:600; cursor:pointer; transition:all .2s; }
-.btn-primary { background:var(--primary); color:#fff; width:100%; }
+.btn-primary { background:var(--primary); color:#fff; }
 .btn-primary:hover { background:#2563C4; }
 .btn-sm { padding:6px 12px; font-size:12px; }
 .btn-ghost { background:transparent; border:1px solid var(--border2); color:var(--text2); }
@@ -36,11 +34,11 @@ body { font-family:'IBM Plex Sans Arabic',sans-serif; background:var(--bg); colo
 .btn-danger:hover { background:rgba(239,68,68,.2); }
 .btn-success { background:rgba(34,197,94,.1); color:var(--green); border:1px solid var(--green); }
 .btn-success:hover { background:rgba(34,197,94,.2); }
+.btn-warning { background:rgba(245,158,11,.1); color:var(--gold); border:1px solid var(--gold); }
+.btn-warning:hover { background:rgba(245,158,11,.2); }
 .error-msg { color:var(--red); font-size:13px; margin-top:8px; }
-
-/* Layout */
 .admin-wrap { display:flex; min-height:100vh; }
-.sidebar { width:220px; background:linear-gradient(180deg,#1E3A8A 0%,#1D4ED8 100%); border-left:none; padding:20px 0; flex-shrink:0; position:sticky; top:0; height:100vh; overflow-y:auto; }
+.sidebar { width:220px; background:linear-gradient(180deg,#1E3A8A 0%,#1D4ED8 100%); padding:20px 0; flex-shrink:0; position:sticky; top:0; height:100vh; overflow-y:auto; }
 .sidebar-logo { display:flex; align-items:center; gap:10px; padding:0 20px 20px; border-bottom:1px solid rgba(255,255,255,.15); margin-bottom:12px; }
 .sidebar-logo .icon { width:36px; height:36px; background:linear-gradient(135deg,var(--primary),#1D4ED8); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; }
 .sidebar-logo span { font-size:16px; font-weight:700; color:#fff; }
@@ -48,14 +46,10 @@ body { font-family:'IBM Plex Sans Arabic',sans-serif; background:var(--bg); colo
 .nav-link:hover, .nav-link.active { background:rgba(255,255,255,.15); color:#fff; }
 .nav-link.active { border-left:3px solid rgba(255,255,255,.8); color:#fff; background:rgba(255,255,255,.2); }
 .nav-icon { font-size:16px; width:20px; text-align:center; }
-.logout-btn { margin-top:auto; padding:20px; border-top:1px solid rgba(255,255,255,.15); }
-
 .main { flex:1; overflow-y:auto; }
 .topbar { padding:16px 24px; background:rgba(255,255,255,.95); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:10; display:flex; align-items:center; justify-content:space-between; }
 .page-title { font-size:18px; font-weight:700; }
 .content { padding:24px; }
-
-/* Stats */
 .stats-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:16px; margin-bottom:28px; }
 .stat-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:20px; box-shadow:var(--shadow); transition:transform .2s; }
 .stat-card:hover { transform:translateY(-2px); box-shadow:var(--shadow2); }
@@ -66,8 +60,6 @@ body { font-family:'IBM Plex Sans Arabic',sans-serif; background:var(--bg); colo
 .stat-card.blue { border-color:#BFDBFE; background:linear-gradient(135deg,#EFF6FF,#DBEAFE); }
 .stat-card.gold { border-color:#FDE68A; background:linear-gradient(135deg,#FFFBEB,#FEF3C7); }
 .stat-card.red { border-color:#FECACA; background:linear-gradient(135deg,#FEF2F2,#FEE2E2); }
-
-/* Table */
 .table-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; margin-bottom:20px; box-shadow:var(--shadow); }
 .table-header { padding:16px 20px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); flex-wrap:wrap; gap:10px; }
 .table-title { font-size:15px; font-weight:700; }
@@ -77,7 +69,6 @@ table { width:100%; border-collapse:collapse; }
 th { padding:12px 16px; text-align:right; font-size:12px; font-weight:600; color:var(--text3); text-transform:uppercase; letter-spacing:.5px; background:#F8FAFF; border-bottom:2px solid var(--border); }
 td { padding:12px 16px; font-size:13px; border-bottom:1px solid var(--border); vertical-align:middle; }
 tr:last-child td { border-bottom:none; }
-tr:hover td { background:rgba(255,255,255,.02); }
 .badge { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:10px; font-size:11px; font-weight:600; }
 .badge-green { background:rgba(34,197,94,.1); color:var(--green); }
 .badge-blue { background:rgba(59,125,221,.1); color:var(--primary); }
@@ -89,50 +80,39 @@ tr:hover td { background:rgba(255,255,255,.02); }
 .avatar-xs img { width:100%; height:100%; object-fit:cover; }
 .user-cell { display:flex; align-items:center; gap:8px; }
 .post-content-cell { max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text2); }
-
-/* Pagination */
 .pagination { display:flex; gap:8px; justify-content:center; padding:16px; }
 .page-btn { padding:6px 14px; border-radius:var(--radius2); border:1px solid var(--border2); background:transparent; color:var(--text2); cursor:pointer; font-family:inherit; font-size:13px; }
 .page-btn.active, .page-btn:hover { background:var(--primary); color:#fff; border-color:var(--primary); }
-
-/* Toast */
 #toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); padding:12px 20px; border-radius:var(--radius2); font-size:14px; font-weight:500; z-index:9999; display:none; }
 #toast.show { display:block; animation:fadeIn .3s ease; }
 #toast.success { background:var(--green); color:#fff; }
 #toast.error { background:var(--red); color:#fff; }
 #toast.info { background:var(--primary); color:#fff; }
 @keyframes fadeIn { from{opacity:0;transform:translateX(-50%) translateY(10px)} to{opacity:1;transform:translateX(-50%)} }
-
-/* Empty */
 .empty { text-align:center; padding:40px; color:var(--text3); font-size:14px; }
-
-/* Loading */
 .loading { text-align:center; padding:40px; color:var(--text3); }
-
-/* Confirm */
 .confirm-overlay { position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:1000; display:none; align-items:center; justify-content:center; }
 .confirm-overlay.show { display:flex; }
 .confirm-box { background:var(--bg2); border:1px solid var(--border2); border-radius:16px; padding:28px; max-width:360px; width:90%; text-align:center; }
 .confirm-title { font-size:18px; font-weight:700; margin-bottom:8px; }
 .confirm-msg { color:var(--text2); font-size:14px; margin-bottom:24px; }
 .confirm-actions { display:flex; gap:10px; justify-content:center; }
+.rss-status { padding:10px 16px; background:var(--bg3); border-radius:var(--radius2); font-size:13px; color:var(--text2); margin-bottom:12px; display:flex; align-items:center; gap:8px; }
 </style>
 </head>
 <body>
 
-<!-- Login -->
 <div id="login-page" class="login-wrap">
   <div class="login-box">
     <div class="login-logo">🔐</div>
     <div class="login-title">لوحة تحكم سهم</div>
     <div class="login-sub">للمشرفين فقط</div>
     <input class="inp" type="password" id="admin-pass" placeholder="كلمة المرور" onkeydown="if(event.key==='Enter')doLogin()">
-    <button class="btn btn-primary" onclick="doLogin()">دخول</button>
+    <button class="btn btn-primary" style="width:100%" onclick="doLogin()">دخول</button>
     <div class="error-msg" id="login-error"></div>
   </div>
 </div>
 
-<!-- Admin Panel -->
 <div id="admin-panel" class="admin-wrap" style="display:none">
   <aside class="sidebar">
     <div class="sidebar-logo">
@@ -143,23 +123,21 @@ tr:hover td { background:rgba(255,255,255,.02); }
     <button class="nav-link" onclick="showPage('users')" id="nav-users"><span class="nav-icon">👥</span> المستخدمون</button>
     <button class="nav-link" onclick="showPage('posts')" id="nav-posts"><span class="nav-icon">📝</span> المنشورات</button>
     <button class="nav-link" onclick="showPage('news')" id="nav-news"><span class="nav-icon">📰</span> إدارة الأخبار</button>
-    <div style="margin-top:auto;padding:20px;border-top:1px solid var(--border)">
-      <button class="btn btn-ghost btn-sm" style="width:100%" onclick="doLogout()">🚪 خروج</button>
+    <div style="margin-top:auto;padding:20px;border-top:1px solid rgba(255,255,255,.15)">
+      <button class="btn btn-ghost btn-sm" style="width:100%;color:rgba(255,255,255,.7);border-color:rgba(255,255,255,.3)" onclick="doLogout()">🚪 خروج</button>
     </div>
   </aside>
 
   <div class="main">
     <div class="topbar">
       <div class="page-title" id="current-page-title">📊 الإحصائيات</div>
-      <div style="font-size:13px;color:var(--text3)">منصة سهم — لوحة التحكم</div>
+      <div style="font-size:13px;color:var(--text3)">منصة جلسة السوق — لوحة التحكم</div>
     </div>
     <div class="content">
 
       <!-- Dashboard -->
       <div id="page-dashboard">
-        <div class="stats-grid" id="stats-grid">
-          <div class="loading">جاري التحميل...</div>
-        </div>
+        <div class="stats-grid" id="stats-grid"><div class="loading">جاري التحميل...</div></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
           <div class="table-card">
             <div class="table-header"><div class="table-title">🆕 آخر المستخدمين</div></div>
@@ -184,27 +162,6 @@ tr:hover td { background:rgba(255,255,255,.02); }
         </div>
       </div>
 
-      <!-- News -->
-      <div id="page-news" style="display:none">
-        <div class="table-card" style="margin-bottom:20px">
-          <div class="table-header"><div class="table-title">➕ نشر خبر جديد</div></div>
-          <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
-            <input class="search-inp" style="width:100%" id="news-title" placeholder="عنوان الخبر *">
-            <textarea id="news-summary" placeholder="ملخص الخبر *" style="padding:8px 14px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius2);color:var(--text);font-family:inherit;font-size:13px;outline:none;resize:none;min-height:80px;width:100%"></textarea>
-            <div style="display:flex;gap:10px;flex-wrap:wrap">
-              <input class="search-inp" style="flex:1;min-width:140px" id="news-source" placeholder="المصدر (أرقام، مباشر...)">
-              <input class="search-inp" style="flex:1;min-width:140px" id="news-symbols" placeholder="رموز الأسهم ($2222 $1120)">
-            </div>
-            <div id="news-err" style="color:var(--red);font-size:13px"></div>
-            <button class="btn btn-primary" style="width:fit-content" onclick="publishNews()">📰 نشر الخبر</button>
-          </div>
-        </div>
-        <div class="table-card">
-          <div class="table-header"><div class="table-title">📰 الأخبار المنشورة</div></div>
-          <div id="news-list"></div>
-        </div>
-      </div>
-
       <!-- Posts -->
       <div id="page-posts" style="display:none">
         <div class="table-card">
@@ -217,11 +174,55 @@ tr:hover td { background:rgba(255,255,255,.02); }
         </div>
       </div>
 
+      <!-- News -->
+      <div id="page-news" style="display:none">
+
+        <!-- RSS Section -->
+        <div class="table-card" style="margin-bottom:20px">
+          <div class="table-header">
+            <div class="table-title">📡 جلب أخبار RSS تلقائياً</div>
+            <button class="btn btn-warning btn-sm" onclick="fetchRSS()" id="rss-btn">🔄 جلب الآن</button>
+          </div>
+          <div style="padding:16px">
+            <div class="rss-status" id="rss-status">
+              ⏰ يتم جلب الأخبار تلقائياً كل ساعة من المصادر التالية
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <span class="badge badge-blue">📌 أرقام — argaam.com</span>
+              <span class="badge badge-green">📌 مباشر — mubasher.info</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- نشر يدوي -->
+        <div class="table-card" style="margin-bottom:20px">
+          <div class="table-header"><div class="table-title">✏️ نشر خبر يدوياً</div></div>
+          <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+            <input class="inp" style="margin:0" id="news-title" placeholder="عنوان الخبر *">
+            <textarea id="news-summary" placeholder="ملخص الخبر *" style="padding:12px 14px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius2);color:var(--text);font-family:inherit;font-size:14px;outline:none;resize:none;min-height:100px;width:100%"></textarea>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <input class="inp" style="flex:1;min-width:140px;margin:0" id="news-source" placeholder="المصدر (أرقام، مباشر...)">
+              <input class="inp" style="flex:1;min-width:140px;margin:0" id="news-symbols" placeholder="رموز الأسهم ($2222 $1120)">
+            </div>
+            <div id="news-err" style="color:var(--red);font-size:13px"></div>
+            <button class="btn btn-primary" style="width:fit-content" onclick="publishNews()">📰 نشر الخبر</button>
+          </div>
+        </div>
+
+        <!-- قائمة الأخبار -->
+        <div class="table-card">
+          <div class="table-header">
+            <div class="table-title">📰 الأخبار المنشورة</div>
+            <span id="news-count" style="font-size:13px;color:var(--text3)"></span>
+          </div>
+          <div id="news-list"><div class="loading">جاري التحميل...</div></div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
 
-<!-- Confirm Dialog -->
 <div class="confirm-overlay" id="confirm-overlay">
   <div class="confirm-box">
     <div class="confirm-title" id="confirm-title">تأكيد الحذف</div>
@@ -233,7 +234,6 @@ tr:hover td { background:rgba(255,255,255,.02); }
   </div>
 </div>
 
-<!-- Toast -->
 <div id="toast"></div>
 
 <script>
@@ -241,7 +241,6 @@ let usersPage = 0, postsPage = 0;
 let usersSearch = '', postsSearch = '';
 let confirmCallback = null;
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
 async function checkAdmin() {
   const res = await fetch('/api/admin/check');
   const data = await res.json();
@@ -269,7 +268,6 @@ function showAdmin() {
   loadDashboard();
 }
 
-// ── Navigation ────────────────────────────────────────────────────────────────
 function showPage(page) {
   ['dashboard','users','posts','news'].forEach(p => {
     document.getElementById('page-'+p).style.display = p===page ? 'block' : 'none';
@@ -282,11 +280,9 @@ function showPage(page) {
   if (page === 'news') loadNews();
 }
 
-// ── Dashboard ─────────────────────────────────────────────────────────────────
 async function loadDashboard() {
   const res = await fetch('/api/admin/stats');
   const s = await res.json();
-
   document.getElementById('stats-grid').innerHTML = `
     <div class="stat-card blue"><div class="stat-icon">👥</div><div class="stat-num">${s.totalUsers}</div><div class="stat-label">إجمالي المستخدمين</div></div>
     <div class="stat-card green"><div class="stat-icon">📝</div><div class="stat-num">${s.totalPosts}</div><div class="stat-label">إجمالي المنشورات</div></div>
@@ -295,7 +291,6 @@ async function loadDashboard() {
     <div class="stat-card green"><div class="stat-icon">🆕</div><div class="stat-num">${s.newUsersToday}</div><div class="stat-label">مستخدمون اليوم</div></div>
     <div class="stat-card blue"><div class="stat-icon">✍️</div><div class="stat-num">${s.newPostsToday}</div><div class="stat-label">منشورات اليوم</div></div>`;
 
-  // آخر المستخدمين
   const ures = await fetch('/api/admin/users?page=0');
   const udata = await ures.json();
   document.getElementById('recent-users').innerHTML = `<table>
@@ -307,7 +302,6 @@ async function loadDashboard() {
     </tr>`).join('')}
   </table>`;
 
-  // آخر المنشورات
   const pres = await fetch('/api/admin/posts?page=0');
   const pdata = await pres.json();
   document.getElementById('recent-posts').innerHTML = `<table>
@@ -320,7 +314,6 @@ async function loadDashboard() {
   </table>`;
 }
 
-// ── Users ─────────────────────────────────────────────────────────────────────
 let usersTimer;
 function searchUsers(val) { usersSearch = val; usersPage = 0; clearTimeout(usersTimer); usersTimer = setTimeout(loadUsers, 400); }
 
@@ -328,9 +321,7 @@ async function loadUsers() {
   document.getElementById('users-table-wrap').innerHTML = '<div class="loading">جاري التحميل...</div>';
   const res = await fetch(`/api/admin/users?page=${usersPage}&search=${encodeURIComponent(usersSearch)}`);
   const data = await res.json();
-
   if (!data.users.length) { document.getElementById('users-table-wrap').innerHTML = '<div class="empty">لا يوجد مستخدمون</div>'; return; }
-
   document.getElementById('users-table-wrap').innerHTML = `<table>
     <thead><tr><th>المستخدم</th><th>البريد</th><th>المستوى</th><th>منشورات</th><th>السمعة</th><th>انضم</th><th>إجراءات</th></tr></thead>
     <tbody>${data.users.map(u => `<tr id="user-row-${u.id}">
@@ -352,7 +343,6 @@ async function loadUsers() {
       </div></td>
     </tr>`).join('')}</tbody>
   </table>`;
-
   document.getElementById('users-pagination').innerHTML =
     (usersPage > 0 ? `<button class="page-btn" onclick="usersPage--;loadUsers()">→ السابق</button>` : '') +
     `<span class="page-btn active">صفحة ${usersPage+1}</span>` +
@@ -368,14 +358,13 @@ async function verifyUser(id, name) {
 }
 
 function deleteUser(id, name) {
-  confirm(`حذف المستخدم "${name}"؟`, 'سيتم حذف جميع منشوراته وتعليقاته بشكل نهائي', async () => {
+  confirmDialog(`حذف المستخدم "${name}"؟`, 'سيتم حذف جميع منشوراته وتعليقاته بشكل نهائي', async () => {
     const res = await fetch(`/api/admin/users/${id}`, { method:'DELETE' });
     const data = await res.json();
     if (data.success) { toast(`تم حذف ${name}`, 'success'); loadUsers(); }
   });
 }
 
-// ── Posts ─────────────────────────────────────────────────────────────────────
 let postsTimer;
 function searchPosts(val) { postsSearch = val; postsPage = 0; clearTimeout(postsTimer); postsTimer = setTimeout(loadPosts, 400); }
 
@@ -383,9 +372,7 @@ async function loadPosts() {
   document.getElementById('posts-table-wrap').innerHTML = '<div class="loading">جاري التحميل...</div>';
   const res = await fetch(`/api/admin/posts?page=${postsPage}&search=${encodeURIComponent(postsSearch)}`);
   const data = await res.json();
-
   if (!data.posts.length) { document.getElementById('posts-table-wrap').innerHTML = '<div class="empty">لا يوجد منشورات</div>'; return; }
-
   document.getElementById('posts-table-wrap').innerHTML = `<table>
     <thead><tr><th>الناشر</th><th>المحتوى</th><th>النوع</th><th>الأسهم</th><th>👍</th><th>💬</th><th>الوقت</th><th>إجراءات</th></tr></thead>
     <tbody>${data.posts.map(p => `<tr id="post-row-${p.id}">
@@ -399,7 +386,6 @@ async function loadPosts() {
       <td><button class="btn btn-sm btn-danger" onclick="deletePost('${p.id}')">🗑️ حذف</button></td>
     </tr>`).join('')}</tbody>
   </table>`;
-
   document.getElementById('posts-pagination').innerHTML =
     (postsPage > 0 ? `<button class="page-btn" onclick="postsPage--;loadPosts()">→ السابق</button>` : '') +
     `<span class="page-btn active">صفحة ${postsPage+1}</span>` +
@@ -409,11 +395,96 @@ async function loadPosts() {
 function typeLabel(t) { return {opinion:'رأي',analysis:'تحليل',news:'خبر',question:'سؤال'}[t]||t; }
 
 function deletePost(id) {
-  confirm('حذف المنشور؟', 'سيتم حذف المنشور وتعليقاته بشكل نهائي', async () => {
+  confirmDialog('حذف المنشور؟', 'سيتم حذف المنشور وتعليقاته بشكل نهائي', async () => {
     const res = await fetch(`/api/admin/posts/${id}`, { method:'DELETE' });
     const data = await res.json();
     if (data.success) { toast('تم حذف المنشور', 'success'); loadPosts(); }
   });
+}
+
+// ── News ──────────────────────────────────────────────────────────────────────
+async function loadNews() {
+  document.getElementById('news-list').innerHTML = '<div class="loading">جاري التحميل...</div>';
+  const res = await fetch('/api/news/latest?limit=20');
+  const data = await res.json();
+  const count = document.getElementById('news-count');
+  if (!data.news || !data.news.length) {
+    document.getElementById('news-list').innerHTML = '<div class="empty">لا توجد أخبار بعد — اضغط "جلب الآن" لجلب أخبار RSS</div>';
+    if (count) count.textContent = '0 خبر';
+    return;
+  }
+  if (count) count.textContent = `${data.news.length} خبر`;
+  document.getElementById('news-list').innerHTML = `<table>
+    <thead><tr><th>العنوان</th><th>المصدر</th><th>الأسهم</th><th>💬</th><th>الوقت</th><th>إجراءات</th></tr></thead>
+    <tbody>${data.news.map(n => `<tr id="news-row-${n.id}">
+      <td style="font-weight:600;font-size:13px;max-width:280px">${n.title}</td>
+      <td><span class="badge badge-blue">${n.source||'—'}</span></td>
+      <td style="color:var(--primary);font-size:12px">${n.stock_symbols||'—'}</td>
+      <td style="color:var(--text2)">${n.comments_count||0}</td>
+      <td style="color:var(--text3);font-size:12px">${n.published_at ? timeAgo(n.published_at) : ''}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="deleteNews('${n.id}')">🗑️</button></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function timeAgo(dt) {
+  const diff = Math.floor((Date.now() - new Date(dt)) / 1000);
+  if (diff < 3600) return 'منذ ' + Math.floor(diff/60) + ' دقيقة';
+  if (diff < 86400) return 'منذ ' + Math.floor(diff/3600) + ' ساعة';
+  return 'منذ ' + Math.floor(diff/86400) + ' يوم';
+}
+
+async function fetchRSS() {
+  const btn = document.getElementById('rss-btn');
+  const status = document.getElementById('rss-status');
+  btn.disabled = true; btn.textContent = '⏳ جاري الجلب...';
+  status.textContent = '🔄 جاري جلب الأخبار من المصادر...';
+  try {
+    const res = await fetch('/api/admin/fetch-rss', { method:'POST' });
+    const data = await res.json();
+    if (data.success) {
+      toast('✅ تم جلب الأخبار بنجاح', 'success');
+      status.textContent = '✅ تم جلب الأخبار — آخر تحديث: ' + new Date().toLocaleTimeString('ar-SA');
+      loadNews();
+    } else {
+      toast(data.error || 'فشل الجلب', 'error');
+      status.textContent = '❌ فشل جلب الأخبار: ' + (data.error || 'خطأ غير معروف');
+    }
+  } catch(e) {
+    toast('خطأ في الاتصال', 'error');
+    status.textContent = '❌ خطأ في الاتصال بالسيرفر';
+  }
+  btn.disabled = false; btn.textContent = '🔄 جلب الآن';
+}
+
+function deleteNews(id) {
+  confirmDialog('حذف الخبر؟', 'سيتم حذف الخبر ومنشوره بشكل نهائي', async () => {
+    const res = await fetch(`/api/admin/news/${id}`, { method:'DELETE' });
+    const data = await res.json();
+    if (data.success) { toast('تم حذف الخبر', 'success'); loadNews(); }
+  });
+}
+
+async function publishNews() {
+  const title = document.getElementById('news-title').value.trim();
+  const summary = document.getElementById('news-summary').value.trim();
+  const source = document.getElementById('news-source').value.trim();
+  const symbols = document.getElementById('news-symbols').value.trim();
+  const err = document.getElementById('news-err');
+  if (!title || !summary) { err.textContent = 'العنوان والملخص مطلوبان'; return; }
+  err.textContent = '';
+  const res = await fetch('/api/admin/news', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ title, summary, source, stock_symbols: symbols })
+  });
+  const data = await res.json();
+  if (data.error) { err.textContent = data.error; return; }
+  toast('تم نشر الخبر بنجاح! ✅', 'success');
+  document.getElementById('news-title').value = '';
+  document.getElementById('news-summary').value = '';
+  document.getElementById('news-source').value = '';
+  document.getElementById('news-symbols').value = '';
+  loadNews();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -423,7 +494,7 @@ function toast(msg, type='info') {
   setTimeout(() => el.className = '', 3000);
 }
 
-function confirm(title, msg, cb) {
+function confirmDialog(title, msg, cb) {
   document.getElementById('confirm-title').textContent = title;
   document.getElementById('confirm-msg').textContent = msg;
   document.getElementById('confirm-overlay').classList.add('show');
@@ -432,55 +503,7 @@ function confirm(title, msg, cb) {
 function confirmYes() { document.getElementById('confirm-overlay').classList.remove('show'); if(confirmCallback) confirmCallback(); }
 function confirmNo() { document.getElementById('confirm-overlay').classList.remove('show'); confirmCallback = null; }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
 checkAdmin();
-
-// ── News Management ───────────────────────────────────────────────────────────
-async function loadNews() {
-  const res = await fetch('/api/news/latest');
-  const data = await res.json();
-  const list = document.getElementById('news-list');
-  if (!data.news || !data.news.length) {
-    list.innerHTML = '<div class="empty">لا توجد أخبار بعد</div>'; return;
-  }
-  list.innerHTML = `<table>
-    <thead><tr><th>العنوان</th><th>المصدر</th><th>الأسهم</th><th>التعليقات</th><th>الوقت</th></tr></thead>
-    <tbody>${data.news.map(n => `<tr>
-      <td style="font-weight:600;font-size:13px;max-width:280px">${n.title}</td>
-      <td><span class="badge badge-blue">${n.source||'—'}</span></td>
-      <td style="color:var(--primary);font-size:12px">${n.stock_symbols||'—'}</td>
-      <td style="color:var(--text2)">${n.comments_count||0}</td>
-      <td style="color:var(--text3);font-size:12px">${n.published_at?new Date(n.published_at).toLocaleDateString('ar-SA'):''}</td>
-    </tr>`).join('')}</tbody>
-  </table>`;
-}
-
-async function publishNews() {
-  const title = document.getElementById('news-title').value.trim();
-  const summary = document.getElementById('news-summary').value.trim();
-  const source = document.getElementById('news-source').value.trim();
-  const symbols = document.getElementById('news-symbols').value.trim();
-  const err = document.getElementById('news-err');
-
-  if (!title || !summary) { err.textContent = 'العنوان والملخص مطلوبان'; return; }
-  err.textContent = '';
-
-  const res = await fetch('/api/admin/news', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ title, summary, source, stock_symbols: symbols })
-  });
-  const data = await res.json();
-  if (data.error) { err.textContent = data.error; return; }
-
-  toast('تم نشر الخبر بنجاح! ✅', 'success');
-  document.getElementById('news-title').value = '';
-  document.getElementById('news-summary').value = '';
-  document.getElementById('news-source').value = '';
-  document.getElementById('news-symbols').value = '';
-  loadNews();
-}
-
 </script>
 </body>
 </html>
