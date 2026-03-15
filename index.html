@@ -51,7 +51,7 @@ body {
 /* Navbar — sticky top bar */
 .navbar {
   position: sticky; top: 0; z-index: 100;
-  background: rgba(247,249,251,.92);
+  background: rgba(255,255,255,.95);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border);
   height: 56px;
@@ -63,7 +63,7 @@ body {
   display: flex; align-items: center; gap: 8px;
   cursor: pointer; text-decoration: none;
   font-size: 18px; font-weight: 700; color: var(--text);
-  letter-spacing: -.3px; flex-shrink: 0;
+  letter-spacing: -.3px; flex-shrink: 0; margin-left: auto;
 }
 .logo-icon {
   width: 32px; height: 32px; border-radius: 8px;
@@ -112,7 +112,7 @@ body {
 }
 .search-result-item:hover { background: var(--bg3); }
 
-.navbar-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.navbar-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-right: auto; }
 
 /* Buttons */
 .btn {
@@ -148,16 +148,17 @@ body {
 .main-layout {
   display: flex; max-width: 1100px; margin: 0 auto;
   width: 100%; padding: 0; gap: 0; flex: 1;
+  flex-direction: row-reverse;
 }
 
-/* Left sidebar — nav */
+/* Right sidebar (يمين في RTL) — nav + أخبار */
 .sidebar {
-  width: 220px; flex-shrink: 0;
+  width: 260px; flex-shrink: 0;
   padding: 16px 12px;
   position: sticky; top: 56px;
   height: calc(100vh - 56px);
   overflow-y: auto;
-  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
 }
 
 .sidebar-nav { display: flex; flex-direction: column; gap: 2px; margin-bottom: 16px; }
@@ -190,6 +191,7 @@ body {
   flex: 1; min-width: 0;
   border-right: 1px solid var(--border);
   border-left: 1px solid var(--border);
+  background: var(--bg2);
 }
 
 /* Feed header */
