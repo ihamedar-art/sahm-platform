@@ -299,7 +299,7 @@ app.get('/api/posts', (req, res) => {
   const enriched = posts.map(p => {
     let myVote = null;
     if (userId) {
-      const v = db.prepare('SELECT vote_type FROM votes WHERE user_id=? AND target_id=? AND target_type="post"').get(userId, p.id);
+      const v = db.prepare("SELECT vote_type FROM votes WHERE user_id=? AND target_id=? AND target_type='post'").get(userId, p.id);
       myVote = v ? v.vote_type : null;
     }
     return { ...p, time_ago: formatTime(p.created_at), level_name: getLevelName(p.level), my_vote: myVote };
@@ -790,7 +790,7 @@ app.get('/api/admin/posts', requireAdmin, (req, res) => {
 
 app.delete('/api/admin/posts/:id', requireAdmin, (req, res) => {
   db.prepare('DELETE FROM comments WHERE post_id=?').run(req.params.id);
-  db.prepare('DELETE FROM votes WHERE target_id=? AND target_type="post"').run(req.params.id);
+  db.prepare("DELETE FROM votes WHERE target_id=? AND target_type='post'").run(req.params.id);
   db.prepare('DELETE FROM posts WHERE id=?').run(req.params.id);
   res.json({ success: true });
 });
@@ -802,7 +802,7 @@ app.get('/api/posts/:id', (req, res) => {
   if (!post) return res.status(404).json({ error: 'المنشور غير موجود' });
   let myVote = null;
   if (req.session.userId) {
-    const v = db.prepare('SELECT vote_type FROM votes WHERE user_id=? AND target_id=? AND target_type="post"').get(req.session.userId, post.id);
+    const v = db.prepare('SELECT vote_type FROM votes WHERE user_id=? AND target_id=? AND target_type='post'').get(req.session.userId, post.id);
     myVote = v ? v.vote_type : null;
   }
   res.json({ post: { ...post, time_ago: formatTime(post.created_at), level_name: getLevelName(post.level), my_vote: myVote } });
