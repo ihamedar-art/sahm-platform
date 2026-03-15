@@ -851,113 +851,6 @@ app.delete('/api/admin/posts/:id', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
-// ══════════════════════════════════════════════════════════════════════════════
-// RSS NEWS FETCHER — جلب أخبار تلقائي
-// ══════════════════════════════════════════════════════════════════════════════
-
-const RSS_SOURCES = [
-  { name: 'سوق الأسهم السعودي', url: 'https://news.google.com/rss/search?q=%D8%B3%D9%88%D9%82+%D8%A7%D9%84%D8%A3%D8%B3%D9%87%D9%85+%D8%AA%D8%AF%D8%A7%D9%88%D9%84&hl=ar&gl=SA&ceid=SA:ar', source: 'أخبار السوق' },
-  { name: 'تاسي والبورصة', url: 'https://news.google.com/rss/search?q=%D8%AA%D8%A7%D8%B3%D9%8A+%D8%A3%D8%B1%D8%A7%D9%85%D9%83%D9%88+%D8%A3%D8%B3%D9%87%D9%85&hl=ar&gl=SA&ceid=SA:ar', source: 'أخبار السوق' },
-  { name: 'الاكتتابات والنتائج', url: 'https://news.google.com/rss/search?q=%D9%86%D8%AA%D8%A7%D8%A6%D8%AC+%D8%A7%D9%84%D8%B4%D8%B1%D9%83%D8%A7%D8%AA+%D8%A7%D9%83%D8%AA%D8%AA%D8%A7%D8%A8+%D8%B3%D8%B9%D9%88%D8%AF%D9%8A&hl=ar&gl=SA&ceid=SA:ar', source: 'أخبار السوق' },
-];
-
-async function fetchRSSFeed(url, redirectCount = 0) {
-  if (redirectCount > 3) return null;
-  try {
-    const https = require('https');
-    const http = require('http');
-    const client = url.startsWith('https') ? https : http;
-    return new Promise((resolve) => {
-      const req = client.get(url, {
-        timeout: 10000,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)',
-          'Accept': 'application/rss+xml, application/xml, text/xml, */*',
-        }
-      }, (res) => {
-        console.log(`RSS ${url.slice(0,60)} → status: ${res.statusCode}`);
-        // متابعة الـ redirect
-        if ([301,302,303,307,308].includes(res.statusCode) && res.headers.location) {
-          resolve(fetchRSSFeed(res.headers.location, redirectCount + 1));
-          return;
-        }
-        if (res.statusCode !== 200) { resolve(null); return; }
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => resolve(data));
-      });
-      req.on('error', (e) => { console.log(`RSS error: ${e.message}`); resolve(null); });
-      req.on('timeout', () => { req.destroy(); console.log('RSS timeout'); resolve(null); });
-    });
-  } catch(e) { console.log('RSS exception:', e.message); return null; }
-}
-
-function parseRSSItems(xml, sourceName) {
-  const items = [];
-  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-  let match;
-  while ((match = itemRegex.exec(xml)) !== null) {
-    const item = match[1];
-    const title = (item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/) || item.match(/<title>(.*?)<\/title>/))?.[1]?.trim();
-    const desc = (item.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/) || item.match(/<description>(.*?)<\/description>/))?.[1]?.replace(/<[^>]+>/g,'').trim().slice(0, 300);
-    const pubDate = item.match(/<pubDate>(.*?)<\/pubDate>/)?.[1];
-    if (title && title.length > 10) {
-      items.push({ title, summary: desc || title, source: sourceName, published_at: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString() });
-    }
-  }
-  return items.slice(0, 5);
-}
-
-function extractStockSymbols(text) {
-  const symbols = [];
-  const stockMap = { 'أرامكو': '$2222', 'الراجحي': '$1120', 'الرياض': '$1010', 'سابك': '$2010', 'stc': '$7010', 'STC': '$7010', 'أكوا': '$4200', 'تاسي': '$تاسي' };
-  Object.keys(stockMap).forEach(k => { if (text.includes(k)) symbols.push(stockMap[k]); });
-  return [...new Set(symbols)].join(' ');
-}
-
-async function fetchAndPublishRSS() {
-  console.log('🔄 جلب أخبار RSS...');
-  const newsUserId = ensureNewsAccount();
-
-  for (const feed of RSS_SOURCES) {
-    try {
-      const xml = await fetchRSSFeed(feed.url);
-      if (!xml) continue;
-      const items = parseRSSItems(xml, feed.source);
-
-      for (const item of items) {
-        // تجنب تكرار الأخبار
-        const exists = db.prepare('SELECT id FROM news_posts WHERE title = ?').get(item.title);
-        if (exists) continue;
-
-        const symbols = extractStockSymbols(item.title + ' ' + item.summary);
-        const newsId = uuidv4();
-        const postId = uuidv4();
-
-        db.prepare(`INSERT INTO posts (id,user_id,content,stock_symbols,post_type,created_at) VALUES (?,?,?,?,?,?)`)
-          .run(postId, newsUserId, `📰 ${item.title}\n\n${item.summary}\n\n📌 المصدر: ${item.source}`, symbols, 'news', item.published_at);
-
-        db.prepare(`INSERT INTO news_posts (id,title,summary,source,stock_symbols,post_id,published_at,is_published) VALUES (?,?,?,?,?,?,?,?)`)
-          .run(newsId, item.title, item.summary, item.source, symbols, postId, item.published_at, 1);
-
-        console.log(`✅ خبر جديد: ${item.title.slice(0,50)}`);
-      }
-    } catch(e) {
-      console.log(`❌ خطأ في ${feed.name}:`, e.message);
-    }
-  }
-}
-
-// API: جلب RSS يدوياً من الأدمن
-app.post('/api/admin/fetch-rss', requireAdmin, async (req, res) => {
-  try {
-    await fetchAndPublishRSS();
-    res.json({ success: true, message: 'تم جلب الأخبار بنجاح' });
-  } catch(e) {
-    res.json({ error: e.message });
-  }
-});
-
 // API: حذف خبر
 app.delete('/api/admin/news/:id', requireAdmin, (req, res) => {
   const news = db.prepare('SELECT post_id FROM news_posts WHERE id = ?').get(req.params.id);
@@ -968,12 +861,6 @@ app.delete('/api/admin/news/:id', requireAdmin, (req, res) => {
   db.prepare('DELETE FROM news_posts WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
-
-// جلب RSS كل ساعة تلقائياً
-setInterval(fetchAndPublishRSS, 60 * 60 * 1000);
-// جلب فوري عند التشغيل بعد دقيقة
-setTimeout(fetchAndPublishRSS, 60 * 1000);
-
 
 app.get('/api/posts/:id', (req, res) => {
   const post = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
