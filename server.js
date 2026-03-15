@@ -117,8 +117,12 @@ db.exec(`
 `);
 
 // ── إعداد multer للصور ───────────────────────────────────────────────────────
+// إنشاء مجلد uploads إذا ما موجود
+const uploadsDir = './public/uploads';
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, './public/uploads/'),
+  destination: (req, file, cb) => cb(null, uploadsDir),
   filename: (req, file, cb) => cb(null, uuidv4() + path.extname(file.originalname))
 });
 const upload = multer({
@@ -581,7 +585,9 @@ try { publishSampleNews(); } catch(e) { console.log('News init:', e.message); }
 // API: جلب آخر الأخبار للشريط الجانبي
 app.get('/api/news/latest', (req, res) => {
   const news = db.prepare(`
-    SELECT n.*, p.upvotes, p.comments_count
+    SELECT n.id, n.title, n.summary, n.source, n.source_url,
+           n.stock_symbols, n.post_id, n.published_at, n.is_published,
+           COALESCE(p.upvotes,0) as upvotes, COALESCE(p.comments_count,0) as comments_count
     FROM news_posts n
     LEFT JOIN posts p ON n.post_id = p.id
     WHERE n.is_published = 1
