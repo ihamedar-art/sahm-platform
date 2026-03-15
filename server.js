@@ -857,7 +857,8 @@ app.delete('/api/admin/posts/:id', requireAdmin, (req, res) => {
 
 const RSS_SOURCES = [
   { name: 'أرقام', url: 'https://www.argaam.com/ar/rss/latest', source: 'أرقام' },
-  { name: 'مباشر', url: 'https://www.mubasher.info/rss/news/sa', source: 'مباشر' },
+  { name: 'مباشر', url: 'https://mubasher.info/rss/news/sa', source: 'مباشر' },
+  { name: 'الاقتصادية', url: 'https://www.aleqt.com/rss', source: 'الاقتصادية' },
 ];
 
 async function fetchRSSFeed(url) {
@@ -866,15 +867,23 @@ async function fetchRSSFeed(url) {
     const http = require('http');
     const client = url.startsWith('https') ? https : http;
     return new Promise((resolve, reject) => {
-      const req = client.get(url, { timeout: 8000, headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
+      const req = client.get(url, {
+        timeout: 10000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)',
+          'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+        }
+      }, (res) => {
+        console.log(`RSS ${url} → status: ${res.statusCode}`);
+        if (res.statusCode !== 200) { resolve(null); return; }
         let data = '';
         res.on('data', chunk => data += chunk);
         res.on('end', () => resolve(data));
       });
-      req.on('error', reject);
-      req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+      req.on('error', (e) => { console.log(`RSS error: ${e.message}`); resolve(null); });
+      req.on('timeout', () => { req.destroy(); console.log('RSS timeout'); resolve(null); });
     });
-  } catch(e) { return null; }
+  } catch(e) { console.log('RSS exception:', e.message); return null; }
 }
 
 function parseRSSItems(xml, sourceName) {
