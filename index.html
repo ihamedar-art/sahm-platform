@@ -545,7 +545,54 @@ body {
 .poll-hist-seg { height:100%; transition:width .4s ease; }
 
 
-/* ── News Sidebar ── */
+/* ── New Posts Button (Twitter style) ── */
+.new-posts-btn {
+  display: none;
+  position: sticky;
+  top: 70px;
+  z-index: 50;
+  margin-bottom: 12px;
+  text-align: center;
+}
+.new-posts-btn.show { display: block; }
+.new-posts-btn button {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 24px;
+  padding: 10px 24px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(29,78,216,.35);
+  transition: all .2s;
+  animation: fadeIn .3s ease;
+}
+.new-posts-btn button:hover { background: var(--primary2); transform: translateY(-1px); }
+
+/* ── Single Post Page ── */
+.single-post-page { max-width: 100%; }
+.single-post-back {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--text2); cursor: pointer; font-size: 14px;
+  margin-bottom: 16px; padding: 6px 0;
+}
+.single-post-back:hover { color: var(--primary); }
+.single-comments-wrap { margin-top: 20px; }
+.single-comments-title {
+  font-size: 16px; font-weight: 700; margin-bottom: 16px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--border);
+}
+.single-comment-input-wrap {
+  display: flex; gap: 10px; margin-bottom: 20px;
+}
+.single-comment-item {
+  display: flex; gap: 10px; padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.single-comment-item:last-child { border-bottom: none; }
+
 .news-item {
   padding: 12px 14px; border-bottom: 1px solid var(--border);
   cursor: pointer; transition: background .15s; display: block;
@@ -629,6 +676,9 @@ body {
     <div class="page active" id="page-home">
       <div id="compose-area"></div>
       <div id="poll-widget-wrap"></div>
+      <div class="new-posts-btn" id="new-posts-btn">
+        <button onclick="loadNewPosts()">⬆️ منشورات جديدة — اضغط للتحديث</button>
+      </div>
       <div class="feed-tabs">
         <button class="feed-tab active" onclick="switchTab('discover')">🔥 الاكتشاف</button>
         <button class="feed-tab" onclick="switchTab('following')">👥 المتابَعون</button>
@@ -664,6 +714,11 @@ body {
     <!-- Stock Page -->
     <div class="page" id="page-stock">
       <div id="stock-content"></div>
+    </div>
+
+    <!-- Single Post Page -->
+    <div class="page" id="page-post">
+      <div id="post-page-content"></div>
     </div>
   </main>
 
@@ -721,6 +776,7 @@ async function init() {
   renderFeed();
   loadPoll();
   if (currentUser) pollNotifications();
+  setTimeout(checkNewPosts, 15000);
 }
 
 async function checkAuth() {
@@ -758,6 +814,9 @@ function navigate(page, param = '') {
     const username = param || (currentUser ? currentUser.username : '');
     if (username) loadProfile(username);
     else showLoginModal();
+  } else if (page === 'post') {
+    document.getElementById('page-post').classList.add('active');
+    loadPostPage(param);
   } else if (page === 'stock') {
     document.getElementById('page-stock').classList.add('active');
     loadStockPage(param);
@@ -1353,8 +1412,128 @@ async function loadFullLeaderboard() {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// POPULAR STOCKS & TRENDING
+// SINGLE POST PAGE
 // ══════════════════════════════════════════════════════════════════
+async function loadPostPage(postId) {
+  const el = document.getElementById('post-page-content');
+  el.innerHTML = `
+    <div class="single-post-back" onclick="navigate('home')">← العودة للرئيسية</div>
+    <div id="post-page-card"><div class="skeleton" style="height:180px;border-radius:14px"></div></div>
+    <div class="single-comments-wrap">
+      <div class="single-comments-title">💬 التعليقات</div>
+      ${currentUser ? `
+        <div class="single-comment-input-wrap">
+          <div class="avatar avatar-sm">${currentUser.avatar ? `<img src="${currentUser.avatar}">` : currentUser.display_name[0]}</div>
+          <input class="comment-input" id="post-page-cmt-input" placeholder="شارك رأيك..." onkeydown="if(event.key==='Enter')submitPostPageComment('${postId}')">
+          <button class="btn btn-primary btn-sm" onclick="submitPostPageComment('${postId}')">تعليق</button>
+        </div>` : `
+        <div style="background:var(--bg3);border-radius:var(--radius2);padding:14px;text-align:center;margin-bottom:16px">
+          <p style="color:var(--text2);margin-bottom:10px;font-size:14px">سجّل دخولك للمشاركة في النقاش</p>
+          <button class="btn btn-primary btn-sm" onclick="showLoginModal()">تسجيل الدخول</button>
+        </div>`}
+      <div id="post-page-comments"></div>
+    </div>`;
+
+  // جلب المنشور
+  try {
+    const r = await fetch('/api/posts/' + postId);
+    const d = await r.json();
+    if (d.post) {
+      document.getElementById('post-page-card').innerHTML = createPostCard(d.post);
+      loadPostPageComments(postId);
+    } else {
+      document.getElementById('post-page-card').innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">📭</div>
+          <div class="empty-title">المنشور غير موجود</div>
+        </div>`;
+    }
+  } catch(e) {
+    document.getElementById('post-page-card').innerHTML = `<div class="empty-state"><div class="empty-title">خطأ في تحميل المنشور</div></div>`;
+  }
+}
+
+async function loadPostPageComments(postId) {
+  const list = document.getElementById('post-page-comments');
+  if (!list) return;
+  try {
+    const r = await fetch(`/api/posts/${postId}/comments`);
+    const d = await r.json();
+    const cmts = d.comments || [];
+    if (!cmts.length) {
+      list.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text3)">
+        <div style="font-size:32px;margin-bottom:8px">💬</div>
+        <div>لا تعليقات بعد — كن أول من يناقش!</div></div>`;
+      return;
+    }
+    list.innerHTML = cmts.map(c => `
+      <div class="single-comment-item">
+        <div class="avatar avatar-sm" onclick="navigate('profile','${c.username}')" style="cursor:pointer">
+          ${c.avatar ? `<img src="${c.avatar}">` : c.display_name[0]}
+        </div>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
+            <span style="font-weight:600;font-size:13px;cursor:pointer" onclick="navigate('profile','${c.username}')">${c.display_name}</span>
+            ${c.is_verified ? '<span style="color:var(--primary);font-size:12px">✓</span>' : ''}
+            <span class="level-badge" style="font-size:10px">${c.level_name}</span>
+            <span style="font-size:11px;color:var(--text3)">${c.time_ago}</span>
+          </div>
+          <div style="font-size:14px;color:var(--text)">${c.content.replace(/\n/g,'<br>')}</div>
+        </div>
+      </div>`).join('');
+  } catch(e) {}
+}
+
+async function submitPostPageComment(postId) {
+  if (!currentUser) { showLoginModal(); return; }
+  const input = document.getElementById('post-page-cmt-input');
+  const content = input.value.trim();
+  if (!content) return;
+  input.value = '';
+  const r = await fetch(`/api/posts/${postId}/comments`, {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({content})
+  });
+  const d = await r.json();
+  if (d.error) { toast(d.error, 'error'); return; }
+  toast('تم إضافة تعليقك ✅', 'success');
+  loadPostPageComments(postId);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// NEW POSTS BUTTON (Twitter style)
+// ══════════════════════════════════════════════════════════════════
+let latestPostId = null;
+let newPostsCount = 0;
+
+async function checkNewPosts() {
+  if (currentPage !== 'home') { setTimeout(checkNewPosts, 15000); return; }
+  try {
+    const r = await fetch('/api/posts?page=0&limit=1');
+    const d = await r.json();
+    if (d.posts && d.posts.length > 0) {
+      const newestId = d.posts[0].id;
+      if (latestPostId && newestId !== latestPostId) {
+        newPostsCount++;
+        const btn = document.getElementById('new-posts-btn');
+        btn.classList.add('show');
+        btn.querySelector('button').textContent = `⬆️ ${newPostsCount > 1 ? newPostsCount + ' منشورات جديدة' : 'منشور جديد'} — اضغط للتحديث`;
+      }
+      if (!latestPostId) latestPostId = newestId;
+    }
+  } catch(e) {}
+  setTimeout(checkNewPosts, 15000);
+}
+
+function loadNewPosts() {
+  const btn = document.getElementById('new-posts-btn');
+  btn.classList.remove('show');
+  newPostsCount = 0;
+  latestPostId = null;
+  renderFeed(true);
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+
 async function loadPopularStocks() {
   // replaced by news sidebar
   loadNewsSidebar();
@@ -1410,9 +1589,9 @@ function formatNewsTime(dt) {
 
 function goToNews(postId) {
   if (postId && postId !== '' && postId !== 'undefined') {
-    nav('post', postId);
+    navigate('post', postId);
   } else {
-    nav('profile', 'jalsat_news');
+    navigate('profile', 'jalsat_news');
   }
 }
 
@@ -1706,6 +1885,7 @@ async function renderFeed(reset=true) {
     else demo.forEach(p=>feed.insertAdjacentHTML('beforeend',createPostCard(p)));
   } else {
     posts.forEach(p=>feed.insertAdjacentHTML('beforeend',createPostCard(p)));
+    if(feedPage===0 && posts.length>0) latestPostId = posts[0].id;
   }
   const lm=document.getElementById('load-more-container');
   lm.innerHTML=posts.length===20?`<button class="btn btn-ghost" style="width:100%;margin:16px 0" onclick="loadMore()">تحميل المزيد</button>`:'';
