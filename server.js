@@ -492,6 +492,105 @@ app.get('/api/leaderboard', (req, res) => {
   res.json({ users });
 });
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DAILY POLL — استطلاع تاسي اليومي
+// ══════════════════════════════════════════════════════════════════════════════
+
+// جدول الاستطلاعات اليومية
+const db2 = db; // نفس قاعدة البيانات
+db.exec(`
+  CREATE TABLE IF NOT EXISTS daily_polls (
+    id TEXT PRIMARY KEY,
+    date TEXT UNIQUE NOT NULL,
+    question TEXT NOT NULL,
+    bullish_count INTEGER DEFAULT 0,
+    bearish_count INTEGER DEFAULT 0,
+    neutral_count INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS daily_poll_votes (
+    user_id TEXT NOT NULL,
+    poll_id TEXT NOT NULL,
+    choice TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, poll_id)
+  );
+`);
+
+// الحصول على أو إنشاء استطلاع اليوم
+function getTodayPoll() {
+  const today = new Date().toISOString().split('T')[0];
+  let poll = db.prepare('SELECT * FROM daily_polls WHERE date = ?').get(today);
+  if (!poll) {
+    const id = uuidv4();
+    const question = 'ما توقعك لمؤشر تاسي اليوم؟';
+    db.prepare('INSERT INTO daily_polls (id, date, question) VALUES (?,?,?)').run(id, today, question);
+    poll = db.prepare('SELECT * FROM daily_polls WHERE id = ?').get(id);
+  }
+  return poll;
+}
+
+// الحصول على استطلاع اليوم
+app.get('/api/poll/today', (req, res) => {
+  const poll = getTodayPoll();
+  const total = poll.bullish_count + poll.bearish_count + poll.neutral_count;
+  let myVote = null;
+  if (req.session.userId) {
+    const v = db.prepare('SELECT choice FROM daily_poll_votes WHERE user_id=? AND poll_id=?').get(req.session.userId, poll.id);
+    myVote = v ? v.choice : null;
+  }
+  const bullPct = total ? Math.round(poll.bullish_count/total*100) : 0;
+  const bearPct = total ? Math.round(poll.bearish_count/total*100) : 0;
+  const neutPct = total ? 100-bullPct-bearPct : 0;
+  res.json({ poll: { ...poll, total, bullPct, bearPct, neutPct, myVote } });
+});
+
+// التصويت في استطلاع اليوم
+app.post('/api/poll/vote', requireAuth, (req, res) => {
+  const { choice } = req.body;
+  if (!['bullish','bearish','neutral'].includes(choice))
+    return res.json({ error: 'خيار غير صحيح' });
+
+  const poll = getTodayPoll();
+  const existing = db.prepare('SELECT * FROM daily_poll_votes WHERE user_id=? AND poll_id=?').get(req.session.userId, poll.id);
+
+  if (existing) {
+    // تغيير التصويت
+    const oldCol = existing.choice + '_count';
+    const newCol = choice + '_count';
+    db.prepare(`UPDATE daily_polls SET ${oldCol}=${oldCol}-1, ${newCol}=${newCol}+1 WHERE id=?`).run(poll.id);
+    db.prepare('UPDATE daily_poll_votes SET choice=? WHERE user_id=? AND poll_id=?').run(choice, req.session.userId, poll.id);
+  } else {
+    // تصويت جديد
+    const col = choice + '_count';
+    db.prepare(`UPDATE daily_polls SET ${col}=${col}+1 WHERE id=?`).run(poll.id);
+    db.prepare('INSERT INTO daily_poll_votes (user_id,poll_id,choice) VALUES (?,?,?)').run(req.session.userId, poll.id, choice);
+    // مكافأة السمعة للتصويت اليومي
+    db.prepare('UPDATE users SET reputation = reputation + 1 WHERE id=?').run(req.session.userId);
+  }
+
+  const updated = db.prepare('SELECT * FROM daily_polls WHERE id=?').get(poll.id);
+  const total = updated.bullish_count + updated.bearish_count + updated.neutral_count;
+  const bullPct = total ? Math.round(updated.bullish_count/total*100) : 0;
+  const bearPct = total ? Math.round(updated.bearish_count/total*100) : 0;
+  const neutPct = total ? 100-bullPct-bearPct : 0;
+  res.json({ success: true, poll: { ...updated, total, bullPct, bearPct, neutPct, myVote: choice } });
+});
+
+// تاريخ الاستطلاعات السابقة
+app.get('/api/poll/history', (req, res) => {
+  const polls = db.prepare('SELECT * FROM daily_polls ORDER BY date DESC LIMIT 7').all();
+  res.json({ polls: polls.map(p => {
+    const total = p.bullish_count + p.bearish_count + p.neutral_count;
+    return { ...p, total,
+      bullPct: total ? Math.round(p.bullish_count/total*100) : 0,
+      bearPct: total ? Math.round(p.bearish_count/total*100) : 0,
+      neutPct: total ? 100-Math.round(p.bullish_count/total*100)-Math.round(p.bearish_count/total*100) : 0
+    };
+  })});
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // ADMIN ROUTES
 // ══════════════════════════════════════════════════════════════════════════════
