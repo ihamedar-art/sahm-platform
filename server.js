@@ -874,9 +874,112 @@ app.get('/api/posts/:id', (req, res) => {
   res.json({ post: { ...post, time_ago: formatTime(post.created_at), level_name: getLevelName(post.level), my_vote: myVote } });
 });
 
+// ══════════════════════════════════════════════════════════════════════════════
+// VOICE ROOMS — الرومات الصوتية
+// ══════════════════════════════════════════════════════════════════════════════
+
+const AGORA_APP_ID = process.env.AGORA_APP_ID || 'bc883844cc204623bd53e00011e5eadd';
+
+// جداول الرومات
+db.exec(`
+  CREATE TABLE IF NOT EXISTS voice_rooms (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    host_id TEXT NOT NULL,
+    topic TEXT DEFAULT '',
+    is_active INTEGER DEFAULT 1,
+    participants_count INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (host_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS room_messages (
+    id TEXT PRIMARY KEY,
+    room_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (room_id) REFERENCES voice_rooms(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+`);
+
+// جلب الرومات النشطة
+app.get('/api/rooms', (req, res) => {
+  const rooms = db.prepare(`
+    SELECT r.*, u.display_name as host_name, u.avatar as host_avatar, u.is_verified as host_verified
+    FROM voice_rooms r JOIN users u ON r.host_id = u.id
+    WHERE r.is_active = 1
+    ORDER BY r.participants_count DESC, r.created_at DESC
+    LIMIT 20
+  `).all();
+  res.json({ rooms });
+});
+
+// إنشاء روم جديد
+app.post('/api/rooms', requireAuth, (req, res) => {
+  const { name, description, topic } = req.body;
+  if (!name || name.trim().length < 2) return res.json({ error: 'اسم الروم مطلوب' });
+  const id = uuidv4().replace(/-/g,'').slice(0,12);
+  db.prepare(`INSERT INTO voice_rooms (id,name,description,host_id,topic) VALUES (?,?,?,?,?)`).run(
+    id, name.trim(), description||'', req.session.userId, topic||''
+  );
+  const room = db.prepare(`SELECT r.*, u.display_name as host_name FROM voice_rooms r JOIN users u ON r.host_id = u.id WHERE r.id = ?`).get(id);
+  res.json({ success: true, room });
+});
+
+// تحديث عدد المشاركين
+app.post('/api/rooms/:id/join', requireAuth, (req, res) => {
+  db.prepare(`UPDATE voice_rooms SET participants_count = participants_count + 1 WHERE id = ? AND is_active = 1`).run(req.params.id);
+  res.json({ success: true });
+});
+
+app.post('/api/rooms/:id/leave', requireAuth, (req, res) => {
+  db.prepare(`UPDATE voice_rooms SET participants_count = MAX(0, participants_count - 1) WHERE id = ?`).run(req.params.id);
+  const room = db.prepare(`SELECT * FROM voice_rooms WHERE id = ?`).get(req.params.id);
+  if (room && room.participants_count === 0) {
+    db.prepare(`UPDATE voice_rooms SET is_active = 0 WHERE id = ?`).run(req.params.id);
+  }
+  res.json({ success: true });
+});
+
+// إغلاق الروم (الهوست فقط)
+app.delete('/api/rooms/:id', requireAuth, (req, res) => {
+  const room = db.prepare(`SELECT * FROM voice_rooms WHERE id = ?`).get(req.params.id);
+  if (!room) return res.json({ error: 'الروم غير موجود' });
+  if (room.host_id !== req.session.userId) return res.json({ error: 'غير مصرح' });
+  db.prepare(`UPDATE voice_rooms SET is_active = 0 WHERE id = ?`).run(req.params.id);
+  res.json({ success: true });
+});
+
+// رسائل الشات
+app.get('/api/rooms/:id/messages', requireAuth, (req, res) => {
+  const msgs = db.prepare(`
+    SELECT m.*, u.display_name, u.avatar, u.is_verified
+    FROM room_messages m JOIN users u ON m.user_id = u.id
+    WHERE m.room_id = ? ORDER BY m.created_at ASC LIMIT 100
+  `).all(req.params.id);
+  res.json({ messages: msgs.map(m => ({ ...m, time_ago: formatTime(m.created_at) })) });
+});
+
+app.post('/api/rooms/:id/messages', requireAuth, (req, res) => {
+  const { content } = req.body;
+  if (!content || content.trim().length < 1) return res.json({ error: 'الرسالة فارغة' });
+  const room = db.prepare(`SELECT id FROM voice_rooms WHERE id = ? AND is_active = 1`).get(req.params.id);
+  if (!room) return res.json({ error: 'الروم غير موجود' });
+  const id = uuidv4();
+  db.prepare(`INSERT INTO room_messages (id,room_id,user_id,content) VALUES (?,?,?,?)`).run(id, req.params.id, req.session.userId, content.trim());
+  const msg = db.prepare(`SELECT m.*, u.display_name, u.avatar, u.is_verified FROM room_messages m JOIN users u ON m.user_id = u.id WHERE m.id = ?`).get(id);
+  res.json({ success: true, message: { ...msg, time_ago: 'الآن' } });
+});
+
+// Agora App ID للـ frontend
+app.get('/api/agora/config', (req, res) => {
+  res.json({ appId: AGORA_APP_ID });
+});
+
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 
-// ── SPA Routing ───────────────────────────────────────────────────────────────
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
