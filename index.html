@@ -1575,25 +1575,33 @@ async function loadFullLeaderboard() {
 // ══════════════════════════════════════════════════════════════════
 async function loadPostPage(postId) {
   const el = document.getElementById('post-page-content');
+
+  function renderCommentInput() {
+    if (currentUser) {
+      return `<div class="single-comment-input-wrap">
+        <div class="avatar avatar-sm">${currentUser.avatar ? `<img src="${currentUser.avatar}">` : currentUser.display_name[0]}</div>
+        <input class="comment-input" id="post-page-cmt-input" placeholder="شارك رأيك..." onkeydown="if(event.key==='Enter')submitPostPageComment('${postId}')">
+        <button class="btn btn-primary btn-sm" onclick="submitPostPageComment('${postId}')">تعليق</button>
+      </div>`;
+    }
+    return `<div style="background:var(--bg3);border-radius:var(--radius2);padding:14px;text-align:center;margin-bottom:16px" id="login-prompt">
+      <p style="color:var(--text2);margin-bottom:10px;font-size:14px">سجّل دخولك للمشاركة في النقاش</p>
+      <button class="btn btn-primary btn-sm" onclick="showLoginModal()">تسجيل الدخول</button>
+    </div>`;
+  }
+
   el.innerHTML = `
     <div class="single-post-back" onclick="navigate('home')">← العودة للرئيسية</div>
     <div id="post-page-card"><div class="skeleton" style="height:180px;border-radius:14px"></div></div>
     <div class="single-comments-wrap">
       <div class="single-comments-title">💬 التعليقات</div>
-      ${currentUser ? `
-        <div class="single-comment-input-wrap">
-          <div class="avatar avatar-sm">${currentUser.avatar ? `<img src="${currentUser.avatar}">` : currentUser.display_name[0]}</div>
-          <input class="comment-input" id="post-page-cmt-input" placeholder="شارك رأيك..." onkeydown="if(event.key==='Enter')submitPostPageComment('${postId}')">
-          <button class="btn btn-primary btn-sm" onclick="submitPostPageComment('${postId}')">تعليق</button>
-        </div>` : `
-        <div style="background:var(--bg3);border-radius:var(--radius2);padding:14px;text-align:center;margin-bottom:16px">
-          <p style="color:var(--text2);margin-bottom:10px;font-size:14px">سجّل دخولك للمشاركة في النقاش</p>
-          <button class="btn btn-primary btn-sm" onclick="showLoginModal()">تسجيل الدخول</button>
-        </div>`}
+      <div id="post-comment-input-wrap">${renderCommentInput()}</div>
       <div id="post-page-comments"></div>
     </div>`;
 
-  // جلب المنشور
+  // تحديث input بعد تسجيل الدخول
+  window._currentPostId = postId;
+
   try {
     const r = await fetch('/api/posts/' + postId);
     const d = await r.json();
@@ -1953,6 +1961,17 @@ async function submitLogin() {
   closeModal('auth-modal');
   await checkAuth();
   renderFeed();
+  // تحديث صفحة المنشور إذا كان المستخدم عليها
+  if (window._currentPostId && currentPage === 'post') {
+    const wrap = document.getElementById('post-comment-input-wrap');
+    if (wrap && currentUser) {
+      wrap.innerHTML = `<div class="single-comment-input-wrap">
+        <div class="avatar avatar-sm">${currentUser.avatar ? `<img src="${currentUser.avatar}">` : currentUser.display_name[0]}</div>
+        <input class="comment-input" id="post-page-cmt-input" placeholder="شارك رأيك..." onkeydown="if(event.key==='Enter')submitPostPageComment('${window._currentPostId}')">
+        <button class="btn btn-primary btn-sm" onclick="submitPostPageComment('${window._currentPostId}')">تعليق</button>
+      </div>`;
+    }
+  }
   toast('أهلاً وسهلاً! 🎉', 'success');
 }
 
