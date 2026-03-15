@@ -597,6 +597,7 @@ body {
     <!-- Home Page -->
     <div class="page active" id="page-home">
       <div id="compose-area"></div>
+      <div id="poll-widget-wrap"></div>
       <div class="feed-tabs">
         <button class="feed-tab active" onclick="switchTab('discover')">🔥 الاكتشاف</button>
         <button class="feed-tab" onclick="switchTab('following')">👥 المتابَعون</button>
@@ -687,6 +688,7 @@ async function init() {
   loadLeaderboardPanel();
   loadTrendingStocks();
   renderFeed();
+  loadPoll();
   if (currentUser) pollNotifications();
 }
 
