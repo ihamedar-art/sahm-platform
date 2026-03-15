@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>سهم — مجتمع المتداولين السعوديين</title>
+<title>جلسة السوق — مجتمع المتداولين السعوديين</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Readex+Pro:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
@@ -552,8 +552,8 @@ body {
 <!-- Navbar -->
 <nav class="navbar">
   <a class="navbar-logo" onclick="navigate('home')">
-    <div class="logo-icon">📈</div>
-    سهم
+    <div class="logo-icon">🔔</div>
+    جلسة السوق
   </a>
   <div class="navbar-search">
     <span class="search-icon">🔍</span>
@@ -762,7 +762,7 @@ function renderComposeArea() {
     el.innerHTML = `
       <div class="compose-box" style="text-align:center;padding:24px">
         <div style="font-size:28px;margin-bottom:10px">📊</div>
-        <p style="color:var(--text2);margin-bottom:14px">انضم لمجتمع المتداولين السعوديين</p>
+        <p style="color:var(--text2);margin-bottom:14px">انضم لمجتمع جلسة السوق</p>
         <button class="btn btn-primary" onclick="showRegisterModal()">إنشاء حساب مجاني</button>
         <span style="margin:0 10px;color:var(--text3)">أو</span>
         <button class="btn btn-ghost" onclick="showLoginModal()">تسجيل الدخول</button>
@@ -771,7 +771,7 @@ function renderComposeArea() {
   }
   el.innerHTML = `
     <div class="compose-box">
-      <textarea class="compose-textarea" id="compose-text" placeholder="شارك تحليلك أو رأيك... استخدم $2222 للإشارة لأرامكو مثلاً" maxlength="2000" oninput="updateCharCount(this)"></textarea>
+      <textarea class="compose-textarea" id="compose-text" placeholder="شارك رأيك في جلسة اليوم... استخدم $2222 للإشارة لأرامكو مثلاً" maxlength="2000" oninput="updateCharCount(this)"></textarea>
       <p class="compose-hint">استخدم $رمز للإشارة لسهم — مثال: $2222 $1120</p>
       <div class="analysis-fields" id="analysis-fields">
         <div class="direction-btns">
@@ -899,7 +899,7 @@ async function renderFeed(reset = true) {
   if (posts.length === 0 && feedPage === 0) {
     feed.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div>
       <div class="empty-title">لا توجد منشورات بعد</div>
-      <p>${currentTab === 'following' ? 'تابع بعض المحللين لترى منشوراتهم هنا' : 'كن أول من ينشر!'}</p></div>`;
+      <p>${currentTab === 'following' ? 'تابع بعض المحللين لترى منشوراتهم هنا' : 'افتح الجلسة وكن أول من ينشر!'}</p></div>`;
   } else {
     posts.forEach(p => feed.insertAdjacentHTML('beforeend', createPostCard(p)));
   }
@@ -1456,7 +1456,7 @@ function showLoginModal() {
 
 function showRegisterModal() {
   document.getElementById('auth-modal-content').innerHTML = `
-    <div class="modal-title">انضم لمجتمع سهم 📈</div>
+    <div class="modal-title">انضم لجلسة السوق 🔔</div>
     <div class="modal-subtitle">شارك تحليلاتك وابنِ سمعتك</div>
     <div class="form-group">
       <label class="form-label">الاسم الظاهر</label>
@@ -1506,7 +1506,7 @@ async function submitRegister() {
   closeModal('auth-modal');
   await checkAuth();
   renderFeed();
-  toast('مرحباً بك في مجتمع سهم! 🎉', 'success');
+  toast('مرحباً بك في جلسة السوق! 🎉', 'success');
 }
 
 async function logout() {
@@ -1655,7 +1655,7 @@ function renderPoll(poll) {
   el.innerHTML = `
     <div class="poll-widget">
       <div class="poll-header">
-        <span class="poll-badge">📊 استطلاع اليوم</span>
+        <span class="poll-badge">🔔 جلسة اليوم</span>
         <span style="opacity:.7;font-size:12px">${formatPollDate(poll.date)}</span>
       </div>
       <div class="poll-title">${poll.question}</div>
