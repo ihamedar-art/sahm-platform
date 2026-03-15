@@ -493,6 +493,132 @@ app.get('/api/leaderboard', (req, res) => {
 });
 
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NEWS SYSTEM — نظام الأخبار المجتمعية
+// ══════════════════════════════════════════════════════════════════════════════
+
+// جدول الأخبار
+db.exec(`
+  CREATE TABLE IF NOT EXISTS news_posts (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    source TEXT NOT NULL,
+    source_url TEXT DEFAULT '',
+    stock_symbols TEXT DEFAULT '',
+    post_id TEXT DEFAULT '',
+    published_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_published INTEGER DEFAULT 0
+  );
+`);
+
+// إنشاء حساب الأخبار الرسمي إذا ما موجود
+function ensureNewsAccount() {
+  const existing = db.prepare("SELECT id FROM users WHERE username = 'jalsat_news'").get();
+  if (existing) return existing.id;
+  const id = uuidv4();
+  const hash = '$2a$12$newsaccounthashplaceholder123456'; // placeholder
+  db.prepare(`INSERT INTO users (id,username,display_name,email,password_hash,bio,is_verified,level,reputation)
+    VALUES (?,?,?,?,?,?,?,?,?)`).run(
+    id, 'jalsat_news', '📰 أخبار السوق', 'news@jalsat.com',
+    hash, 'الحساب الرسمي لأخبار السوق المالي السعودي — يتم النشر تلقائياً',
+    1, 5, 9999
+  );
+  return id;
+}
+
+// أخبار تجريبية للبداية
+const SAMPLE_NEWS = [
+  { title: 'أرامكو تعلن نتائج الربع الأول بأرباح تفوق التوقعات', summary: 'أعلنت أرامكو السعودية عن نتائج الربع الأول من العام الحالي، وجاءت الأرباح فوق توقعات المحللين بنسبة 6%، مدفوعةً بارتفاع أسعار النفط وزيادة الطاقة الإنتاجية.', source: 'أرقام', stock_symbols: '$2222' },
+  { title: 'مؤشر تاسي يرتفع 1.2% في جلسة اليوم بدعم من القطاع المالي', summary: 'أغلق مؤشر السوق المالي السعودي تاسي مرتفعاً بنسبة 1.2% عند مستوى 12,450 نقطة، مدعوماً بمكاسب قوية في أسهم القطاع المالي والبنوك.', source: 'مباشر', stock_symbols: '$1120 $1010' },
+  { title: 'الراجحي المالية ترفع توصيتها على سهم STC إلى "تجميع"', summary: 'رفعت شركة الراجحي المالية توصيتها على سهم شركة الاتصالات السعودية STC من "محايد" إلى "تجميع"، مع تعديل السعر المستهدف إلى 54 ريالاً.', source: 'أرقام', stock_symbols: '$7010' },
+  { title: 'هيئة السوق المالية تعتمد اكتتاباً جديداً في القطاع الصحي', summary: 'أعلنت هيئة السوق المالية عن اعتماد طرح عام أولي لشركة رائدة في القطاع الصحي، بسعر اكتتاب 28 ريالاً للسهم. تفتح نافذة الاشتراك الأسبوع القادم.', source: 'تداول', stock_symbols: '$اكتتاب' },
+  { title: 'سابك تتفاوض على عقود بتروكيماويات بقيمة 3 مليار ريال', summary: 'كشفت مصادر مطلعة أن شركة سابك تجري مفاوضات متقدمة لإبرام عقود توريد بتروكيماويات مع عدة شركاء آسيويين بقيمة إجمالية تتجاوز 3 مليار ريال.', source: 'الاقتصادية', stock_symbols: '$2010' },
+  { title: 'أكوا باور تفوز بعقد محطة طاقة شمسية بالمملكة بـ 1.8 مليار', summary: 'فازت شركة أكوا باور بعقد إنشاء وتشغيل محطة طاقة شمسية جديدة في المنطقة الشرقية بقيمة 1.8 مليار ريال، ضمن مستهدفات رؤية 2030 للطاقة المتجددة.', source: 'مباشر', stock_symbols: '$4200' },
+];
+
+// نشر الأخبار التجريبية عند التشغيل الأول
+function publishSampleNews() {
+  const count = db.prepare('SELECT COUNT(*) as c FROM news_posts').get().c;
+  if (count > 0) return; // موجودة مسبقاً
+
+  const newsUserId = ensureNewsAccount();
+
+  SAMPLE_NEWS.forEach((news, i) => {
+    const newsId = uuidv4();
+    const postId = uuidv4();
+    const hoursAgo = (i + 1) * 2;
+    const createdAt = new Date(Date.now() - hoursAgo * 3600000).toISOString();
+
+    // نشر كمنشور عادي
+    db.prepare(`INSERT INTO posts (id,user_id,content,stock_symbols,post_type,created_at)
+      VALUES (?,?,?,?,?,?)`).run(
+      postId, newsUserId,
+      `📰 ${news.title}
+
+${news.summary}
+
+📌 المصدر: ${news.source}`,
+      news.stock_symbols, 'news', createdAt
+    );
+
+    // حفظ في جدول الأخبار
+    db.prepare(`INSERT INTO news_posts (id,title,summary,source,stock_symbols,post_id,published_at,is_published)
+      VALUES (?,?,?,?,?,?,?,?)`).run(
+      newsId, news.title, news.summary, news.source,
+      news.stock_symbols, postId, createdAt, 1
+    );
+  });
+
+  // تحديث عداد المنشورات
+  db.prepare("UPDATE users SET posts_count = (SELECT COUNT(*) FROM posts WHERE user_id = users.id) WHERE username = 'jalsat_news'").run();
+}
+
+// تشغيل النشر عند البدء
+try { publishSampleNews(); } catch(e) { console.log('News init:', e.message); }
+
+// API: جلب آخر الأخبار للشريط الجانبي
+app.get('/api/news/latest', (req, res) => {
+  const news = db.prepare(`
+    SELECT n.*, p.upvotes, p.comments_count
+    FROM news_posts n
+    LEFT JOIN posts p ON n.post_id = p.id
+    WHERE n.is_published = 1
+    ORDER BY n.published_at DESC
+    LIMIT 6
+  `).all();
+  res.json({ news });
+});
+
+// API: إضافة خبر يدوياً من الأدمن
+app.post('/api/admin/news', requireAdmin, (req, res) => {
+  const { title, summary, source, stock_symbols } = req.body;
+  if (!title || !summary) return res.json({ error: 'العنوان والملخص مطلوبان' });
+
+  const newsUserId = ensureNewsAccount();
+  const newsId = uuidv4();
+  const postId = uuidv4();
+
+  db.prepare(`INSERT INTO posts (id,user_id,content,stock_symbols,post_type)
+    VALUES (?,?,?,?,?)`).run(
+    postId, newsUserId,
+    `📰 ${title}
+
+${summary}
+
+📌 المصدر: ${source||'جلسة السوق'}`,
+    stock_symbols||'', 'news'
+  );
+
+  db.prepare(`INSERT INTO news_posts (id,title,summary,source,stock_symbols,post_id,is_published)
+    VALUES (?,?,?,?,?,?,?)`).run(newsId, title, summary, source||'جلسة السوق', stock_symbols||'', postId, 1);
+
+  db.prepare("UPDATE users SET posts_count = posts_count + 1 WHERE username = 'jalsat_news'").run();
+
+  res.json({ success: true, postId });
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // DAILY POLL — استطلاع تاسي اليومي
 // ══════════════════════════════════════════════════════════════════════════════

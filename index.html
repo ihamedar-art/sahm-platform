@@ -544,6 +544,34 @@ body {
 .poll-hist-bar { flex:1; height:5px; background:rgba(255,255,255,.1); border-radius:3px; overflow:hidden; display:flex; }
 .poll-hist-seg { height:100%; transition:width .4s ease; }
 
+
+/* ── News Sidebar ── */
+.news-item {
+  padding: 12px 14px; border-bottom: 1px solid var(--border);
+  cursor: pointer; transition: background .15s; display: block;
+}
+.news-item:last-child { border-bottom: none; }
+.news-item:hover { background: var(--bg3); }
+.news-source {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 700; color: var(--primary);
+  background: var(--primary-l); padding: 2px 7px; border-radius: 8px;
+  margin-bottom: 5px;
+}
+.news-title {
+  font-size: 13px; font-weight: 600; color: var(--text);
+  line-height: 1.5; margin-bottom: 4px;
+  display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden;
+}
+.news-meta {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; color: var(--text3);
+}
+.news-sym {
+  color: var(--primary); font-weight: 700; font-size: 11px;
+}
+
 </style>
 </head>
 <body>
@@ -586,9 +614,12 @@ body {
       </a>
     </nav>
 
-    <div class="sidebar-card">
-      <div class="sidebar-card-title">أسهم شائعة</div>
-      <div id="popular-stocks"></div>
+    <div class="sidebar-card" style="padding:0;overflow:hidden">
+      <div style="padding:12px 14px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <div class="sidebar-card-title" style="margin:0">📰 أحدث الأخبار</div>
+        <span style="font-size:11px;color:var(--text3)">يتجدد تلقائياً</span>
+      </div>
+      <div id="news-sidebar"></div>
     </div>
   </aside>
 
@@ -1302,11 +1333,60 @@ async function loadFullLeaderboard() {
 // POPULAR STOCKS & TRENDING
 // ══════════════════════════════════════════════════════════════════
 async function loadPopularStocks() {
-  const res = await fetch('/api/stocks/popular');
-  const data = await res.json();
-  document.getElementById('popular-stocks').innerHTML = data.stocks
-    .map(s => `<span class="stock-chip" onclick="navigate('stock','${s.symbol}')">${s.symbol}<span style="font-size:10px;color:var(--text3);font-weight:400">${s.name}</span></span>`)
-    .join('');
+  // replaced by news sidebar
+  loadNewsSidebar();
+}
+
+async function loadNewsSidebar() {
+  const el = document.getElementById('news-sidebar');
+  if (!el) return;
+
+  const demoNews = [
+    { title:'أرامكو تعلن نتائج الربع الأول بأرباح تفوق التوقعات', source:'أرقام', stock_symbols:'$2222', post_id:'', comments_count:12, published_at: new Date(Date.now()-7200000).toISOString() },
+    { title:'مؤشر تاسي يرتفع 1.2% بدعم من القطاع المالي', source:'مباشر', stock_symbols:'$1120', post_id:'', comments_count:8, published_at: new Date(Date.now()-14400000).toISOString() },
+    { title:'الراجحي المالية ترفع توصيتها على سهم STC إلى تجميع', source:'أرقام', stock_symbols:'$7010', post_id:'', comments_count:5, published_at: new Date(Date.now()-18000000).toISOString() },
+    { title:'هيئة السوق تعتمد اكتتاباً جديداً في القطاع الصحي', source:'تداول', stock_symbols:'$اكتتاب', post_id:'', comments_count:21, published_at: new Date(Date.now()-25200000).toISOString() },
+    { title:'سابك تتفاوض على عقود بتروكيماويات بـ 3 مليار ريال', source:'الاقتصادية', stock_symbols:'$2010', post_id:'', comments_count:7, published_at: new Date(Date.now()-32400000).toISOString() },
+    { title:'أكوا باور تفوز بعقد محطة طاقة شمسية بـ 1.8 مليار', source:'مباشر', stock_symbols:'$4200', post_id:'', comments_count:4, published_at: new Date(Date.now()-86400000).toISOString() },
+  ];
+
+  try {
+    const r = await fetch('/api/news/latest');
+    const d = await r.json();
+    const news = d.news && d.news.length > 0 ? d.news : demoNews;
+    renderNewsSidebar(news);
+  } catch(e) {
+    renderNewsSidebar(demoNews);
+  }
+}
+
+function renderNewsSidebar(news) {
+  const el = document.getElementById('news-sidebar');
+  if (!el) return;
+  el.innerHTML = news.map(n => `
+    <div class="news-item" onclick="goToNews('${n.post_id||''}')">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span class="news-source">📌 ${n.source||'جلسة السوق'}</span>
+        ${n.stock_symbols ? `<span class="news-sym">${n.stock_symbols.split(' ')[0]}</span>` : ''}
+      </div>
+      <div class="news-title">${n.title}</div>
+      <div class="news-meta">
+        <span>${formatNewsTime(n.published_at)}</span>
+        ${n.comments_count > 0 ? `<span>💬 ${n.comments_count} تعليق</span>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+function formatNewsTime(dt) {
+  if (!dt) return '';
+  const diff = Math.floor((Date.now() - new Date(dt)) / 1000);
+  if (diff < 3600) return 'منذ ' + Math.floor(diff/60) + ' دقيقة';
+  if (diff < 86400) return 'منذ ' + Math.floor(diff/3600) + ' ساعة';
+  return 'منذ ' + Math.floor(diff/86400) + ' يوم';
+}
+
+function goToNews(postId) {
+  nav('profile', 'jalsat_news');
 }
 
 async function loadTrendingStocks() {
@@ -1759,6 +1839,7 @@ async function init() {
   renderNavRight();
   renderCompose();
   loadStockPills();
+  loadNewsSidebar();
   loadLBPanel && loadLBPanel();
   loadTrendingStocks && loadTrendingStocks();
   renderFeed();

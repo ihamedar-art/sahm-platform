@@ -142,6 +142,7 @@ tr:hover td { background:rgba(255,255,255,.02); }
     <button class="nav-link active" onclick="showPage('dashboard')" id="nav-dashboard"><span class="nav-icon">📊</span> الإحصائيات</button>
     <button class="nav-link" onclick="showPage('users')" id="nav-users"><span class="nav-icon">👥</span> المستخدمون</button>
     <button class="nav-link" onclick="showPage('posts')" id="nav-posts"><span class="nav-icon">📝</span> المنشورات</button>
+    <button class="nav-link" onclick="showPage('news')" id="nav-news"><span class="nav-icon">📰</span> إدارة الأخبار</button>
     <div style="margin-top:auto;padding:20px;border-top:1px solid var(--border)">
       <button class="btn btn-ghost btn-sm" style="width:100%" onclick="doLogout()">🚪 خروج</button>
     </div>
@@ -180,6 +181,27 @@ tr:hover td { background:rgba(255,255,255,.02); }
           </div>
           <div id="users-table-wrap"><div class="loading">جاري التحميل...</div></div>
           <div class="pagination" id="users-pagination"></div>
+        </div>
+      </div>
+
+      <!-- News -->
+      <div id="page-news" style="display:none">
+        <div class="table-card" style="margin-bottom:20px">
+          <div class="table-header"><div class="table-title">➕ نشر خبر جديد</div></div>
+          <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+            <input class="search-inp" style="width:100%" id="news-title" placeholder="عنوان الخبر *">
+            <textarea id="news-summary" placeholder="ملخص الخبر *" style="padding:8px 14px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius2);color:var(--text);font-family:inherit;font-size:13px;outline:none;resize:none;min-height:80px;width:100%"></textarea>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <input class="search-inp" style="flex:1;min-width:140px" id="news-source" placeholder="المصدر (أرقام، مباشر...)">
+              <input class="search-inp" style="flex:1;min-width:140px" id="news-symbols" placeholder="رموز الأسهم ($2222 $1120)">
+            </div>
+            <div id="news-err" style="color:var(--red);font-size:13px"></div>
+            <button class="btn btn-primary" style="width:fit-content" onclick="publishNews()">📰 نشر الخبر</button>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-header"><div class="table-title">📰 الأخبار المنشورة</div></div>
+          <div id="news-list"></div>
         </div>
       </div>
 
@@ -249,14 +271,15 @@ function showAdmin() {
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 function showPage(page) {
-  ['dashboard','users','posts'].forEach(p => {
+  ['dashboard','users','posts','news'].forEach(p => {
     document.getElementById('page-'+p).style.display = p===page ? 'block' : 'none';
     document.getElementById('nav-'+p).classList.toggle('active', p===page);
   });
-  const titles = { dashboard:'📊 الإحصائيات', users:'👥 المستخدمون', posts:'📝 المنشورات' };
+  const titles = { dashboard:'📊 الإحصائيات', users:'👥 المستخدمون', posts:'📝 المنشورات', news:'📰 إدارة الأخبار' };
   document.getElementById('current-page-title').textContent = titles[page];
   if (page === 'users') loadUsers();
   if (page === 'posts') loadPosts();
+  if (page === 'news') loadNews();
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -411,6 +434,53 @@ function confirmNo() { document.getElementById('confirm-overlay').classList.remo
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 checkAdmin();
+
+// ── News Management ───────────────────────────────────────────────────────────
+async function loadNews() {
+  const res = await fetch('/api/news/latest');
+  const data = await res.json();
+  const list = document.getElementById('news-list');
+  if (!data.news || !data.news.length) {
+    list.innerHTML = '<div class="empty">لا توجد أخبار بعد</div>'; return;
+  }
+  list.innerHTML = `<table>
+    <thead><tr><th>العنوان</th><th>المصدر</th><th>الأسهم</th><th>التعليقات</th><th>الوقت</th></tr></thead>
+    <tbody>${data.news.map(n => `<tr>
+      <td style="font-weight:600;font-size:13px;max-width:280px">${n.title}</td>
+      <td><span class="badge badge-blue">${n.source||'—'}</span></td>
+      <td style="color:var(--primary);font-size:12px">${n.stock_symbols||'—'}</td>
+      <td style="color:var(--text2)">${n.comments_count||0}</td>
+      <td style="color:var(--text3);font-size:12px">${n.published_at?new Date(n.published_at).toLocaleDateString('ar-SA'):''}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+async function publishNews() {
+  const title = document.getElementById('news-title').value.trim();
+  const summary = document.getElementById('news-summary').value.trim();
+  const source = document.getElementById('news-source').value.trim();
+  const symbols = document.getElementById('news-symbols').value.trim();
+  const err = document.getElementById('news-err');
+
+  if (!title || !summary) { err.textContent = 'العنوان والملخص مطلوبان'; return; }
+  err.textContent = '';
+
+  const res = await fetch('/api/admin/news', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ title, summary, source, stock_symbols: symbols })
+  });
+  const data = await res.json();
+  if (data.error) { err.textContent = data.error; return; }
+
+  toast('تم نشر الخبر بنجاح! ✅', 'success');
+  document.getElementById('news-title').value = '';
+  document.getElementById('news-summary').value = '';
+  document.getElementById('news-source').value = '';
+  document.getElementById('news-symbols').value = '';
+  loadNews();
+}
+
 </script>
 </body>
 </html>
