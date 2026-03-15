@@ -1083,7 +1083,8 @@ function createPostCard(p, standalone = false) {
   const upActive = p.my_vote === 'up' ? 'active' : '';
   const downActive = p.my_vote === 'down' ? 'active' : '';
 
-  return `<div class="post-card" id="post-${p.id}" style="${standalone ? '' : 'cursor:pointer'}" ${standalone ? '' : `onclick="handlePostClick(event,'${p.id}')"`}>`
+  const cardClick = standalone ? '' : `onclick="handlePostClick(event,'${p.id}')"`;
+  return `<div class="post-card" id="post-${p.id}" style="${standalone ? '' : 'cursor:pointer'}" ${cardClick}>
     <div class="post-header">
       <div class="avatar" onclick="event.stopPropagation();navigate('profile','${p.username}')">${avatarHtml}</div>
       <div class="post-meta">
