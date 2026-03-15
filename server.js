@@ -856,9 +856,9 @@ app.delete('/api/admin/posts/:id', requireAdmin, (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 const RSS_SOURCES = [
-  { name: 'أخبار السوق السعودي', url: 'https://news.google.com/rss/search?q=%D8%B3%D9%88%D9%82+%D8%A7%D9%84%D8%A3%D8%B3%D9%87%D9%85+%D8%A7%D9%84%D8%B3%D8%B9%D9%88%D8%AF%D9%8A&hl=ar&gl=SA&ceid=SA:ar', source: 'Google News' },
-  { name: 'تاسي', url: 'https://news.google.com/rss/search?q=%D8%AA%D8%A7%D8%B3%D9%8A+%D8%A8%D9%88%D8%B1%D8%B5%D8%A9&hl=ar&gl=SA&ceid=SA:ar', source: 'Google News' },
-  { name: 'أرامكو', url: 'https://news.google.com/rss/search?q=%D8%A3%D8%B1%D8%A7%D9%85%D9%83%D9%88+%D8%A3%D8%B3%D9%87%D9%85&hl=ar&gl=SA&ceid=SA:ar', source: 'Google News' },
+  { name: 'رويترز عربي', url: 'https://feeds.reuters.com/reuters/arabicBusinessNews', source: 'رويترز' },
+  { name: 'بلومبرغ عربي', url: 'https://www.bloomberg.com/feed/arabic/business', source: 'بلومبرغ' },
+  { name: 'أخبار تاسي', url: 'https://news.google.com/rss/search?q=%D8%AA%D8%A7%D8%B3%D9%8A+%D8%A7%D9%84%D8%B3%D9%88%D9%82+%D8%A7%D9%84%D8%B3%D8%B9%D9%88%D8%AF%D9%8A&hl=ar&gl=SA&ceid=SA:ar', source: 'أخبار السوق' },
 ];
 
 async function fetchRSSFeed(url, redirectCount = 0) {
