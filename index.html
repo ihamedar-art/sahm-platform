@@ -1021,6 +1021,9 @@ function createPostCard(p) {
         💬 <span id="comments-count-${p.id}">${p.comments_count}</span>
       </button>
       <button class="action-btn" onclick="sharePost('${p.id}')">🔗</button>
+      <button class="action-btn" onclick="navigate('post','${p.id}')" style="margin-right:auto;color:var(--text3)">
+        ↗️ فتح
+      </button>
     </div>
     <div class="comments-section" id="comments-${p.id}">
       ${currentUser ? `<div class="comment-input-row">
@@ -1061,9 +1064,16 @@ async function loadComments(postId) {
   const res = await fetch(`/api/posts/${postId}/comments`);
   const data = await res.json();
   const list = document.getElementById(`comments-list-${postId}`);
-  if (data.comments.length === 0) { list.innerHTML = '<p style="color:var(--text3);font-size:13px;padding:8px 0">لا توجد تعليقات — كن أول من يعلّق!</p>'; return; }
-  list.innerHTML = data.comments.map(c => `
-    <div class="comment-item">
+  if (data.comments.length === 0) {
+    list.innerHTML = '<p style="color:var(--text3);font-size:13px;padding:8px 0">لا توجد تعليقات — كن أول من يعلّق!</p>';
+    return;
+  }
+  const all = data.comments;
+  const show = all.slice(0, 3);
+  const rest = all.length - 3;
+
+  function renderCmt(c) {
+    return `<div class="comment-item">
       <div class="avatar avatar-sm" onclick="navigate('profile','${c.username}')">
         ${c.avatar ? `<img src="${c.avatar}">` : c.display_name[0]}
       </div>
@@ -1075,7 +1085,20 @@ async function loadComments(postId) {
         </div>
         <div class="comment-text">${c.content.replace(/\n/g,'<br>')}</div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }
+
+  list.innerHTML = show.map(renderCmt).join('') +
+    (rest > 0 ? `<div style="padding:8px 0">
+      <button class="btn btn-ghost btn-sm" onclick="navigate('post_id','${postId}');openPost('${postId}')">
+        💬 عرض ${rest} تعليق إضافي
+      </button>
+    </div>` : '');
+}
+
+function openPost(postId) {
+  // نفتح صفحة المنشور الكاملة
+  navigate('post', postId);
 }
 
 async function submitComment(postId) {
