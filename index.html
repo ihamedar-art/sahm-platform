@@ -2245,22 +2245,6 @@ function formatPollDate(dateStr) {
   return days[d.getDay()];
 }
 
-// Load poll when on home page
-const origInit = init;
-async function init() {
-  await checkAuth();
-  renderNavRight();
-  renderCompose();
-  loadStockPills();
-  loadNewsSidebar();
-  loadLBPanel && loadLBPanel();
-  loadTrendingStocks && loadTrendingStocks();
-  renderFeed();
-  loadPoll();
-  if (currentUser) pollNotifications && pollNotifications();
-}
-
-
 // ══════════════════════════════════════════════════════════════════
 // SINGLE POST PAGE
 // ══════════════════════════════════════════════════════════════════
