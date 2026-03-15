@@ -130,15 +130,41 @@ const upload = multer({
   }
 });
 
+// ── Session Store في SQLite ──────────────────────────────────────────────────
+db.exec(`CREATE TABLE IF NOT EXISTS sessions (sid TEXT PRIMARY KEY, sess TEXT NOT NULL, expired INTEGER NOT NULL);`);
+setInterval(() => db.prepare('DELETE FROM sessions WHERE expired < ?').run(Date.now()), 3600000);
+
+class SQLiteStore {
+  get(sid, cb) {
+    try {
+      const row = db.prepare('SELECT sess, expired FROM sessions WHERE sid = ?').get(sid);
+      if (!row) return cb(null, null);
+      if (row.expired < Date.now()) { db.prepare('DELETE FROM sessions WHERE sid = ?').run(sid); return cb(null, null); }
+      cb(null, JSON.parse(row.sess));
+    } catch(e) { cb(e); }
+  }
+  set(sid, sess, cb) {
+    try {
+      const expired = Date.now() + (sess.cookie?.maxAge || 30*24*60*60*1000);
+      db.prepare('INSERT OR REPLACE INTO sessions (sid,sess,expired) VALUES (?,?,?)').run(sid, JSON.stringify(sess), expired);
+      cb(null);
+    } catch(e) { cb(e); }
+  }
+  destroy(sid, cb) { try { db.prepare('DELETE FROM sessions WHERE sid=?').run(sid); cb(null); } catch(e) { cb(e); } }
+  touch(sid, sess, cb) { this.set(sid, sess, cb); }
+}
+
 // ── Middleware ───────────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 app.use(session({
+  store: new SQLiteStore(),
   secret: process.env.SESSION_SECRET || 'sahm-secret-2026-very-long-key',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 }
+  rolling: true,
+  cookie: { maxAge: 30 * 24 * 60 * 60 * 1000, httpOnly: true }
 }));
 
 // ── Helper Functions ─────────────────────────────────────────────────────────
