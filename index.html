@@ -1083,38 +1083,35 @@ function createPostCard(p) {
   const upActive = p.my_vote === 'up' ? 'active' : '';
   const downActive = p.my_vote === 'down' ? 'active' : '';
 
-  return `<div class="post-card" id="post-${p.id}">
+  return `<div class="post-card" id="post-${p.id}" style="cursor:pointer" onclick="handlePostClick(event,'${p.id}')">
     <div class="post-header">
-      <div class="avatar" onclick="navigate('profile','${p.username}')">${avatarHtml}</div>
+      <div class="avatar" onclick="event.stopPropagation();navigate('profile','${p.username}')">${avatarHtml}</div>
       <div class="post-meta">
         <div class="post-author">
-          <span class="author-name" onclick="navigate('profile','${p.username}')">${p.display_name}</span>
+          <span class="author-name" onclick="event.stopPropagation();navigate('profile','${p.username}')">${p.display_name}</span>
           ${p.is_verified ? '<span class="verified-badge" title="موثّق">✓</span>' : ''}
           <span class="level-badge">${p.level_name}</span>
           <span class="author-handle">@${p.username}</span>
         </div>
         <div class="post-time">${p.time_ago}</div>
       </div>
-      ${isOwner ? `<div class="post-menu" onclick="deletePost('${p.id}')">🗑️</div>` : ''}
+      ${isOwner ? `<div class="post-menu" onclick="event.stopPropagation();deletePost('${p.id}')">🗑️</div>` : ''}
     </div>
     ${analysisBadge}
-    <div class="post-content">${contentHtml}</div>
+    <div class="post-content" onclick="event.stopPropagation()">${contentHtml}</div>
     ${targetsHtml}
-    ${p.image ? `<img src="${p.image}" class="post-image" onclick="openImage('${p.image}')" alt="تحليل">` : ''}
-    <div class="post-actions">
-      <button class="action-btn upvote ${upActive}" id="up-${p.id}" onclick="vote('${p.id}','up')">
+    ${p.image ? `<img src="${p.image}" class="post-image" onclick="event.stopPropagation();openImage('${p.image}')" alt="تحليل">` : ''}
+    <div class="post-actions" onclick="event.stopPropagation()">
+      <button class="action-btn upvote ${upActive}" id="up-${p.id}" onclick="event.stopPropagation();vote('${p.id}','up')">
         👍 <span id="upvotes-${p.id}">${p.upvotes}</span>
       </button>
-      <button class="action-btn downvote ${downActive}" id="down-${p.id}" onclick="vote('${p.id}','down')">
+      <button class="action-btn downvote ${downActive}" id="down-${p.id}" onclick="event.stopPropagation();vote('${p.id}','down')">
         👎 <span id="downvotes-${p.id}">${p.downvotes}</span>
       </button>
-      <button class="action-btn comment-btn" onclick="toggleComments('${p.id}')">
+      <button class="action-btn comment-btn" onclick="event.stopPropagation();toggleComments('${p.id}')">
         💬 <span id="comments-count-${p.id}">${p.comments_count}</span>
       </button>
-      <button class="action-btn" onclick="sharePost('${p.id}')">🔗</button>
-      <button class="action-btn" onclick="navigate('post','${p.id}')" style="margin-right:auto;color:var(--text3)">
-        ↗️ فتح
-      </button>
+      <button class="action-btn" onclick="event.stopPropagation();sharePost('${p.id}')">🔗</button>
     </div>
     <div class="comments-section" id="comments-${p.id}">
       ${currentUser ? `<div class="comment-input-row">
@@ -1331,6 +1328,11 @@ async function submitReply(postId, parentId, inputKey) {
   toast('تم إرسال ردك ✅', 'success');
   const count = document.getElementById(`comments-count-${postId}`);
   if (count) count.textContent = parseInt(count.textContent) + 1;
+}
+
+function handlePostClick(event, postId) {
+  if (event.target.closest('button, a, input, textarea, .comments-section, .post-symbol, .avatar, .post-menu, .post-actions')) return;
+  navigate('post', postId);
 }
 
 async function deletePost(postId) {
