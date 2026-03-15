@@ -5,28 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>سهم — مجتمع المتداولين السعوديين</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Readex+Pro:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg:        #0B0E13;
-  --bg2:       #111620;
-  --bg3:       #181E2A;
-  --border:    #1E2738;
-  --border2:   #2A3448;
-  --text:      #E8EDF5;
-  --text2:     #8B96A8;
-  --text3:     #5A6578;
-  --primary:   #3B7DDD;
-  --primary2:  #2563C4;
-  --green:     #22C55E;
-  --green-bg:  rgba(34,197,94,.1);
-  --red:       #EF4444;
-  --red-bg:    rgba(239,68,68,.1);
-  --gold:      #F59E0B;
-  --gold-bg:   rgba(245,158,11,.08);
-  --radius:    12px;
-  --radius2:   8px;
-  --shadow:    0 4px 24px rgba(0,0,0,.4);
+  --bg:        #F5F7FA;
+  --bg2:       #FFFFFF;
+  --bg3:       #EDF0F7;
+  --border:    #E0E7F0;
+  --border2:   #CDD7E8;
+  --text:      #0D1829;
+  --text2:     #445069;
+  --text3:     #8895B0;
+  --primary:   #1D4ED8;
+  --primary2:  #1E40AF;
+  --green:     #059669;
+  --green-bg:  rgba(5,150,105,.08);
+  --red:       #DC2626;
+  --red-bg:    rgba(220,38,38,.08);
+  --gold:      #D97706;
+  --gold-bg:   rgba(217,119,6,.08);
+  --radius:    14px;
+  --radius2:   10px;
+  --shadow:    0 2px 12px rgba(13,24,41,.07), 0 1px 3px rgba(13,24,41,.05);
 }
 
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -50,9 +50,10 @@ body {
 
 .navbar {
   position: sticky; top: 0; z-index: 100;
-  background: rgba(11,14,19,.92);
+  background: rgba(255,255,255,.95);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 0 var(--border);
   padding: 0 24px;
   height: 60px;
   display: flex; align-items: center; gap: 16px;
@@ -61,7 +62,7 @@ body {
 .navbar-logo {
   display: flex; align-items: center; gap: 10px;
   cursor: pointer; text-decoration: none;
-  font-size: 22px; font-weight: 700; color: var(--text);
+  font-size: 22px; font-weight: 700; color: var(--text); font-family: 'IBM Plex Sans Arabic', sans-serif;
   letter-spacing: -0.5px;
 }
 .navbar-logo .logo-icon {
@@ -76,7 +77,7 @@ body {
 }
 .navbar-search input {
   width: 100%; padding: 8px 16px 8px 40px;
-  background: var(--bg3); border: 1px solid var(--border);
+  background: var(--bg3); border: 1.5px solid var(--border);
   border-radius: 24px; color: var(--text); font-family: inherit;
   font-size: 14px; outline: none; transition: border-color .2s;
 }
@@ -101,8 +102,8 @@ body {
   font-family: inherit; font-size: 14px; font-weight: 600;
   cursor: pointer; transition: all .2s; display: inline-flex; align-items: center; gap: 6px;
 }
-.btn-primary { background: var(--primary); color: #fff; }
-.btn-primary:hover { background: var(--primary2); transform: translateY(-1px); }
+.btn-primary { background: var(--primary); color: #fff; box-shadow: 0 2px 8px rgba(29,78,216,.25); }
+.btn-primary:hover { background: var(--primary2); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(29,78,216,.3); }
 .btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border2); }
 .btn-ghost:hover { background: var(--bg3); color: var(--text); }
 .btn-sm { padding: 6px 14px; font-size: 13px; }
@@ -148,8 +149,9 @@ body {
 .nav-icon { width: 20px; text-align: center; font-size: 18px; }
 
 .sidebar-card {
-  background: var(--bg2); border: 1px solid var(--border);
+  background: var(--bg2); border: 1.5px solid var(--border);
   border-radius: var(--radius); padding: 16px; margin-top: 16px;
+  box-shadow: var(--shadow);
 }
 .sidebar-card-title {
   font-size: 13px; font-weight: 600; color: var(--text3);
@@ -234,12 +236,12 @@ body {
 
 /* ── Post Card ── */
 .post-card {
-  background: var(--bg2); border: 1px solid var(--border);
+  background: var(--bg2); border: 1.5px solid var(--border);
   border-radius: var(--radius); padding: 16px; margin-bottom: 12px;
-  transition: border-color .2s;
+  transition: all .2s; box-shadow: var(--shadow);
   animation: fadeIn .3s ease;
 }
-.post-card:hover { border-color: var(--border2); }
+.post-card:hover { border-color: var(--border2); box-shadow: 0 4px 20px rgba(29,78,216,.1); }
 @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 
 .post-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
@@ -1502,5 +1504,90 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════════════════════════
 init();
 </script>
+
+<script>
+// ── محتوى تجريبي — يظهر عند عدم وجود منشورات حقيقية ──
+const DEMO = [
+  { id:'d1', user_id:'du1', username:'noura_analyst', display_name:'نورة الشمري', avatar:'', level:4, level_name:'محلل متميز ⭐', is_verified:1,
+    content:'تحليل $1120 الراجحي: السهم يتداول في نطاق ضيق بين 85-88 ريال منذ أسبوعين. الكسر فوق 88 مع حجم جيد يفتح الطريق نحو 94 ريال. الدعم القوي عند 83 ريال. نلاحظ تراكماً من المؤسسات.',
+    post_type:'analysis', direction:'bullish', target_price:94, stop_loss:82, timeframe:'week',
+    stock_symbols:'$1120', upvotes:87, downvotes:4, comments_count:23, image:'', time_ago:'منذ ساعتين', my_vote:null },
+  { id:'d2', user_id:'du2', username:'faisal_trader', display_name:'فيصل المطيري', avatar:'', level:4, level_name:'محلل متميز ⭐', is_verified:1,
+    content:'رأيي في $2222 أرامكو بعد نتائج الربع الأول: الأرباح جاءت أقل من التوقعات لكن التوزيع النقدي ممتاز 🔥 السهم على المدى البعيد لا يزال قصة نمو قوية. هل تتوقعون ارتداداً في الأيام القادمة؟',
+    post_type:'opinion', direction:'', target_price:0, stop_loss:0, timeframe:'',
+    stock_symbols:'$2222', upvotes:134, downvotes:11, comments_count:45, image:'', time_ago:'منذ 4 ساعات', my_vote:null },
+  { id:'d3', user_id:'du3', username:'sultan_inv', display_name:'سلطان العتيبي', avatar:'', level:3, level_name:'محلل 🔍', is_verified:0,
+    content:'$7010 STC أعلنت نتائجها اليوم وجاءت فوق التوقعات بنسبة 8% 📱 إيرادات الخدمات الرقمية نمت 23%. أنا ممتلك للسهم من 41 ريال وأنوي الاحتفاظ.',
+    post_type:'news', direction:'bullish', target_price:52, stop_loss:38, timeframe:'month',
+    stock_symbols:'$7010', upvotes:56, downvotes:3, comments_count:18, image:'', time_ago:'منذ 6 ساعات', my_vote:null },
+  { id:'d4', user_id:'du4', username:'sara_finance', display_name:'سارة الغامدي', avatar:'', level:3, level_name:'محلل 🔍', is_verified:0,
+    content:'سؤال للخبراء: ما رأيكم في قطاع البتروكيماويات حالياً؟ $2010 سابك و $2380 بتكيم تبدو تقييماتهم جذابة. هل الدخول الآن مخاطرة أم فرصة؟',
+    post_type:'question', direction:'', target_price:0, stop_loss:0, timeframe:'',
+    stock_symbols:'$2010 $2380', upvotes:42, downvotes:2, comments_count:31, image:'', time_ago:'منذ 8 ساعات', my_vote:null },
+  { id:'d5', user_id:'du5', username:'khaled_tajer', display_name:'خالد التاجر', avatar:'', level:2, level_name:'متداول 📊', is_verified:0,
+    content:'$4200 أكوا باور — أحد أفضل الأسهم في الطاقة المتجددة! 🌿 الشركة وقّعت عقوداً بأكثر من 5 مليار ريال هذا الشهر.',
+    post_type:'opinion', direction:'bullish', target_price:88, stop_loss:70, timeframe:'quarter',
+    stock_symbols:'$4200', upvotes:38, downvotes:5, comments_count:14, image:'', time_ago:'منذ أمس', my_vote:null },
+];
+
+const DEMO_LB = [
+  { id:'du3b', username:'noura_analyst', display_name:'نورة الشمري', avatar:'', level:4, level_name:'محلل متميز ⭐', reputation:1890, posts_count:132, followers_count:3200, is_verified:1 },
+  { id:'du1b', username:'faisal_trader', display_name:'فيصل المطيري', avatar:'', level:4, level_name:'محلل متميز ⭐', reputation:1240, posts_count:87, followers_count:1420, is_verified:1 },
+  { id:'du2b', username:'sultan_inv', display_name:'سلطان العتيبي', avatar:'', level:3, level_name:'محلل 🔍', reputation:680, posts_count:54, followers_count:890, is_verified:0 },
+  { id:'du5b', username:'sara_finance', display_name:'سارة الغامدي', avatar:'', level:3, level_name:'محلل 🔍', reputation:540, posts_count:41, followers_count:670, is_verified:0 },
+  { id:'du4b', username:'khaled_tajer', display_name:'خالد التاجر', avatar:'', level:2, level_name:'متداول 📊', reputation:210, posts_count:28, followers_count:320, is_verified:0 },
+];
+
+// Inject demo into feed if empty
+const origRenderFeed = renderFeed;
+async function renderFeed(reset=true) {
+  if(reset){feedPage=0; document.getElementById('posts-feed').innerHTML='';}
+  if(isLoading) return;
+  isLoading=true;
+  let url=`/api/posts?page=${feedPage}`;
+  if(currentTab === 'following') url+='&feed=following';
+  const res = await fetch(url);
+  const data = await res.json();
+  const feed = document.getElementById('posts-feed');
+  let posts = data.posts||[];
+  if(currentTab==='analysis') posts=posts.filter(p=>p.post_type==='analysis');
+  if(posts.length===0 && feedPage===0) {
+    let demo = DEMO;
+    if(currentTab==='analysis') demo=demo.filter(p=>p.post_type==='analysis');
+    if(currentTab==='following') demo=demo.slice(0,2);
+    if(!demo.length) feed.innerHTML=`<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">لا توجد منشورات بعد</div></div>`;
+    else demo.forEach(p=>feed.insertAdjacentHTML('beforeend',createPostCard(p)));
+  } else {
+    posts.forEach(p=>feed.insertAdjacentHTML('beforeend',createPostCard(p)));
+  }
+  const lm=document.getElementById('load-more-container');
+  lm.innerHTML=posts.length===20?`<button class="btn btn-ghost" style="width:100%;margin:16px 0" onclick="loadMore()">تحميل المزيد</button>`:'';
+  isLoading=false;
+}
+
+// Patch leaderboard panel
+const origLB = loadLeaderboardPanel;
+async function loadLeaderboardPanel() {
+  try {
+    const r=await fetch('/api/leaderboard');
+    const d=await r.json();
+    const users=d.users&&d.users.length>0?d.users:DEMO_LB;
+    const el=document.getElementById('leaderboard-panel');
+    el.innerHTML=users.slice(0,5).map((u,i)=>`
+      <div class="leaderboard-item">
+        <div class="rank-num ${i<3?'gold':''}">${['🥇','🥈','🥉'][i]||i+1}</div>
+        <div class="avatar" style="width:32px;height:32px;font-size:12px;cursor:pointer" onclick="navigate('profile','${u.username}')">
+          ${u.avatar?`<img src="${u.avatar}">`:(u.display_name||'?')[0]}
+        </div>
+        <div class="leaderboard-info">
+          <div class="leaderboard-name" onclick="navigate('profile','${u.username}')">${u.display_name} ${u.is_verified?'✓':''}</div>
+          <div class="leaderboard-rep">${u.level_name}</div>
+        </div>
+        <div class="rep-score">${u.reputation}★</div>
+      </div>`).join('');
+  } catch(e){}
+}
+</script>
+
 </body>
 </html>
