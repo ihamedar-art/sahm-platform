@@ -3,6 +3,7 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const Database = require('better-sqlite3');
 const multer = require('multer');
+const sharp = require('sharp');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const fs = require('fs');
@@ -127,12 +128,32 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB قبل الضغط
   fileFilter: (req, file, cb) => {
     const allowed = /jpeg|jpg|png|gif|webp/;
     cb(null, allowed.test(path.extname(file.originalname).toLowerCase()));
   }
 });
+
+// ── ضغط الصور تلقائياً ───────────────────────────────────────────────────────
+async function compressImage(filePath) {
+  try {
+    const ext = path.extname(filePath).toLowerCase();
+    const tempPath = filePath + '.tmp';
+    await sharp(filePath)
+      .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toFile(tempPath);
+    fs.unlinkSync(filePath);
+    // احفظ بامتداد .jpg دائماً
+    const newPath = filePath.replace(/\.[^.]+$/, '.jpg');
+    fs.renameSync(tempPath, newPath);
+    return newPath;
+  } catch(e) {
+    console.error('compress error:', e.message);
+    return filePath;
+  }
+}
 
 // ── Middleware ───────────────────────────────────────────────────────────────
 app.use(express.json());
@@ -250,7 +271,14 @@ app.post('/api/posts', requireAuth, upload.single('image'), (req, res) => {
   if (content.length > 2000) return res.json({ error: 'المحتوى طويل جداً (الحد 2000 حرف)' });
 
   const id = uuidv4();
-  const image = req.file ? '/uploads/' + req.file.filename : '';
+  let image = req.file ? '/uploads/' + req.file.filename : '';
+
+  // ضغط الصورة إذا موجودة
+  if (req.file) {
+    const compressed = await compressImage(req.file.path);
+    image = '/uploads/' + path.basename(compressed);
+  }
+
   const symbols = extractSymbols(content);
 
   db.prepare(`INSERT INTO posts (id,user_id,content,image,stock_symbols,post_type,target_price,stop_loss,direction,timeframe)
@@ -436,7 +464,10 @@ app.post('/api/profile', requireAuth, upload.single('avatar'), (req, res) => {
   const updates = {};
   if (display_name) updates.display_name = display_name;
   if (bio !== undefined) updates.bio = bio;
-  if (req.file) updates.avatar = '/uploads/' + req.file.filename;
+  if (req.file) {
+    const compressed = await compressImage(req.file.path);
+    updates.avatar = '/uploads/' + path.basename(compressed);
+  }
 
   if (Object.keys(updates).length === 0) return res.json({ success: true });
   const sets = Object.keys(updates).map(k => `${k} = ?`).join(', ');
