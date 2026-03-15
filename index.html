@@ -1289,7 +1289,9 @@ function toggleReplyBox(commentId, name) {
 
 async function submitReply(postId, parentId, inputKey) {
   if (!currentUser) { showLoginModal(); return; }
-  const input = document.getElementById(`reply-input-${inputKey}`);
+  const inputId = `reply-input-${inputKey}`;
+  const input = document.getElementById(inputId);
+  if (!input) { toast('خطأ في إيجاد حقل الرد', 'error'); return; }
   const content = input.value.trim();
   if (!content) return;
   input.value = '';
@@ -1647,8 +1649,8 @@ async function loadPostPageComments(postId) {
               ${currentUser ? (currentUser.avatar ? `<img src="${currentUser.avatar}">` : currentUser.display_name[0]) : '?'}
             </div>
             <input class="reply-input" id="reply-input-${c.id}" placeholder="ردّ على ${c.display_name}..."
-              onkeydown="if(event.key==='Enter')submitReply('${postId}','${c.id}')">
-            <button class="btn btn-primary btn-sm" onclick="submitReply('${postId}','${c.id}')">إرسال</button>
+              onkeydown="if(event.key==='Enter')submitReply('${postId}','${c.id}','${c.id}')">
+            <button class="btn btn-primary btn-sm" onclick="submitReply('${postId}','${c.id}','${c.id}')">إرسال</button>
           </div>
           <div class="replies-list" id="replies-${c.id}"></div>
         </div>
