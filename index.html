@@ -1585,6 +1585,10 @@ async function loadFullLeaderboard() {
 // ══════════════════════════════════════════════════════════════════
 async function loadPostPage(postId) {
   const el = document.getElementById('post-page-content');
+  window._currentPostId = postId;
+
+  // تأكد من حالة المستخدم أولاً
+  if (!currentUser) await checkAuth();
 
   function renderCommentInput() {
     if (currentUser) {
@@ -1608,9 +1612,6 @@ async function loadPostPage(postId) {
       <div id="post-comment-input-wrap">${renderCommentInput()}</div>
       <div id="post-page-comments"></div>
     </div>`;
-
-  // تحديث input بعد تسجيل الدخول
-  window._currentPostId = postId;
 
   try {
     const r = await fetch('/api/posts/' + postId);
