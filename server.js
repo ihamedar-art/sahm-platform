@@ -789,6 +789,19 @@ app.delete('/api/admin/posts/:id', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+// ── Single Post API ──────────────────────────────────────────────────────────
+app.get('/api/posts/:id', (req, res) => {
+  const post = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
+    FROM posts p JOIN users u ON p.user_id = u.id WHERE p.id = ?`).get(req.params.id);
+  if (!post) return res.status(404).json({ error: 'المنشور غير موجود' });
+  let myVote = null;
+  if (req.session.userId) {
+    const v = db.prepare('SELECT vote_type FROM votes WHERE user_id=? AND target_id=? AND target_type="post"').get(req.session.userId, post.id);
+    myVote = v ? v.vote_type : null;
+  }
+  res.json({ post: { ...post, time_ago: formatTime(post.created_at), level_name: getLevelName(post.level), my_vote: myVote } });
+});
+
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 
 // ── SPA Routing ───────────────────────────────────────────────────────────────

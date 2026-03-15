@@ -1386,7 +1386,11 @@ function formatNewsTime(dt) {
 }
 
 function goToNews(postId) {
-  nav('profile', 'jalsat_news');
+  if (postId && postId !== '' && postId !== 'undefined') {
+    nav('post', postId);
+  } else {
+    nav('profile', 'jalsat_news');
+  }
 }
 
 async function loadTrendingStocks() {
@@ -1845,6 +1849,169 @@ async function init() {
   renderFeed();
   loadPoll();
   if (currentUser) pollNotifications && pollNotifications();
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+// SINGLE POST PAGE
+// ══════════════════════════════════════════════════════════════════
+async function loadSinglePost(postId) {
+  const el = document.getElementById('single-post-wrap');
+  el.innerHTML = `<div class="skel" style="height:180px;margin-bottom:14px"></div>`;
+
+  // جلب المنشور مباشرة بالـ ID
+  let post = null;
+  try {
+    const r = await fetch('/api/posts/' + postId);
+    const d = await r.json();
+    if (d.post) post = d.post;
+  } catch(e) {}
+
+  // Try demo posts
+  if (!post) {
+    post = DEMO_POSTS ? DEMO_POSTS.find(p => p.id === postId) : null;
+  }
+
+  // Try news posts
+  if (!post) {
+    try {
+      const r = await fetch('/api/news/latest');
+      const d = await r.json();
+      if (d.news) {
+        const newsItem = d.news.find(n => n.post_id === postId);
+        if (newsItem) {
+          post = {
+            id: newsItem.post_id,
+            user_id: 'news',
+            username: 'jalsat_news',
+            display_name: '📰 أخبار السوق',
+            avatar: '',
+            level: 5,
+            level_name: 'خبير معتمد 👑',
+            is_verified: 1,
+            content: `📰 ${newsItem.title}
+
+${newsItem.summary}
+
+📌 المصدر: ${newsItem.source||'جلسة السوق'}`,
+            post_type: 'news',
+            direction: '',
+            target_price: 0,
+            stop_loss: 0,
+            timeframe: '',
+            stock_symbols: newsItem.stock_symbols||'',
+            upvotes: newsItem.upvotes||0,
+            downvotes: 0,
+            comments_count: newsItem.comments_count||0,
+            image: '',
+            time_ago: formatNewsTime(newsItem.published_at),
+            my_vote: null,
+          };
+        }
+      }
+    } catch(e) {}
+  }
+
+  if (!post) {
+    el.innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">📭</div>
+        <div class="empty-title">المنشور غير موجود</div>
+        <div class="empty-sub">ربما تم حذفه أو الرابط غير صحيح</div>
+        <button class="btn btn-primary" style="margin-top:14px" onclick="nav('home')">العودة للرئيسية</button>
+      </div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div style="margin-bottom:14px">
+      <button class="btn btn-ghost btn-sm" onclick="history.back()">← رجوع</button>
+    </div>
+    <div id="single-post-card"></div>
+    <div style="margin-top:20px">
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:14px">
+        💬 التعليقات
+        <span style="color:var(--text3);font-weight:400;font-size:13px">(${post.comments_count})</span>
+      </h3>
+      ${currentUser ? `
+        <div style="display:flex;gap:10px;margin-bottom:16px">
+          <div class="av av-sm" style="background:${avColor(currentUser.id)};flex-shrink:0">
+            ${currentUser.avatar?`<img src="${currentUser.avatar}">`:(currentUser.display_name||'?')[0]}
+          </div>
+          <input class="cmt-input" id="single-cmt-input" placeholder="شارك رأيك في هذا الخبر..." 
+            onkeydown="if(event.key==='Enter')submitSingleCmt('${post.id}')">
+          <button class="btn btn-primary btn-sm" onclick="submitSingleCmt('${post.id}')">تعليق</button>
+        </div>
+      ` : `
+        <div style="background:var(--primary-l);border:1.5px solid var(--border);border-radius:var(--radius2);padding:14px;text-align:center;margin-bottom:16px">
+          <p style="color:var(--text2);margin-bottom:10px;font-size:14px">سجّل دخولك للمشاركة في النقاش</p>
+          <button class="btn btn-primary btn-sm" onclick="showLogin()">تسجيل الدخول</button>
+        </div>
+      `}
+      <div id="single-comments-list"></div>
+    </div>`;
+
+  // Render the post card
+  document.getElementById('single-post-card').innerHTML = postCard(post);
+
+  // Load comments
+  loadSingleComments(post.id);
+}
+
+async function loadSingleComments(postId) {
+  const list = document.getElementById('single-comments-list');
+  if (!list) return;
+
+  try {
+    const r = await fetch('/api/posts/' + postId + '/comments');
+    const d = await r.json();
+    const cmts = d.comments || [];
+
+    if (!cmts.length) {
+      list.innerHTML = `
+        <div style="text-align:center;padding:30px;color:var(--text3)">
+          <div style="font-size:32px;margin-bottom:8px">💬</div>
+          <div style="font-size:14px">لا تعليقات بعد — كن أول من يناقش هذا الخبر!</div>
+        </div>`;
+      return;
+    }
+
+    list.innerHTML = cmts.map(c => `
+      <div class="cmt" style="padding:12px 0;border-bottom:1px solid var(--border)">
+        <div class="av av-sm" style="background:${avColor(c.user_id)};cursor:pointer;flex-shrink:0" onclick="nav('profile','${c.username}')">
+          ${c.avatar?`<img src="${c.avatar}">`:(c.display_name||'?')[0]}
+        </div>
+        <div class="cmt-body">
+          <div class="cmt-meta">
+            <span class="cmt-name" onclick="nav('profile','${c.username}')">${c.display_name}</span>
+            ${c.is_verified?'<span style="color:var(--primary);font-size:11px">✓</span>':''}
+            <span class="lv-badge" style="font-size:10px">${c.level_name}</span>
+            <span class="cmt-time">${c.time_ago}</span>
+          </div>
+          <div class="cmt-text" style="font-size:14px;color:var(--text);margin-top:3px">${c.content}</div>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    list.innerHTML = '<p style="color:var(--text3);font-size:13px;padding:10px 0">تعذّر تحميل التعليقات</p>';
+  }
+}
+
+async function submitSingleCmt(postId) {
+  if (!currentUser) { showLogin(); return; }
+  const inp = document.getElementById('single-cmt-input');
+  const content = inp.value.trim();
+  if (!content) return;
+  inp.value = '';
+
+  const r = await fetch('/api/posts/' + postId + '/comments', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({content})
+  });
+  const d = await r.json();
+  if (d.error) { toast(d.error, 'error'); return; }
+  toast('تم إضافة تعليقك ✅', 'success');
+  loadSingleComments(postId);
 }
 
 </script>
