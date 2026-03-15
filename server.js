@@ -265,7 +265,7 @@ app.get('/api/me', (req, res) => {
 });
 
 // ── Posts ────────────────────────────────────────────────────────────────────
-app.post('/api/posts', requireAuth, upload.single('image'), (req, res) => {
+app.post('/api/posts', requireAuth, upload.single('image'), async (req, res) => {
   const { content, post_type, target_price, stop_loss, direction, timeframe } = req.body;
   if (!content || content.trim().length < 3) return res.json({ error: 'المحتوى قصير جداً' });
   if (content.length > 2000) return res.json({ error: 'المحتوى طويل جداً (الحد 2000 حرف)' });
@@ -459,7 +459,7 @@ app.get('/api/users/:username', (req, res) => {
   res.json({ user: { ...safe, level_name: getLevelName(safe.level) }, is_following: isFollowing });
 });
 
-app.post('/api/profile', requireAuth, upload.single('avatar'), (req, res) => {
+app.post('/api/profile', requireAuth, upload.single('avatar'), async (req, res) => {
   const { display_name, bio } = req.body;
   const updates = {};
   if (display_name) updates.display_name = display_name;
