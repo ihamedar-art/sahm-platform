@@ -131,10 +131,12 @@ const upload = multer({
 });
 
 // ── Session Store في SQLite ──────────────────────────────────────────────────
+const EventEmitter = require('events');
 db.exec(`CREATE TABLE IF NOT EXISTS sessions (sid TEXT PRIMARY KEY, sess TEXT NOT NULL, expired INTEGER NOT NULL);`);
 setInterval(() => db.prepare('DELETE FROM sessions WHERE expired < ?').run(Date.now()), 3600000);
 
-class SQLiteStore {
+class SQLiteStore extends EventEmitter {
+  constructor() { super(); }
   get(sid, cb) {
     try {
       const row = db.prepare('SELECT sess, expired FROM sessions WHERE sid = ?').get(sid);
