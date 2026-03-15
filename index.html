@@ -1163,9 +1163,43 @@ async function loadComments(postId) {
   const show = all.slice(0, 3);
   const rest = all.length - 3;
 
+  function renderReply(r, postId, parentId) {
+    return `<div class="comment-item" id="cmt-${r.id}" style="margin-bottom:8px">
+      <div class="avatar avatar-sm" onclick="navigate('profile','${r.username}')" style="cursor:pointer">
+        ${r.avatar ? `<img src="${r.avatar}">` : r.display_name[0]}
+      </div>
+      <div class="comment-body">
+        <div class="comment-meta">
+          <span class="comment-author" onclick="navigate('profile','${r.username}')">${r.display_name}</span>
+          ${r.is_verified ? '<span style="color:var(--primary);font-size:12px">✓</span>' : ''}
+          <span class="level-badge" style="font-size:10px">${r.level_name}</span>
+          <span class="comment-time">${r.time_ago}</span>
+        </div>
+        <div class="comment-text">${r.content.replace(/\n/g,'<br>')}</div>
+        <div class="comment-actions">
+          <button class="comment-action-btn" onclick="likeComment('${r.id}', this)">
+            👍 <span class="cmt-likes-${r.id}">${r.upvotes||0}</span>
+          </button>
+          <button class="comment-action-btn reply-btn" onclick="toggleReplyBox('reply2-${r.id}', '${r.display_name}')">
+            💬 رد
+          </button>
+        </div>
+        <div class="reply-box" id="reply-box-reply2-${r.id}">
+          <div class="avatar avatar-sm" style="flex-shrink:0">
+            ${currentUser ? (currentUser.avatar ? `<img src="${currentUser.avatar}">` : currentUser.display_name[0]) : '?'}
+          </div>
+          <input class="reply-input" id="reply-input-reply2-${r.id}" placeholder="ردّ على ${r.display_name}..."
+            onkeydown="if(event.key==='Enter')submitReply('${postId}','${parentId}','reply2-${r.id}')">
+          <button class="btn btn-primary btn-sm" onclick="submitReply('${postId}','${parentId}','reply2-${r.id}')">إرسال</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
   function renderCmt(c) {
+    const repliesHtml = (c.replies||[]).map(r => renderReply(r, postId, c.id)).join('');
     return `<div class="comment-item" id="cmt-${c.id}">
-      <div class="avatar avatar-sm" onclick="navigate('profile','${c.username}')">
+      <div class="avatar avatar-sm" onclick="navigate('profile','${c.username}')" style="cursor:pointer">
         ${c.avatar ? `<img src="${c.avatar}">` : c.display_name[0]}
       </div>
       <div class="comment-body">
@@ -1189,10 +1223,10 @@ async function loadComments(postId) {
             ${currentUser ? (currentUser.avatar ? `<img src="${currentUser.avatar}">` : currentUser.display_name[0]) : '?'}
           </div>
           <input class="reply-input" id="reply-input-${c.id}" placeholder="ردّ على ${c.display_name}..."
-            onkeydown="if(event.key==='Enter')submitReply('${postId}','${c.id}')">
-          <button class="btn btn-primary btn-sm" onclick="submitReply('${postId}','${c.id}')">إرسال</button>
+            onkeydown="if(event.key==='Enter')submitReply('${postId}','${c.id}','${c.id}')">
+          <button class="btn btn-primary btn-sm" onclick="submitReply('${postId}','${c.id}','${c.id}')">إرسال</button>
         </div>
-        <div class="replies-list" id="replies-${c.id}"></div>
+        ${repliesHtml ? `<div class="replies-list" id="replies-${c.id}">${repliesHtml}</div>` : `<div class="replies-list" id="replies-${c.id}"></div>`}
       </div>
     </div>`;
   }
@@ -1253,9 +1287,9 @@ function toggleReplyBox(commentId, name) {
   }
 }
 
-async function submitReply(postId, commentId) {
+async function submitReply(postId, parentId, inputKey) {
   if (!currentUser) { showLoginModal(); return; }
-  const input = document.getElementById(`reply-input-${commentId}`);
+  const input = document.getElementById(`reply-input-${inputKey}`);
   const content = input.value.trim();
   if (!content) return;
   input.value = '';
@@ -1263,13 +1297,13 @@ async function submitReply(postId, commentId) {
   const res = await fetch(`/api/posts/${postId}/comments`, {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ content: content, parent_id: commentId })
+    body: JSON.stringify({ content, parent_id: parentId })
   });
   const data = await res.json();
   if (data.error) { toast(data.error, 'error'); return; }
 
-  // إضافة الرد تحت التعليق مباشرة
-  const repliesList = document.getElementById(`replies-${commentId}`);
+  // أضف الرد في القائمة تحت التعليق الأصلي
+  const repliesList = document.getElementById(`replies-${parentId}`);
   if (repliesList) {
     repliesList.insertAdjacentHTML('beforeend', `
       <div class="comment-item" style="margin-bottom:8px">
@@ -1282,15 +1316,17 @@ async function submitReply(postId, commentId) {
             <span class="comment-time">الآن</span>
           </div>
           <div class="comment-text">${content}</div>
+          <div class="comment-actions">
+            <button class="comment-action-btn" onclick="likeComment('${data.comment.id}', this)">
+              👍 <span class="cmt-likes-${data.comment.id}">0</span>
+            </button>
+          </div>
         </div>
       </div>`);
   }
 
-  // إخفاء صندوق الرد
-  document.getElementById(`reply-box-${commentId}`)?.classList.remove('show');
+  document.getElementById(`reply-box-${inputKey}`)?.classList.remove('show');
   toast('تم إرسال ردك ✅', 'success');
-
-  // تحديث عداد التعليقات
   const count = document.getElementById(`comments-count-${postId}`);
   if (count) count.textContent = parseInt(count.textContent) + 1;
 }

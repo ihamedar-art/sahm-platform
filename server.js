@@ -59,6 +59,7 @@ db.exec(`
     id TEXT PRIMARY KEY,
     post_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
+    parent_id TEXT DEFAULT NULL,
     content TEXT NOT NULL,
     upvotes INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -392,35 +393,58 @@ app.post('/api/vote', requireAuth, (req, res) => {
 
 // ── Comments ─────────────────────────────────────────────────────────────────
 app.get('/api/posts/:id/comments', (req, res) => {
+  // جلب التعليقات الرئيسية فقط (بدون parent)
   const comments = db.prepare(`SELECT c.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
     FROM comments c JOIN users u ON c.user_id = u.id
-    WHERE c.post_id = ? ORDER BY c.upvotes DESC, c.created_at ASC`
+    WHERE c.post_id = ? AND (c.parent_id IS NULL OR c.parent_id = '')
+    ORDER BY c.upvotes DESC, c.created_at ASC`
   ).all(req.params.id);
-  res.json({ comments: comments.map(c => ({ ...c, time_ago: formatTime(c.created_at), level_name: getLevelName(c.level) })) });
+
+  // جلب الردود لكل تعليق
+  const result = comments.map(c => {
+    const replies = db.prepare(`SELECT c.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
+      FROM comments c JOIN users u ON c.user_id = u.id
+      WHERE c.parent_id = ? ORDER BY c.created_at ASC`
+    ).all(c.id);
+    return {
+      ...c,
+      time_ago: formatTime(c.created_at),
+      level_name: getLevelName(c.level),
+      replies: replies.map(r => ({ ...r, time_ago: formatTime(r.created_at), level_name: getLevelName(r.level) }))
+    };
+  });
+
+  res.json({ comments: result });
 });
 
 app.post('/api/posts/:id/comments', requireAuth, (req, res) => {
-  const { content } = req.body;
+  const { content, parent_id } = req.body;
   if (!content || content.trim().length < 2) return res.json({ error: 'التعليق قصير جداً' });
   const post = db.prepare('SELECT * FROM posts WHERE id=?').get(req.params.id);
   if (!post) return res.json({ error: 'المنشور غير موجود' });
 
   const id = uuidv4();
-  db.prepare('INSERT INTO comments (id,post_id,user_id,content) VALUES (?,?,?,?)').run(id, req.params.id, req.session.userId, content.trim());
+  db.prepare('INSERT INTO comments (id,post_id,user_id,parent_id,content) VALUES (?,?,?,?,?)').run(
+    id, req.params.id, req.session.userId, parent_id || null, content.trim()
+  );
   db.prepare('UPDATE posts SET comments_count = comments_count + 1 WHERE id = ?').run(req.params.id);
 
-  // إشعار صاحب المنشور
-  if (post.user_id !== req.session.userId) {
+  // إشعار صاحب المنشور أو صاحب التعليق الأصلي
+  const notifyId = parent_id
+    ? db.prepare('SELECT user_id FROM comments WHERE id=?').get(parent_id)?.user_id
+    : post.user_id;
+
+  if (notifyId && notifyId !== req.session.userId) {
     const commenter = getUser(req.session.userId);
+    const msg = parent_id ? `${commenter.display_name} ردّ على تعليقك` : `${commenter.display_name} علّق على منشورك`;
     db.prepare('INSERT INTO notifications (id,user_id,from_user_id,type,message,link) VALUES (?,?,?,?,?,?)').run(
-      uuidv4(), post.user_id, req.session.userId, 'comment',
-      `${commenter.display_name} علّق على منشورك`, `/post/${req.params.id}`
+      uuidv4(), notifyId, req.session.userId, 'comment', msg, `/post/${req.params.id}`
     );
   }
 
   const comment = db.prepare(`SELECT c.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
     FROM comments c JOIN users u ON c.user_id = u.id WHERE c.id = ?`).get(id);
-  res.json({ success: true, comment: { ...comment, time_ago: 'الآن', level_name: getLevelName(comment.level) } });
+  res.json({ success: true, comment: { ...comment, time_ago: 'الآن', level_name: getLevelName(comment.level), replies: [] } });
 });
 
 // ── Follow ───────────────────────────────────────────────────────────────────
