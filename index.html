@@ -2124,8 +2124,325 @@ function toast(msg, type = 'info') {
 init();
 </script>
 
-<script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
 <script>
+// ══════════════════════════════════════════════════════════════════
+// VOICE ROOMS — LiveKit
+// ══════════════════════════════════════════════════════════════════
+let livekitRoom = null;
+let localAudioTrack = null;
+let isMuted = false;
+let isHandRaised = false;
+let currentRoomId = null;
+let chatPollInterval = null;
+
+// ── صفحة قائمة الرومات ──────────────────────────────────────────
+async function loadRoomsPage() {
+  const el = document.getElementById('rooms-content');
+  el.innerHTML = `
+    <div style="padding:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+        <div>
+          <h2 style="font-size:20px;font-weight:700">🎙️ الرومات الصوتية</h2>
+          <p style="color:var(--text2);font-size:13px;margin-top:4px">انضم لنقاش حي أو أنشئ روم جديد</p>
+        </div>
+        ${currentUser ? `<button class="btn btn-primary" onclick="showCreateRoom()">➕ إنشاء روم</button>` : ''}
+      </div>
+      <div id="rooms-list"><div class="skeleton" style="height:80px;margin-bottom:12px;border-radius:14px"></div><div class="skeleton" style="height:80px;border-radius:14px"></div></div>
+    </div>`;
+  await fetchRooms();
+}
+
+async function fetchRooms() {
+  const r = await fetch('/api/rooms');
+  const d = await r.json();
+  const list = document.getElementById('rooms-list');
+  if (!list) return;
+  if (!d.rooms || !d.rooms.length) {
+    list.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">🎙️</div>
+      <div class="empty-title">لا توجد رومات نشطة</div>
+      <p style="margin-top:8px">${currentUser ? 'كن أول من يفتح روم!' : 'سجّل دخولك لفتح روم'}</p>
+    </div>`;
+    return;
+  }
+  list.innerHTML = d.rooms.map(room => `
+    <div class="room-card" onclick="navigate('room','${room.id}')">
+      <div class="room-card-header">
+        <div>
+          <div class="room-name">${room.name}</div>
+          ${room.topic ? `<div class="room-topic">📌 ${room.topic}</div>` : ''}
+        </div>
+        <span class="room-live-badge">مباشر</span>
+      </div>
+      ${room.description ? `<div style="font-size:13px;color:var(--text2);margin:8px 0">${room.description}</div>` : ''}
+      <div class="room-host">
+        <div class="avatar" style="width:24px;height:24px;font-size:10px">${room.host_avatar ? `<img src="${room.host_avatar}">` : room.host_name[0]}</div>
+        <span style="font-size:12px;color:var(--text2)">🎙️ ${room.host_name} ${room.host_verified ? '✓' : ''}</span>
+        <span class="room-count" style="margin-right:auto">👥 ${room.participants_count}</span>
+      </div>
+    </div>`).join('');
+}
+
+function showCreateRoom() {
+  if (!currentUser) { showLoginModal(); return; }
+  document.getElementById('auth-modal-content').innerHTML = `
+    <div class="modal-title">🎙️ إنشاء روم صوتي</div>
+    <div class="modal-subtitle">افتح نقاشاً حياً مع المتداولين</div>
+    <div class="form-group">
+      <label class="form-label">اسم الروم *</label>
+      <input class="form-input" id="room-name-inp" placeholder="مثال: تحليل تاسي الآن" maxlength="60">
+    </div>
+    <div class="form-group">
+      <label class="form-label">الموضوع</label>
+      <input class="form-input" id="room-topic-inp" placeholder="مثال: أرامكو، الراجحي، تاسي..." maxlength="100">
+    </div>
+    <div class="form-group">
+      <label class="form-label">وصف قصير</label>
+      <input class="form-input" id="room-desc-inp" placeholder="اختياري..." maxlength="150">
+    </div>
+    <div id="room-err" class="form-error"></div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;padding:12px" onclick="createRoom()">
+      🚀 إنشاء وبدء الروم
+    </button>`;
+  showModal('auth-modal');
+}
+
+async function createRoom() {
+  const name = document.getElementById('room-name-inp')?.value.trim();
+  const topic = document.getElementById('room-topic-inp')?.value.trim();
+  const description = document.getElementById('room-desc-inp')?.value.trim();
+  if (!name) { document.getElementById('room-err').textContent = 'اسم الروم مطلوب'; return; }
+  const r = await fetch('/api/rooms', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ name, topic, description })
+  });
+  const d = await r.json();
+  if (d.error) { document.getElementById('room-err').textContent = d.error; return; }
+  closeModal('auth-modal');
+  navigate('room', d.room.id);
+}
+
+// ── صفحة الروم ──────────────────────────────────────────────────
+async function loadRoomPage(roomId) {
+  currentRoomId = roomId;
+  const el = document.getElementById('room-content');
+  el.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:200px;color:var(--text3)">جاري الانضمام للروم...</div>`;
+
+  if (!currentUser) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">🔒</div><div class="empty-title">يجب تسجيل الدخول</div>
+      <button class="btn btn-primary" style="margin-top:14px" onclick="showLoginModal()">تسجيل الدخول</button></div>`;
+    return;
+  }
+
+  const r = await fetch('/api/rooms');
+  const d = await r.json();
+  const room = d.rooms?.find(rm => rm.id === roomId);
+  if (!room) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">الروم غير موجود أو انتهى</div>
+      <button class="btn btn-ghost" style="margin-top:14px" onclick="navigate('rooms')">← الرجوع</button></div>`;
+    return;
+  }
+
+  const isHost = room.host_id === currentUser.id;
+
+  el.innerHTML = `
+    <div class="room-page">
+      <div class="room-chat">
+        <div class="room-chat-header">💬 الشات</div>
+        <div class="room-chat-messages" id="room-chat-msgs"></div>
+        <div class="room-chat-input">
+          <input type="text" id="room-chat-inp" placeholder="اكتب رسالة..." onkeydown="if(event.key==='Enter')sendRoomChat('${roomId}')">
+          <button class="btn btn-primary btn-sm" onclick="sendRoomChat('${roomId}')">↑</button>
+        </div>
+      </div>
+      <div class="room-main">
+        <div class="room-header">
+          <button class="btn btn-ghost btn-sm" onclick="leaveRoom('${roomId}')">← خروج</button>
+          <div class="room-header-title">${room.name}</div>
+          ${room.topic ? `<span style="font-size:12px;color:var(--text3);background:var(--bg3);padding:3px 10px;border-radius:10px">${room.topic}</span>` : ''}
+          <span class="room-live-badge">مباشر</span>
+        </div>
+        <div class="room-stage">
+          <div class="stage-section-title">🎙️ المتحدثون</div>
+          <div class="speakers-grid" id="speakers-grid">
+            <div class="speaker-item" id="speaker-${currentUser.id}">
+              <div class="speaker-avatar-wrap">
+                <div class="avatar speaker-avatar ${!isHost ? 'muted' : ''}" id="av-${currentUser.id}">
+                  ${currentUser.avatar ? `<img src="${currentUser.avatar}">` : currentUser.display_name[0]}
+                </div>
+                <div class="speaker-mic ${!isHost ? 'muted' : ''}" id="mic-ic-${currentUser.id}">${isHost ? '🎙️' : '🔇'}</div>
+              </div>
+              <div class="speaker-name">${currentUser.display_name}</div>
+              ${isHost ? '<div style="font-size:10px;color:var(--gold)">👑 المضيف</div>' : '<div style="font-size:10px;color:var(--text3)">مستمع</div>'}
+            </div>
+          </div>
+          <div class="stage-section-title" style="margin-top:20px">👥 المستمعون</div>
+          <div id="listeners-grid" style="display:flex;flex-wrap:wrap;gap:10px;padding:4px 0"></div>
+        </div>
+        <div class="room-controls">
+          ${isHost ? `
+            <div style="text-align:center">
+              <button class="ctrl-btn mic-on" id="mic-btn" onclick="toggleMic()">🎙️</button>
+              <div class="ctrl-label">المايك</div>
+            </div>` : `
+            <div style="text-align:center">
+              <button class="ctrl-btn hand-btn" id="hand-btn" onclick="toggleHand('${roomId}')">✋</button>
+              <div class="ctrl-label">رفع يد</div>
+            </div>`}
+          <div style="text-align:center">
+            <button class="ctrl-btn leave-btn" onclick="leaveRoom('${roomId}')">📵</button>
+            <div class="ctrl-label">مغادرة</div>
+          </div>
+          ${isHost ? `
+            <div style="text-align:center">
+              <button class="ctrl-btn" style="background:var(--red-bg);color:var(--red);border:2px solid var(--red)" onclick="endRoom('${roomId}')">🔴</button>
+              <div class="ctrl-label">إنهاء الروم</div>
+            </div>` : ''}
+        </div>
+      </div>
+    </div>`;
+
+  await joinLiveKitRoom(roomId, isHost);
+  await fetch(`/api/rooms/${roomId}/join`, { method: 'POST' });
+  loadRoomChat(roomId);
+  chatPollInterval = setInterval(() => loadRoomChat(roomId), 3000);
+}
+
+// ── LiveKit Connection ───────────────────────────────────────────
+async function joinLiveKitRoom(roomId, isHost) {
+  try {
+    const r = await fetch(`/api/rooms/${roomId}/token`, { method: 'POST' });
+    const d = await r.json();
+    if (d.error) { toast('خطأ: ' + d.error, 'error'); return; }
+
+    livekitRoom = new LivekitClient.Room({
+      adaptiveStream: true,
+      dynacast: true,
+    });
+
+    livekitRoom.on(LivekitClient.RoomEvent.ParticipantConnected, (participant) => {
+      addParticipantToStage(participant, false);
+      toast(`انضم ${participant.name || participant.identity}`, 'info');
+    });
+
+    livekitRoom.on(LivekitClient.RoomEvent.ParticipantDisconnected, (participant) => {
+      document.getElementById(`speaker-${participant.identity}`)?.remove();
+    });
+
+    livekitRoom.on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+      if (track.kind === LivekitClient.Track.Kind.Audio) track.attach();
+    });
+
+    await livekitRoom.connect(d.livekitUrl, d.token);
+
+    if (isHost) {
+      localAudioTrack = await LivekitClient.createLocalAudioTrack();
+      await livekitRoom.localParticipant.publishTrack(localAudioTrack);
+    }
+
+    // إضافة المشاركين الموجودين
+    livekitRoom.remoteParticipants.forEach(p => addParticipantToStage(p, false));
+
+    toast('✅ انضممت للروم', 'success');
+  } catch(e) {
+    console.error('LiveKit error:', e);
+    toast('⚠️ تعذّر الاتصال — تأكد من إذن المايك', 'error');
+  }
+}
+
+function addParticipantToStage(participant, isSpeaker) {
+  const grid = document.getElementById(isSpeaker ? 'speakers-grid' : 'listeners-grid');
+  if (!grid || document.getElementById(`speaker-${participant.identity}`)) return;
+  const name = participant.name || participant.identity;
+  const div = document.createElement('div');
+  div.className = 'speaker-item';
+  div.id = `speaker-${participant.identity}`;
+  div.innerHTML = `
+    <div class="speaker-avatar-wrap">
+      <div class="avatar speaker-avatar muted" id="av-${participant.identity}">${name[0]}</div>
+      <div class="speaker-mic muted" id="mic-ic-${participant.identity}">🔇</div>
+    </div>
+    <div class="speaker-name">${name}</div>`;
+  grid.appendChild(div);
+}
+
+async function toggleMic() {
+  if (!localAudioTrack) return;
+  isMuted = !isMuted;
+  await localAudioTrack.mute(isMuted);
+  const btn = document.getElementById('mic-btn');
+  const mic = document.getElementById(`mic-ic-${currentUser.id}`);
+  const av = document.getElementById(`av-${currentUser.id}`);
+  if (btn) { btn.className = `ctrl-btn ${isMuted ? 'mic-off' : 'mic-on'}`; btn.textContent = isMuted ? '🔇' : '🎙️'; }
+  if (mic) { mic.className = `speaker-mic ${isMuted ? 'muted' : ''}`; mic.textContent = isMuted ? '🔇' : '🎙️'; }
+  if (av) av.className = `avatar speaker-avatar ${isMuted ? 'muted' : ''}`;
+}
+
+async function toggleHand(roomId) {
+  isHandRaised = !isHandRaised;
+  const btn = document.getElementById('hand-btn');
+  if (btn) { btn.className = `ctrl-btn hand-btn${isHandRaised ? ' raised' : ''}`; }
+  if (isHandRaised) {
+    await fetch(`/api/rooms/${roomId}/messages`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ content: `✋ ${currentUser.display_name} يريد الكلام` })
+    });
+    loadRoomChat(roomId);
+    toast('✋ تم رفع يدك', 'info');
+  } else {
+    toast('تم إنزال يدك', 'info');
+  }
+}
+
+async function leaveRoom(roomId) {
+  try {
+    if (livekitRoom) { await livekitRoom.disconnect(); livekitRoom = null; }
+    if (localAudioTrack) { localAudioTrack.stop(); localAudioTrack = null; }
+    if (chatPollInterval) { clearInterval(chatPollInterval); chatPollInterval = null; }
+    await fetch(`/api/rooms/${roomId}/leave`, { method: 'POST' });
+  } catch(e) {}
+  currentRoomId = null; isMuted = false; isHandRaised = false;
+  navigate('rooms');
+}
+
+async function endRoom(roomId) {
+  if (!confirm('هل تريد إنهاء الروم للجميع؟')) return;
+  await fetch(`/api/rooms/${roomId}`, { method: 'DELETE' });
+  leaveRoom(roomId);
+}
+
+// ── شات الروم ────────────────────────────────────────────────────
+async function loadRoomChat(roomId) {
+  const r = await fetch(`/api/rooms/${roomId}/messages`);
+  const d = await r.json();
+  const el = document.getElementById('room-chat-msgs');
+  if (!el) return;
+  el.innerHTML = (d.messages||[]).map(m => `
+    <div class="chat-msg">
+      <div class="avatar avatar-sm" style="flex-shrink:0">${m.avatar ? `<img src="${m.avatar}">` : m.display_name[0]}</div>
+      <div class="chat-msg-body">
+        <div class="chat-msg-name">${m.display_name}${m.is_verified ? ' ✓' : ''}</div>
+        <div class="chat-msg-text">${m.content}</div>
+      </div>
+    </div>`).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+async function sendRoomChat(roomId) {
+  if (!currentUser) { showLoginModal(); return; }
+  const inp = document.getElementById('room-chat-inp');
+  const content = inp?.value.trim();
+  if (!content) return;
+  inp.value = '';
+  await fetch(`/api/rooms/${roomId}/messages`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ content })
+  });
+  loadRoomChat(roomId);
+}
+</script>
 // ══════════════════════════════════════════════════════════════════
 // VOICE ROOMS
 // ══════════════════════════════════════════════════════════════════
