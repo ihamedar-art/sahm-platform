@@ -1047,7 +1047,7 @@ function switchTab(tab) {
   renderFeed();
 }
 
-function createPostCard(p) {
+function createPostCard(p, standalone = false) {
   const avatarHtml = p.avatar
     ? `<img src="${p.avatar}" alt="">`
     : `<span>${(p.display_name||'?')[0]}</span>`;
@@ -1083,7 +1083,7 @@ function createPostCard(p) {
   const upActive = p.my_vote === 'up' ? 'active' : '';
   const downActive = p.my_vote === 'down' ? 'active' : '';
 
-  return `<div class="post-card" id="post-${p.id}" style="cursor:pointer" onclick="handlePostClick(event,'${p.id}')">
+  return `<div class="post-card" id="post-${p.id}" style="${standalone ? '' : 'cursor:pointer'}" ${standalone ? '' : `onclick="handlePostClick(event,'${p.id}')"`}>`
     <div class="post-header">
       <div class="avatar" onclick="event.stopPropagation();navigate('profile','${p.username}')">${avatarHtml}</div>
       <div class="post-meta">
@@ -1142,10 +1142,19 @@ async function vote(postId, type) {
   else { downBtn.classList.add('active'); upBtn.classList.remove('active'); }
 }
 
+const commentsCache = {};
+
 async function toggleComments(postId) {
   const section = document.getElementById(`comments-${postId}`);
   section.classList.toggle('show');
-  if (section.classList.contains('show')) loadComments(postId);
+  if (section.classList.contains('show')) {
+    if (!commentsCache[postId]) {
+      loadComments(postId);
+    } else {
+      const list = document.getElementById(`comments-list-${postId}`);
+      if (list && !list.innerHTML.trim()) loadComments(postId);
+    }
+  }
 }
 
 async function loadComments(postId) {
@@ -1606,7 +1615,7 @@ async function loadPostPage(postId) {
     const r = await fetch('/api/posts/' + postId);
     const d = await r.json();
     if (d.post) {
-      document.getElementById('post-page-card').innerHTML = createPostCard(d.post);
+      document.getElementById('post-page-card').innerHTML = createPostCard(d.post, true);
       loadPostPageComments(postId);
     } else {
       document.getElementById('post-page-card').innerHTML = `
