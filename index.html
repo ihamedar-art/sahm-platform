@@ -1737,23 +1737,16 @@ async function loadPopularStocks() {
 async function loadNewsSidebar() {
   const el = document.getElementById('news-sidebar');
   if (!el) return;
-
-  const demoNews = [
-    { title:'أرامكو تعلن نتائج الربع الأول بأرباح تفوق التوقعات', source:'أرقام', stock_symbols:'$2222', post_id:'', comments_count:12, published_at: new Date(Date.now()-7200000).toISOString() },
-    { title:'مؤشر تاسي يرتفع 1.2% بدعم من القطاع المالي', source:'مباشر', stock_symbols:'$1120', post_id:'', comments_count:8, published_at: new Date(Date.now()-14400000).toISOString() },
-    { title:'الراجحي المالية ترفع توصيتها على سهم STC إلى تجميع', source:'أرقام', stock_symbols:'$7010', post_id:'', comments_count:5, published_at: new Date(Date.now()-18000000).toISOString() },
-    { title:'هيئة السوق تعتمد اكتتاباً جديداً في القطاع الصحي', source:'تداول', stock_symbols:'$اكتتاب', post_id:'', comments_count:21, published_at: new Date(Date.now()-25200000).toISOString() },
-    { title:'سابك تتفاوض على عقود بتروكيماويات بـ 3 مليار ريال', source:'الاقتصادية', stock_symbols:'$2010', post_id:'', comments_count:7, published_at: new Date(Date.now()-32400000).toISOString() },
-    { title:'أكوا باور تفوز بعقد محطة طاقة شمسية بـ 1.8 مليار', source:'مباشر', stock_symbols:'$4200', post_id:'', comments_count:4, published_at: new Date(Date.now()-86400000).toISOString() },
-  ];
-
   try {
-    const r = await fetch('/api/news/latest');
+    const r = await fetch('/api/news/latest?limit=10');
     const d = await r.json();
-    const news = d.news && d.news.length > 0 ? d.news : demoNews;
-    renderNewsSidebar(news);
+    if (d.news && d.news.length > 0) {
+      renderNewsSidebar(d.news);
+    } else {
+      el.innerHTML = '<div style="padding:16px;color:var(--text3);font-size:13px;text-align:center">لا توجد أخبار بعد</div>';
+    }
   } catch(e) {
-    renderNewsSidebar(demoNews);
+    el.innerHTML = '<div style="padding:16px;color:var(--text3);font-size:13px;text-align:center">تعذّر تحميل الأخبار</div>';
   }
 }
 
