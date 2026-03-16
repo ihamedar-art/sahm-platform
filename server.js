@@ -878,11 +878,12 @@ app.get('/api/posts/:id', (req, res) => {
 // VOICE ROOMS — الرومات الصوتية (LiveKit)
 // ══════════════════════════════════════════════════════════════════════════════
 
-const LIVEKIT_URL = process.env.LIVEKIT_URL || 'wss://13.205.160.117:7880';
+const LIVEKIT_URL = process.env.LIVEKIT_URL || 'wss://brzan.com/livekit';
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || 'APILP3Ch9xmbJN3';
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || 'dfvXuYwpyLCLnG0ucawNNnSDDRdZBNQpDqszPcKgiwQ';
 
-const { AccessToken } = require('livekit-server-sdk');
+const { AccessToken, RoomServiceClient } = require('livekit-server-sdk');
+const livekitService = new RoomServiceClient('http://localhost:7880', LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
 
 // جداول الرومات
 db.exec(`
@@ -902,18 +903,49 @@ db.exec(`
     room_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     content TEXT NOT NULL,
+    is_system INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (room_id) REFERENCES voice_rooms(id),
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
+  CREATE TABLE IF NOT EXISTS room_members (
+    room_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    role TEXT DEFAULT 'listener',
+    can_speak INTEGER DEFAULT 0,
+    is_muted INTEGER DEFAULT 0,
+    is_banned INTEGER DEFAULT 0,
+    chat_banned INTEGER DEFAULT 0,
+    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (room_id, user_id)
+  );
+  CREATE TABLE IF NOT EXISTS room_hand_requests (
+    room_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (room_id, user_id)
+  );
 `);
 
-// توليد Token للانضمام
+// helper: تحقق صلاحية المستخدم في الروم
+function getRoomRole(roomId, userId, room) {
+  if (room.host_id === userId) return 'owner';
+  const member = db.prepare(`SELECT role FROM room_members WHERE room_id=? AND user_id=?`).get(roomId, userId);
+  return member ? member.role : 'listener';
+}
+
+function canModerate(role) { return role === 'owner' || role === 'mod'; }
+
+// توليد Token
 app.post('/api/rooms/:id/token', requireAuth, async (req, res) => {
   const room = db.prepare(`SELECT * FROM voice_rooms WHERE id = ? AND is_active = 1`).get(req.params.id);
   if (!room) return res.json({ error: 'الروم غير موجود' });
   const user = getUser(req.session.userId);
-  const isHost = room.host_id === req.session.userId;
+  const role = getRoomRole(req.params.id, req.session.userId, room);
+  const isHost = role === 'owner';
+  const isMod = role === 'mod';
+  const member = db.prepare(`SELECT * FROM room_members WHERE room_id=? AND user_id=?`).get(req.params.id, req.session.userId);
+  const canSpeak = isHost || isMod || (member && member.can_speak);
   const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
     identity: user.id,
     name: user.display_name,
@@ -922,19 +954,22 @@ app.post('/api/rooms/:id/token', requireAuth, async (req, res) => {
   at.addGrant({
     roomJoin: true,
     room: req.params.id,
-    canPublish: isHost,
+    canPublish: canSpeak,
     canSubscribe: true,
     canPublishData: true,
   });
   const token = await at.toJwt();
-  res.json({ token, livekitUrl: LIVEKIT_URL, isHost });
+  res.json({ token, livekitUrl: LIVEKIT_URL, isHost, isMod, canSpeak, role });
 });
 
-// السماح للمستمع بالكلام (الهوست يعطي إذن)
-app.post('/api/rooms/:id/allow-speak/:userId', requireAuth, async (req, res) => {
-  const room = db.prepare(`SELECT * FROM voice_rooms WHERE id = ?`).get(req.params.id);
-  if (!room || room.host_id !== req.session.userId) return res.json({ error: 'غير مصرح' });
-  res.json({ success: true });
+// جلب معلومات الروم مع الأعضاء
+app.get('/api/rooms/:id/info', requireAuth, (req, res) => {
+  const room = db.prepare(`SELECT r.*, u.display_name as host_name FROM voice_rooms r JOIN users u ON r.host_id=u.id WHERE r.id=?`).get(req.params.id);
+  if (!room) return res.json({ error: 'غير موجود' });
+  const members = db.prepare(`SELECT rm.*, u.display_name, u.avatar FROM room_members rm JOIN users u ON rm.user_id=u.id WHERE rm.room_id=? AND rm.is_banned=0`).all(req.params.id);
+  const hands = db.prepare(`SELECT rh.user_id, u.display_name FROM room_hand_requests rh JOIN users u ON rh.user_id=u.id WHERE rh.room_id=?`).all(req.params.id);
+  const myRole = getRoomRole(req.params.id, req.session.userId, room);
+  res.json({ room, members, hands, myRole });
 });
 
 // جلب الرومات النشطة
@@ -943,13 +978,12 @@ app.get('/api/rooms', (req, res) => {
     SELECT r.*, u.display_name as host_name, u.avatar as host_avatar, u.is_verified as host_verified
     FROM voice_rooms r JOIN users u ON r.host_id = u.id
     WHERE r.is_active = 1
-    ORDER BY r.participants_count DESC, r.created_at DESC
-    LIMIT 20
+    ORDER BY r.participants_count DESC, r.created_at DESC LIMIT 20
   `).all();
   res.json({ rooms });
 });
 
-// إنشاء روم جديد
+// إنشاء روم
 app.post('/api/rooms', requireAuth, (req, res) => {
   const { name, description, topic } = req.body;
   if (!name || name.trim().length < 2) return res.json({ error: 'اسم الروم مطلوب' });
@@ -957,17 +991,21 @@ app.post('/api/rooms', requireAuth, (req, res) => {
   db.prepare(`INSERT INTO voice_rooms (id,name,description,host_id,topic) VALUES (?,?,?,?,?)`).run(
     id, name.trim(), description||'', req.session.userId, topic||''
   );
-  const room = db.prepare(`SELECT r.*, u.display_name as host_name FROM voice_rooms r JOIN users u ON r.host_id = u.id WHERE r.id = ?`).get(id);
+  const room = db.prepare(`SELECT r.*, u.display_name as host_name FROM voice_rooms r JOIN users u ON r.host_id=u.id WHERE r.id=?`).get(id);
   res.json({ success: true, room });
 });
 
 app.post('/api/rooms/:id/join', requireAuth, (req, res) => {
   db.prepare(`UPDATE voice_rooms SET participants_count = participants_count + 1 WHERE id = ? AND is_active = 1`).run(req.params.id);
+  // تسجيل العضو
+  db.prepare(`INSERT OR IGNORE INTO room_members (room_id, user_id) VALUES (?,?)`).run(req.params.id, req.session.userId);
   res.json({ success: true });
 });
 
 app.post('/api/rooms/:id/leave', requireAuth, (req, res) => {
   db.prepare(`UPDATE voice_rooms SET participants_count = MAX(0, participants_count - 1) WHERE id = ?`).run(req.params.id);
+  db.prepare(`DELETE FROM room_members WHERE room_id=? AND user_id=?`).run(req.params.id, req.session.userId);
+  db.prepare(`DELETE FROM room_hand_requests WHERE room_id=? AND user_id=?`).run(req.params.id, req.session.userId);
   const room = db.prepare(`SELECT * FROM voice_rooms WHERE id = ?`).get(req.params.id);
   if (room && room.participants_count === 0) db.prepare(`UPDATE voice_rooms SET is_active = 0 WHERE id = ?`).run(req.params.id);
   res.json({ success: true });
@@ -981,7 +1019,100 @@ app.delete('/api/rooms/:id', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
-// رسائل الشات
+// ── رفع/إنزال اليد ──────────────────────────────────────────────
+app.post('/api/rooms/:id/hand', requireAuth, (req, res) => {
+  const { raise } = req.body;
+  if (raise) {
+    db.prepare(`INSERT OR REPLACE INTO room_hand_requests (room_id,user_id) VALUES (?,?)`).run(req.params.id, req.session.userId);
+  } else {
+    db.prepare(`DELETE FROM room_hand_requests WHERE room_id=? AND user_id=?`).run(req.params.id, req.session.userId);
+  }
+  res.json({ success: true });
+});
+
+// ── إعطاء المايك / سحبه ─────────────────────────────────────────
+app.post('/api/rooms/:id/grant-mic/:userId', requireAuth, async (req, res) => {
+  const room = db.prepare(`SELECT * FROM voice_rooms WHERE id = ?`).get(req.params.id);
+  if (!room) return res.json({ error: 'غير موجود' });
+  const myRole = getRoomRole(req.params.id, req.session.userId, room);
+  if (!canModerate(myRole)) return res.json({ error: 'غير مصرح' });
+
+  const grant = req.body.grant !== false; // true = إعطاء, false = سحب
+  db.prepare(`UPDATE room_members SET can_speak=?, is_muted=0 WHERE room_id=? AND user_id=?`).run(grant?1:0, req.params.id, req.params.userId);
+  db.prepare(`DELETE FROM room_hand_requests WHERE room_id=? AND user_id=?`).run(req.params.id, req.params.userId);
+
+  // توليد token جديد للمستخدم مع صلاحية النشر
+  try {
+    const targetUser = getUser(req.params.userId);
+    const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
+      identity: req.params.userId,
+      name: targetUser.display_name,
+      ttl: '4h',
+    });
+    at.addGrant({ roomJoin: true, room: req.params.id, canPublish: grant, canSubscribe: true, canPublishData: true });
+    const token = await at.toJwt();
+    res.json({ success: true, token, grant });
+  } catch(e) {
+    res.json({ success: true, grant });
+  }
+});
+
+// ── كتم مستخدم ──────────────────────────────────────────────────
+app.post('/api/rooms/:id/mute/:userId', requireAuth, (req, res) => {
+  const room = db.prepare(`SELECT * FROM voice_rooms WHERE id = ?`).get(req.params.id);
+  if (!room) return res.json({ error: 'غير موجود' });
+  const myRole = getRoomRole(req.params.id, req.session.userId, room);
+  if (!canModerate(myRole)) return res.json({ error: 'غير مصرح' });
+  // لا يمكن كتم الأونر
+  if (room.host_id === req.params.userId) return res.json({ error: 'لا يمكن كتم المضيف' });
+  db.prepare(`UPDATE room_members SET is_muted=1 WHERE room_id=? AND user_id=?`).run(req.params.id, req.params.userId);
+  res.json({ success: true });
+});
+
+// ── طرد مستخدم ──────────────────────────────────────────────────
+app.post('/api/rooms/:id/kick/:userId', requireAuth, async (req, res) => {
+  const room = db.prepare(`SELECT * FROM voice_rooms WHERE id = ?`).get(req.params.id);
+  if (!room) return res.json({ error: 'غير موجود' });
+  const myRole = getRoomRole(req.params.id, req.session.userId, room);
+  if (!canModerate(myRole)) return res.json({ error: 'غير مصرح' });
+  // المشرف لا يقدر يطرد الأونر
+  if (room.host_id === req.params.userId) return res.json({ error: 'لا يمكن طرد المضيف' });
+  // المشرف لا يقدر يطرد مشرف آخر إلا الأونر
+  const targetRole = getRoomRole(req.params.id, req.params.userId, room);
+  if (targetRole === 'mod' && myRole !== 'owner') return res.json({ error: 'المشرف لا يستطيع طرد مشرف آخر' });
+
+  db.prepare(`UPDATE room_members SET is_banned=1 WHERE room_id=? AND user_id=?`).run(req.params.id, req.params.userId);
+  db.prepare(`UPDATE voice_rooms SET participants_count = MAX(0, participants_count - 1) WHERE id=?`).run(req.params.id);
+
+  try { await livekitService.removeParticipant(req.params.id, req.params.userId); } catch(e) {}
+  res.json({ success: true });
+});
+
+// ── حظر/رفع حظر الشات ───────────────────────────────────────────
+app.post('/api/rooms/:id/chat-ban/:userId', requireAuth, (req, res) => {
+  const room = db.prepare(`SELECT * FROM voice_rooms WHERE id = ?`).get(req.params.id);
+  if (!room) return res.json({ error: 'غير موجود' });
+  const myRole = getRoomRole(req.params.id, req.session.userId, room);
+  if (!canModerate(myRole)) return res.json({ error: 'غير مصرح' });
+  if (room.host_id === req.params.userId) return res.json({ error: 'لا يمكن حظر المضيف' });
+  const ban = req.body.ban !== false;
+  db.prepare(`UPDATE room_members SET chat_banned=? WHERE room_id=? AND user_id=?`).run(ban?1:0, req.params.id, req.params.userId);
+  res.json({ success: true });
+});
+
+// ── إعطاء/سحب صلاحية مشرف ──────────────────────────────────────
+app.post('/api/rooms/:id/mod/:userId', requireAuth, (req, res) => {
+  const room = db.prepare(`SELECT * FROM voice_rooms WHERE id = ?`).get(req.params.id);
+  if (!room) return res.json({ error: 'غير موجود' });
+  if (room.host_id !== req.session.userId) return res.json({ error: 'فقط المضيف يستطيع تعيين مشرفين' });
+  if (room.host_id === req.params.userId) return res.json({ error: 'المضيف هو الأدمن الأعلى' });
+  const makeMod = req.body.mod !== false;
+  db.prepare(`INSERT OR IGNORE INTO room_members (room_id,user_id) VALUES (?,?)`).run(req.params.id, req.params.userId);
+  db.prepare(`UPDATE room_members SET role=? WHERE room_id=? AND user_id=?`).run(makeMod?'mod':'listener', req.params.id, req.params.userId);
+  res.json({ success: true });
+});
+
+// ── رسائل الشات ─────────────────────────────────────────────────
 app.get('/api/rooms/:id/messages', requireAuth, (req, res) => {
   const msgs = db.prepare(`
     SELECT m.*, u.display_name, u.avatar, u.is_verified
@@ -996,9 +1127,12 @@ app.post('/api/rooms/:id/messages', requireAuth, (req, res) => {
   if (!content || content.trim().length < 1) return res.json({ error: 'الرسالة فارغة' });
   const room = db.prepare(`SELECT id FROM voice_rooms WHERE id = ? AND is_active = 1`).get(req.params.id);
   if (!room) return res.json({ error: 'الروم غير موجود' });
+  // تحقق من حظر الشات
+  const member = db.prepare(`SELECT chat_banned FROM room_members WHERE room_id=? AND user_id=?`).get(req.params.id, req.session.userId);
+  if (member && member.chat_banned) return res.json({ error: 'أنت محظور من الكتابة في هذا الروم' });
   const id = uuidv4();
   db.prepare(`INSERT INTO room_messages (id,room_id,user_id,content) VALUES (?,?,?,?)`).run(id, req.params.id, req.session.userId, content.trim());
-  const msg = db.prepare(`SELECT m.*, u.display_name, u.avatar, u.is_verified FROM room_messages m JOIN users u ON m.user_id = u.id WHERE m.id = ?`).get(id);
+  const msg = db.prepare(`SELECT m.*, u.display_name, u.avatar, u.is_verified FROM room_messages m JOIN users u ON m.user_id=u.id WHERE m.id=?`).get(id);
   res.json({ success: true, message: { ...msg, time_ago: 'الآن' } });
 });
 
