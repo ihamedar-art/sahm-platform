@@ -2430,14 +2430,21 @@ async function joinLiveKitRoom(roomId, tokenData) {
         }
         if (msg.type === 'grant_mic' && msg.userId === currentUser.id) {
           if (msg.grant) {
-            startSpeaking(roomId);
-            toast('🎙️ تم منحك المايك!', 'success');
+            showMicRequestPopup(roomId, msg.fromName);
           } else {
             stopSpeaking();
             toast('🔇 تم سحب مايكك', 'info');
           }
         }
         if (msg.type === 'refresh') {
+          refreshRoomInfo(roomId);
+        }
+        if (msg.type === 'mic_accepted') {
+          toast(`✅ ${msg.userName} قبل المايك وبدأ الكلام`, 'success');
+          refreshRoomInfo(roomId);
+        }
+        if (msg.type === 'mic_rejected') {
+          toast(`❌ ${msg.userName} رفض المايك`, 'info');
           refreshRoomInfo(roomId);
         }
       } catch(e) {}
@@ -2536,12 +2543,18 @@ async function grantMic(roomId, userId, grant = true) {
   });
   const d = await r.json();
   if (d.error) { toast(d.error, 'error'); return; }
-  // إرسال إشعار للمستخدم عبر LiveKit Data
   if (livekitRoom) {
-    const msg = JSON.stringify({ type: 'grant_mic', userId, grant });
+    const msg = JSON.stringify({ 
+      type: 'grant_mic', userId, grant, 
+      fromName: currentUser.display_name 
+    });
     await livekitRoom.localParticipant.publishData(new TextEncoder().encode(msg), { reliable: true });
   }
-  toast(grant ? '🎙️ تم منح المايك' : '🔇 تم سحب المايك', 'success');
+  if (grant) {
+    toast('✅ تم إرسال طلب المايك — بانتظار القبول', 'info');
+  } else {
+    toast('🔇 تم سحب المايك', 'info');
+  }
   refreshRoomInfo(roomId);
 }
 
@@ -2696,6 +2709,78 @@ async function dismissHand(roomId, userId) {
     body: JSON.stringify({ raise: false, userId })
   });
   refreshRoomInfo(roomId);
+}
+
+// ── popup طلب المايك ─────────────────────────────────────────────
+function showMicRequestPopup(roomId, fromName) {
+  // احذف أي popup موجود
+  document.getElementById('mic-request-popup')?.remove();
+
+  const popup = document.createElement('div');
+  popup.id = 'mic-request-popup';
+  popup.style.cssText = `
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    background: var(--bg2); border: 2px solid var(--primary);
+    border-radius: 16px; padding: 28px 32px; z-index: 9999;
+    box-shadow: 0 8px 40px rgba(0,0,0,.25); text-align: center;
+    min-width: 280px; animation: fadeIn .25s ease;
+  `;
+  popup.innerHTML = `
+    <div style="font-size:40px;margin-bottom:12px">🎙️</div>
+    <div style="font-size:17px;font-weight:700;margin-bottom:6px">طلب مايك</div>
+    <div style="font-size:14px;color:var(--text2);margin-bottom:20px">
+      منحك <strong>${fromName || 'الأدمن'}</strong> صلاحية التحدث
+    </div>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button onclick="acceptMic('${roomId}')" style="
+        padding:10px 28px; border-radius:10px; border:none;
+        background:var(--primary); color:#fff; font-family:inherit;
+        font-size:15px; font-weight:700; cursor:pointer;
+      ">✅ قبول</button>
+      <button onclick="rejectMic('${roomId}')" style="
+        padding:10px 28px; border-radius:10px; border:none;
+        background:var(--red-bg); color:var(--red); border:1.5px solid var(--red);
+        font-family:inherit; font-size:15px; font-weight:700; cursor:pointer;
+      ">❌ رفض</button>
+    </div>
+  `;
+
+  // خلفية شبه شفافة
+  const overlay = document.createElement('div');
+  overlay.id = 'mic-request-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9998;';
+  document.body.appendChild(overlay);
+  document.body.appendChild(popup);
+}
+
+async function acceptMic(roomId) {
+  document.getElementById('mic-request-popup')?.remove();
+  document.getElementById('mic-request-overlay')?.remove();
+  await startSpeaking(roomId);
+  toast('🎙️ تم فتح المايك!', 'success');
+
+  // أبلغ الأدمن بالقبول
+  if (livekitRoom) {
+    const msg = JSON.stringify({ type: 'mic_accepted', userId: currentUser.id, userName: currentUser.display_name });
+    await livekitRoom.localParticipant.publishData(new TextEncoder().encode(msg), { reliable: true });
+  }
+  refreshRoomInfo(roomId);
+}
+
+async function rejectMic(roomId) {
+  document.getElementById('mic-request-popup')?.remove();
+  document.getElementById('mic-request-overlay')?.remove();
+  toast('تم رفض طلب المايك', 'info');
+
+  // أبلغ الأدمن بالرفض + سحب الصلاحية من DB
+  if (livekitRoom) {
+    const msg = JSON.stringify({ type: 'mic_rejected', userId: currentUser.id, userName: currentUser.display_name });
+    await livekitRoom.localParticipant.publishData(new TextEncoder().encode(msg), { reliable: true });
+  }
+  await fetch(`/api/rooms/${roomId}/grant-mic/${currentUser.id}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ grant: false })
+  });
 }
 
 async function leaveRoom(roomId, kicked = false) {
