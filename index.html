@@ -2433,6 +2433,18 @@ async function joinLiveKitRoom(roomId, tokenData) {
             showMicRequestPopup(roomId, msg.fromName);
           } else {
             stopSpeaking();
+            // إزالة أزرار المايك وإعادة زر رفع اليد
+            document.getElementById('mic-btn')?.parentElement?.remove();
+            document.querySelectorAll('.ctrl-btn').forEach(btn => {
+              if (btn.textContent === '🎤') btn.parentElement?.remove();
+            });
+            const controls = document.querySelector('.room-controls');
+            if (controls && !document.getElementById('hand-btn')) {
+              const handDiv = document.createElement('div');
+              handDiv.style.textAlign = 'center';
+              handDiv.innerHTML = `<button class="ctrl-btn hand-btn" id="hand-btn" onclick="toggleHand('${roomId}')">🤚</button><div class="ctrl-label">رفع يد</div>`;
+              controls.prepend(handDiv);
+            }
             toast('🔇 تم سحب مايكك', 'info');
           }
         }
@@ -2758,7 +2770,8 @@ async function acceptMic(roomId) {
   document.getElementById('mic-request-overlay')?.remove();
   await startSpeaking(roomId);
   toast('🎙️ تم فتح المايك!', 'success');
-
+  // إظهار أزرار التحكم بالمايك
+  showSpeakerControls(roomId);
   // أبلغ الأدمن بالقبول
   if (livekitRoom) {
     const msg = JSON.stringify({ type: 'mic_accepted', userId: currentUser.id, userName: currentUser.display_name });
@@ -2771,16 +2784,65 @@ async function rejectMic(roomId) {
   document.getElementById('mic-request-popup')?.remove();
   document.getElementById('mic-request-overlay')?.remove();
   toast('تم رفض طلب المايك', 'info');
-
-  // أبلغ الأدمن بالرفض + سحب الصلاحية من DB
-  if (livekitRoom) {
-    const msg = JSON.stringify({ type: 'mic_rejected', userId: currentUser.id, userName: currentUser.display_name });
-    await livekitRoom.localParticipant.publishData(new TextEncoder().encode(msg), { reliable: true });
-  }
+  // سحب الصلاحية من DB فوراً
   await fetch(`/api/rooms/${roomId}/grant-mic/${currentUser.id}`, {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ grant: false })
   });
+  // أبلغ الأدمن بالرفض
+  if (livekitRoom) {
+    const msg = JSON.stringify({ type: 'mic_rejected', userId: currentUser.id, userName: currentUser.display_name });
+    await livekitRoom.localParticipant.publishData(new TextEncoder().encode(msg), { reliable: true });
+  }
+  refreshRoomInfo(roomId);
+}
+
+// ── إظهار أزرار التحكم بالمايك للمستخدم الممنوح ─────────────────
+function showSpeakerControls(roomId) {
+  const controls = document.querySelector('.room-controls');
+  if (!controls) return;
+  // إزالة زر رفع اليد وإضافة أزرار المايك
+  const handBtn = document.getElementById('hand-btn')?.parentElement;
+  if (handBtn) handBtn.remove();
+  // تحقق ما إذا كانت الأزرار موجودة مسبقاً
+  if (document.getElementById('mic-btn')) return;
+  const micDiv = document.createElement('div');
+  micDiv.style.textAlign = 'center';
+  micDiv.innerHTML = `
+    <button class="ctrl-btn mic-on" id="mic-btn" onclick="toggleMic()">🎙️</button>
+    <div class="ctrl-label">المايك</div>`;
+  const leaveMicDiv = document.createElement('div');
+  leaveMicDiv.style.textAlign = 'center';
+  leaveMicDiv.innerHTML = `
+    <button class="ctrl-btn" style="background:var(--gold-bg);color:var(--gold);border:2px solid var(--gold)" onclick="leaveMic('${roomId}')">🎤</button>
+    <div class="ctrl-label">ترك المايك</div>`;
+  controls.prepend(leaveMicDiv);
+  controls.prepend(micDiv);
+}
+
+async function leaveMic(roomId) {
+  await stopSpeaking();
+  // إزالة أزرار المايك وإعادة زر رفع اليد
+  document.getElementById('mic-btn')?.parentElement?.remove();
+  document.querySelectorAll('.ctrl-btn').forEach(btn => {
+    if (btn.textContent === '🎤') btn.parentElement?.remove();
+  });
+  const controls = document.querySelector('.room-controls');
+  if (controls) {
+    const handDiv = document.createElement('div');
+    handDiv.style.textAlign = 'center';
+    handDiv.innerHTML = `
+      <button class="ctrl-btn hand-btn" id="hand-btn" onclick="toggleHand('${roomId}')">🤚</button>
+      <div class="ctrl-label">رفع يد</div>`;
+    controls.prepend(handDiv);
+  }
+  // سحب الصلاحية من DB
+  await fetch(`/api/rooms/${roomId}/grant-mic/${currentUser.id}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ grant: false })
+  });
+  toast('تركت المايك', 'info');
+  refreshRoomInfo(roomId);
 }
 
 async function leaveRoom(roomId, kicked = false) {
