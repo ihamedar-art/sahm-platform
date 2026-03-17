@@ -248,7 +248,9 @@ app.post('/api/login', async (req, res) => {
   if (!user) return res.json({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
   const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) return res.json({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
+  if (user.is_suspended) return res.json({ error: 'تم إيقاف حسابك. تواصل مع الإدارة.' });
   req.session.userId = user.id;
+  if (user.is_admin) req.session.isAdmin = true;
   res.json({ success: true, redirect: '/' });
 });
 
@@ -795,22 +797,45 @@ app.get('/api/poll/history', (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ADMIN ROUTES
+// ADMIN ROUTES — نظام الأدمن الكامل
 // ══════════════════════════════════════════════════════════════════════════════
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'sahm-admin-2026';
 
+// إضافة حقول الأدمن إذا ما كانت موجودة
+try { db.exec(`ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0`); } catch(e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN is_suspended INTEGER DEFAULT 0`); } catch(e) {}
+try { db.exec(`ALTER TABLE posts ADD COLUMN is_pinned INTEGER DEFAULT 0`); } catch(e) {}
+try { db.exec(`ALTER TABLE posts ADD COLUMN pinned_at DATETIME`); } catch(e) {}
+try { db.exec(`ALTER TABLE comments ADD COLUMN is_deleted INTEGER DEFAULT 0`); } catch(e) {}
+
+// middleware: تحقق من صلاحية الأدمن عبر الجلسة أو عبر حساب المستخدم
 function requireAdmin(req, res, next) {
-  if (!req.session.isAdmin) return res.status(401).json({ error: 'غير مصرح' });
-  next();
+  if (req.session.isAdmin) return next();
+  if (req.session.userId) {
+    const user = db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.session.userId);
+    if (user && user.is_admin) { req.session.isAdmin = true; return next(); }
+  }
+  return res.status(401).json({ error: 'غير مصرح' });
 }
 
+// تحقق الأدمن
+app.get('/api/admin/check', (req, res) => {
+  if (req.session.isAdmin) return res.json({ isAdmin: true });
+  if (req.session.userId) {
+    const user = db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.session.userId);
+    if (user && user.is_admin) { req.session.isAdmin = true; return res.json({ isAdmin: true }); }
+  }
+  res.json({ isAdmin: false });
+});
+
+// لوحة القديمة — login بباسورد (نبقيها للتوافق)
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'sahm-admin-2026';
 app.post('/api/admin/login', (req, res) => {
   if (req.body.password === ADMIN_PASSWORD) { req.session.isAdmin = true; res.json({ success: true }); }
   else res.json({ error: 'كلمة المرور غير صحيحة' });
 });
 app.post('/api/admin/logout', (req, res) => { req.session.isAdmin = false; res.json({ success: true }); });
-app.get('/api/admin/check', (req, res) => res.json({ isAdmin: !!req.session.isAdmin }));
 
+// ── إحصائيات ────────────────────────────────────────────────────
 app.get('/api/admin/stats', requireAdmin, (req, res) => {
   res.json({
     totalUsers:    db.prepare('SELECT COUNT(*) as c FROM users').get().c,
@@ -819,20 +844,23 @@ app.get('/api/admin/stats', requireAdmin, (req, res) => {
     totalVotes:    db.prepare('SELECT COUNT(*) as c FROM votes').get().c,
     newUsersToday: db.prepare("SELECT COUNT(*) as c FROM users WHERE DATE(created_at)=DATE('now')").get().c,
     newPostsToday: db.prepare("SELECT COUNT(*) as c FROM posts WHERE DATE(created_at)=DATE('now')").get().c,
+    suspendedUsers: db.prepare('SELECT COUNT(*) as c FROM users WHERE is_suspended=1').get().c,
     topStocks:     db.prepare("SELECT stock_symbols, COUNT(*) as c FROM posts WHERE stock_symbols!='' GROUP BY stock_symbols ORDER BY c DESC LIMIT 5").all(),
   });
 });
 
+// ── إدارة الأعضاء ───────────────────────────────────────────────
 app.get('/api/admin/users', requireAdmin, (req, res) => {
   const { search, page } = req.query;
   const limit = 20, offset = (parseInt(page)||0)*limit;
   const like = `%${search||''}%`;
   const users = search
-    ? db.prepare('SELECT id,username,display_name,email,reputation,level,posts_count,followers_count,is_verified,created_at FROM users WHERE username LIKE ? OR display_name LIKE ? OR email LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(like,like,like,limit,offset)
-    : db.prepare('SELECT id,username,display_name,email,reputation,level,posts_count,followers_count,is_verified,created_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?').all(limit,offset);
+    ? db.prepare('SELECT id,username,display_name,email,reputation,level,posts_count,followers_count,is_verified,is_admin,is_suspended,created_at FROM users WHERE username LIKE ? OR display_name LIKE ? OR email LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(like,like,like,limit,offset)
+    : db.prepare('SELECT id,username,display_name,email,reputation,level,posts_count,followers_count,is_verified,is_admin,is_suspended,created_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?').all(limit,offset);
   res.json({ users: users.map(u => ({ ...u, level_name: getLevelName(u.level), joined: formatTime(u.created_at) })) });
 });
 
+// توثيق عضو
 app.post('/api/admin/users/:id/verify', requireAdmin, (req, res) => {
   const user = db.prepare('SELECT is_verified FROM users WHERE id=?').get(req.params.id);
   if (!user) return res.json({ error: 'غير موجود' });
@@ -841,7 +869,29 @@ app.post('/api/admin/users/:id/verify', requireAdmin, (req, res) => {
   res.json({ success: true, is_verified: v });
 });
 
+// إيقاف/تفعيل عضو
+app.post('/api/admin/users/:id/suspend', requireAdmin, (req, res) => {
+  const user = db.prepare('SELECT is_suspended, is_admin FROM users WHERE id=?').get(req.params.id);
+  if (!user) return res.json({ error: 'غير موجود' });
+  if (user.is_admin) return res.json({ error: 'لا يمكن إيقاف أدمن' });
+  const v = user.is_suspended ? 0 : 1;
+  db.prepare('UPDATE users SET is_suspended=? WHERE id=?').run(v, req.params.id);
+  res.json({ success: true, is_suspended: v });
+});
+
+// إعطاء/سحب صلاحية أدمن
+app.post('/api/admin/users/:id/make-admin', requireAdmin, (req, res) => {
+  const user = db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.params.id);
+  if (!user) return res.json({ error: 'غير موجود' });
+  const v = user.is_admin ? 0 : 1;
+  db.prepare('UPDATE users SET is_admin=? WHERE id=?').run(v, req.params.id);
+  res.json({ success: true, is_admin: v });
+});
+
+// حذف عضو
 app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
+  const user = db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.params.id);
+  if (user && user.is_admin) return res.json({ error: 'لا يمكن حذف أدمن' });
   ['DELETE FROM comments WHERE user_id=?','DELETE FROM votes WHERE user_id=?',
    'DELETE FROM follows WHERE follower_id=? OR following_id=?','DELETE FROM posts WHERE user_id=?',
    'DELETE FROM notifications WHERE user_id=? OR from_user_id=?','DELETE FROM users WHERE id=?'
@@ -849,11 +899,18 @@ app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
-// إضافة حقل is_pinned إذا ما كان موجوداً
-try { db.exec(`ALTER TABLE posts ADD COLUMN is_pinned INTEGER DEFAULT 0`); } catch(e) {}
-try { db.exec(`ALTER TABLE posts ADD COLUMN pinned_at DATETIME`); } catch(e) {}
+// ── إدارة المنشورات ─────────────────────────────────────────────
+app.get('/api/admin/posts', requireAdmin, (req, res) => {
+  const { search, page } = req.query;
+  const limit = 20, offset = (parseInt(page)||0)*limit;
+  const like = `%${search||''}%`;
+  const posts = search
+    ? db.prepare('SELECT p.*,u.username,u.display_name FROM posts p JOIN users u ON p.user_id=u.id WHERE p.content LIKE ? OR u.username LIKE ? ORDER BY p.created_at DESC LIMIT ? OFFSET ?').all(like,like,limit,offset)
+    : db.prepare('SELECT p.*,u.username,u.display_name FROM posts p JOIN users u ON p.user_id=u.id ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ? OFFSET ?').all(limit,offset);
+  res.json({ posts: posts.map(p => ({ ...p, time_ago: formatTime(p.created_at) })) });
+});
 
-// تثبيت/إلغاء تثبيت منشور (أدمن فقط)
+// تثبيت/إلغاء تثبيت منشور
 app.post('/api/admin/posts/:id/pin', requireAdmin, (req, res) => {
   const post = db.prepare('SELECT id, is_pinned FROM posts WHERE id=?').get(req.params.id);
   if (!post) return res.json({ error: 'المنشور غير موجود' });
@@ -861,15 +918,16 @@ app.post('/api/admin/posts/:id/pin', requireAdmin, (req, res) => {
   db.prepare('UPDATE posts SET is_pinned=?, pinned_at=? WHERE id=?').run(newVal, newVal ? new Date().toISOString() : null, req.params.id);
   res.json({ success: true, is_pinned: newVal });
 });
-  const { search, page } = req.query;
-  const limit = 20, offset = (parseInt(page)||0)*limit;
-  const like = `%${search||''}%`;
-  const posts = search
-    ? db.prepare('SELECT p.*,u.username,u.display_name FROM posts p JOIN users u ON p.user_id=u.id WHERE p.content LIKE ? OR u.username LIKE ? ORDER BY p.created_at DESC LIMIT ? OFFSET ?').all(like,like,limit,offset)
-    : db.prepare('SELECT p.*,u.username,u.display_name FROM posts p JOIN users u ON p.user_id=u.id ORDER BY p.created_at DESC LIMIT ? OFFSET ?').all(limit,offset);
-  res.json({ posts: posts.map(p => ({ ...p, time_ago: formatTime(p.created_at) })) });
+
+// تعديل محتوى منشور
+app.put('/api/admin/posts/:id', requireAdmin, (req, res) => {
+  const { content } = req.body;
+  if (!content || content.trim().length < 3) return res.json({ error: 'المحتوى قصير' });
+  db.prepare('UPDATE posts SET content=? WHERE id=?').run(content.trim(), req.params.id);
+  res.json({ success: true });
 });
 
+// حذف منشور
 app.delete('/api/admin/posts/:id', requireAdmin, (req, res) => {
   db.prepare('DELETE FROM comments WHERE post_id=?').run(req.params.id);
   db.prepare("DELETE FROM votes WHERE target_id=? AND target_type='post'").run(req.params.id);
@@ -877,7 +935,23 @@ app.delete('/api/admin/posts/:id', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
-// API: حذف خبر
+// ── إدارة التعليقات ─────────────────────────────────────────────
+app.get('/api/admin/comments', requireAdmin, (req, res) => {
+  const { search, page } = req.query;
+  const limit = 20, offset = (parseInt(page)||0)*limit;
+  const like = `%${search||''}%`;
+  const comments = search
+    ? db.prepare('SELECT c.*,u.username,u.display_name FROM comments c JOIN users u ON c.user_id=u.id WHERE c.content LIKE ? OR u.username LIKE ? ORDER BY c.created_at DESC LIMIT ? OFFSET ?').all(like,like,limit,offset)
+    : db.prepare('SELECT c.*,u.username,u.display_name FROM comments c JOIN users u ON c.user_id=u.id ORDER BY c.created_at DESC LIMIT ? OFFSET ?').all(limit,offset);
+  res.json({ comments: comments.map(c => ({ ...c, time_ago: formatTime(c.created_at) })) });
+});
+
+app.delete('/api/admin/comments/:id', requireAdmin, (req, res) => {
+  db.prepare('DELETE FROM comments WHERE id=?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ── إدارة الأخبار ───────────────────────────────────────────────
 app.delete('/api/admin/news/:id', requireAdmin, (req, res) => {
   const news = db.prepare('SELECT post_id FROM news_posts WHERE id = ?').get(req.params.id);
   if (news?.post_id) {
@@ -886,6 +960,28 @@ app.delete('/api/admin/news/:id', requireAdmin, (req, res) => {
   }
   db.prepare('DELETE FROM news_posts WHERE id = ?').run(req.params.id);
   res.json({ success: true });
+});
+
+// إضافة خبر يدوي
+app.post('/api/admin/news', requireAdmin, async (req, res) => {
+  const { title, summary, source, stock_symbols } = req.body;
+  if (!title) return res.json({ error: 'العنوان مطلوب' });
+  // ابحث عن jalsat_news user أو أنشئه
+  let newsUser = db.prepare("SELECT id FROM users WHERE username='jalsat_news'").get();
+  if (!newsUser) {
+    const id = uuidv4();
+    const hash = await require('bcryptjs').hash('jalsat_news_secure_2026', 10);
+    db.prepare("INSERT OR IGNORE INTO users (id,username,display_name,email,password_hash,is_verified,level) VALUES (?,?,?,?,?,1,5)").run(
+      id,'jalsat_news','📰 أخبار السوق','news@jalsat.com',hash
+    );
+    newsUser = { id };
+  }
+  const postId = uuidv4();
+  const content = `📰 ${title}\n\n${summary||''}\n\n📌 المصدر: ${source||'جلسة السوق'}`;
+  db.prepare("INSERT INTO posts (id,user_id,content,stock_symbols,post_type) VALUES (?,?,?,?,?)").run(
+    postId, newsUser.id, content, stock_symbols||'', 'news'
+  );
+  res.json({ success: true, post_id: postId });
 });
 
 app.get('/api/posts/:id', (req, res) => {
