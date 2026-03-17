@@ -3312,25 +3312,40 @@ async function submitSingleCmt(postId) {
 // لوحة التحكم — ADMIN PANEL
 // ══════════════════════════════════════════════════════════════════
 let adminTab = 'stats';
+let isSuperAdmin = false;
 
 async function loadAdminPage() {
-  if (!currentUser?.isAdmin) {
+  const r = await fetch('/api/admin/check');
+  const d = await r.json();
+  if (!d.isAdmin) {
     document.getElementById('admin-content').innerHTML = `
       <div class="empty-state"><div class="empty-icon">🔒</div><div class="empty-title">غير مصرح</div></div>`;
     return;
   }
+  isSuperAdmin = d.isSuperAdmin;
   renderAdminShell();
   loadAdminTab('stats');
 }
 
 function renderAdminShell() {
+  const tabs = [
+    ['stats','📊 الإحصائيات', true],
+    ['users','👥 الأعضاء', true],
+    ['posts','📝 المنشورات', true],
+    ['deleted','🗂️ المحذوفات', isSuperAdmin],
+    ['comments','💬 التعليقات', true],
+    ['news','📰 الأخبار', true],
+    ['logs','📋 سجل التحركات', isSuperAdmin],
+  ].filter(t => t[2]);
+
   document.getElementById('admin-content').innerHTML = `
-    <div style="max-width:1000px;margin:0 auto">
+    <div style="max-width:1100px;margin:0 auto">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
-        <div style="font-size:24px;font-weight:700">⚙️ لوحة التحكم</div>
+        <div style="font-size:22px;font-weight:700">⚙️ لوحة التحكم</div>
+        ${isSuperAdmin ? '<span style="background:linear-gradient(135deg,#D97706,#F59E0B);color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px">👑 سوبر أدمن</span>' : '<span style="background:var(--primary);color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px">🛡️ أدمن</span>'}
       </div>
-      <div style="display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap">
-        ${[['stats','📊 الإحصائيات'],['users','👥 الأعضاء'],['posts','📝 المنشورات'],['comments','💬 التعليقات'],['news','📰 الأخبار']].map(([t,l]) => `
+      <div style="display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:14px">
+        ${tabs.map(([t,l]) => `
           <button id="atab-${t}" onclick="loadAdminTab('${t}')" class="btn ${adminTab===t?'btn-primary':'btn-ghost'} btn-sm">${l}</button>`).join('')}
       </div>
       <div id="admin-tab-content"></div>
@@ -3339,18 +3354,18 @@ function renderAdminShell() {
 
 async function loadAdminTab(tab) {
   adminTab = tab;
-  // تحديث الأزرار
   document.querySelectorAll('[id^="atab-"]').forEach(b => {
     b.className = `btn ${b.id === 'atab-'+tab ? 'btn-primary' : 'btn-ghost'} btn-sm`;
   });
   const el = document.getElementById('admin-tab-content');
   el.innerHTML = `<div class="skeleton" style="height:200px;border-radius:14px"></div>`;
-
   if (tab === 'stats') await renderAdminStats(el);
   else if (tab === 'users') await renderAdminUsers(el);
-  else if (tab === 'posts') await renderAdminPosts(el);
+  else if (tab === 'posts') await renderAdminPosts(el, 0, '', false);
+  else if (tab === 'deleted') await renderAdminPosts(el, 0, '', true);
   else if (tab === 'comments') await renderAdminComments(el);
   else if (tab === 'news') await renderAdminNews(el);
+  else if (tab === 'logs') await renderAdminLogs(el);
 }
 
 // ── الإحصائيات ───────────────────────────────────────────────────
@@ -3358,19 +3373,20 @@ async function renderAdminStats(el) {
   const r = await fetch('/api/admin/stats');
   const d = await r.json();
   el.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-bottom:24px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-bottom:24px">
       ${[
-        ['👥', 'الأعضاء', d.totalUsers],
-        ['📝', 'المنشورات', d.totalPosts],
-        ['💬', 'التعليقات', d.totalComments],
-        ['👍', 'التصويتات', d.totalVotes],
-        ['🆕', 'أعضاء اليوم', d.newUsersToday],
-        ['✍️', 'منشورات اليوم', d.newPostsToday],
-        ['🚫', 'موقوفون', d.suspendedUsers],
-      ].map(([icon,label,val]) => `
-        <div class="panel-card" style="text-align:center;padding:18px">
-          <div style="font-size:28px;margin-bottom:6px">${icon}</div>
-          <div style="font-size:22px;font-weight:700;color:var(--primary)">${val}</div>
+        ['👥','الأعضاء',d.totalUsers,'var(--primary)'],
+        ['📝','المنشورات',d.totalPosts,'var(--green)'],
+        ['🗂️','محذوف مؤقتاً',d.deletedPosts,'var(--gold)'],
+        ['💬','التعليقات',d.totalComments,'var(--primary)'],
+        ['👍','التصويتات',d.totalVotes,'var(--green)'],
+        ['🆕','أعضاء اليوم',d.newUsersToday,'var(--primary)'],
+        ['✍️','منشورات اليوم',d.newPostsToday,'var(--green)'],
+        ['🚫','موقوفون',d.suspendedUsers,'var(--red)'],
+      ].map(([icon,label,val,color]) => `
+        <div class="panel-card" style="text-align:center;padding:16px">
+          <div style="font-size:26px;margin-bottom:6px">${icon}</div>
+          <div style="font-size:22px;font-weight:700;color:${color}">${val}</div>
           <div style="font-size:12px;color:var(--text3)">${label}</div>
         </div>`).join('')}
     </div>`;
@@ -3384,45 +3400,49 @@ async function renderAdminUsers(el, page = 0, search = '') {
   const d = await r.json();
   el.innerHTML = `
     <div style="display:flex;gap:8px;margin-bottom:14px">
-      <input class="form-input" style="max-width:280px" placeholder="بحث باسم أو إيميل..." 
+      <input class="form-input" style="max-width:280px" placeholder="بحث..." 
         value="${search}" oninput="renderAdminUsers(document.getElementById('admin-tab-content'),0,this.value)">
     </div>
     <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="border-bottom:2px solid var(--border)">
-        <th style="padding:8px 10px;text-align:right">العضو</th>
-        <th style="padding:8px 10px">المستوى</th>
-        <th style="padding:8px 10px">المنشورات</th>
-        <th style="padding:8px 10px">السمعة</th>
-        <th style="padding:8px 10px">الحالة</th>
-        <th style="padding:8px 10px">الإجراءات</th>
+      <thead><tr style="border-bottom:2px solid var(--border);background:var(--bg3)">
+        <th style="padding:10px 12px;text-align:right">العضو</th>
+        <th style="padding:10px;text-align:center">المستوى</th>
+        <th style="padding:10px;text-align:center">منشورات</th>
+        <th style="padding:10px;text-align:center">الصلاحية</th>
+        <th style="padding:10px;text-align:center">الحالة</th>
+        <th style="padding:10px;text-align:center">الإجراءات</th>
       </tr></thead>
       <tbody>
-      ${d.users.map(u => `
-        <tr style="border-bottom:1px solid var(--border)" id="urow-${u.id}">
-          <td style="padding:8px 10px">
-            <div style="font-weight:600">${u.display_name} ${u.is_admin?'👑':''} ${u.is_verified?'✓':''}</div>
+      ${d.users.map(u => {
+        const roleLabel = u.is_super_admin ? '<span style="background:var(--gold-bg);color:var(--gold);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">👑 سوبر أدمن</span>'
+          : u.is_admin ? '<span style="background:rgba(29,78,216,.1);color:var(--primary);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">🛡️ أدمن</span>'
+          : '<span style="color:var(--text3);font-size:11px">عضو</span>';
+        const statusLabel = u.is_suspended
+          ? '<span style="background:var(--red-bg);color:var(--red);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">موقوف</span>'
+          : '<span style="background:var(--green-bg);color:var(--green);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">نشط</span>';
+        const canEdit = !u.is_super_admin;
+        return `
+        <tr style="border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+          <td style="padding:10px 12px">
+            <div style="font-weight:600">${u.display_name} ${u.is_verified?'✓':''}</div>
             <div style="color:var(--text3);font-size:11px">@${u.username} · ${u.joined}</div>
           </td>
-          <td style="padding:8px 10px;text-align:center">${u.level_name}</td>
-          <td style="padding:8px 10px;text-align:center">${u.posts_count}</td>
-          <td style="padding:8px 10px;text-align:center">${u.reputation}</td>
-          <td style="padding:8px 10px;text-align:center">
-            <span style="padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;
-              background:${u.is_suspended?'var(--red-bg)':'var(--green-bg)'};
-              color:${u.is_suspended?'var(--red)':'var(--green)'}">
-              ${u.is_suspended?'موقوف':'نشط'}
-            </span>
-          </td>
-          <td style="padding:8px 10px">
-            <div style="display:flex;gap:4px;flex-wrap:wrap">
-              <button class="pact-btn" onclick="adminVerify('${u.id}')" title="${u.is_verified?'إلغاء توثيق':'توثيق'}">${u.is_verified?'✓':'☆'} توثيق</button>
-              <button class="pact-btn" onclick="adminSuspend('${u.id}')" title="${u.is_suspended?'تفعيل':'إيقاف'}">${u.is_suspended?'✅ تفعيل':'🚫 إيقاف'}</button>
-              <button class="pact-btn" onclick="adminMakeAdmin('${u.id}')" title="${u.is_admin?'سحب أدمن':'إعطاء أدمن'}">${u.is_admin?'⬇️ سحب أدمن':'👑 أدمن'}</button>
-              <button class="pact-btn danger" onclick="adminDeleteUser('${u.id}','${u.display_name}')">🗑️ حذف</button>
+          <td style="padding:10px;text-align:center;font-size:12px">${u.level_name}</td>
+          <td style="padding:10px;text-align:center">${u.posts_count}</td>
+          <td style="padding:10px;text-align:center">${roleLabel}</td>
+          <td style="padding:10px;text-align:center">${statusLabel}</td>
+          <td style="padding:10px">
+            <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center">
+              ${canEdit ? `
+                <button class="pact-btn" onclick="adminVerify('${u.id}')" title="${u.is_verified?'إلغاء توثيق':'توثيق'}">${u.is_verified?'☑️':'☆'}</button>
+                <button class="pact-btn" onclick="adminSuspend('${u.id}')" title="${u.is_suspended?'تفعيل':'إيقاف'}">${u.is_suspended?'✅':'🚫'}</button>
+                ${isSuperAdmin ? `<button class="pact-btn" onclick="adminMakeAdmin('${u.id}')" title="${u.is_admin?'سحب أدمن':'إعطاء أدمن'}">${u.is_admin?'⬇️':'👑'}</button>` : ''}
+                ${isSuperAdmin ? `<button class="pact-btn danger" onclick="adminDeleteUser('${u.id}','${u.display_name}')">🗑️</button>` : ''}
+              ` : '<span style="font-size:11px;color:var(--text3)">محمي</span>'}
             </div>
           </td>
-        </tr>`).join('')}
+        </tr>`;}).join('')}
       </tbody>
     </table></div>
     <div style="display:flex;gap:8px;margin-top:14px;justify-content:center">
@@ -3432,184 +3452,208 @@ async function renderAdminUsers(el, page = 0, search = '') {
 }
 
 async function adminVerify(id) {
-  const r = await fetch(`/api/admin/users/${id}/verify`, { method: 'POST' });
+  const r = await fetch(`/api/admin/users/${id}/verify`, {method:'POST'});
   const d = await r.json();
-  if (d.error) return toast(d.error, 'error');
-  toast(d.is_verified ? '✓ تم التوثيق' : 'تم إلغاء التوثيق', 'success');
-  renderAdminUsers(document.getElementById('admin-tab-content'), adminUserPage, adminUserSearch);
+  if (d.error) return toast(d.error,'error');
+  toast(d.is_verified?'✓ تم التوثيق':'تم إلغاء التوثيق','success');
+  renderAdminUsers(document.getElementById('admin-tab-content'),adminUserPage,adminUserSearch);
 }
-
 async function adminSuspend(id) {
-  const r = await fetch(`/api/admin/users/${id}/suspend`, { method: 'POST' });
+  const r = await fetch(`/api/admin/users/${id}/suspend`,{method:'POST'});
   const d = await r.json();
-  if (d.error) return toast(d.error, 'error');
-  toast(d.is_suspended ? '🚫 تم إيقاف العضو' : '✅ تم تفعيل العضو', 'success');
-  renderAdminUsers(document.getElementById('admin-tab-content'), adminUserPage, adminUserSearch);
+  if (d.error) return toast(d.error,'error');
+  toast(d.is_suspended?'🚫 تم إيقاف العضو':'✅ تم تفعيل العضو','success');
+  renderAdminUsers(document.getElementById('admin-tab-content'),adminUserPage,adminUserSearch);
 }
-
 async function adminMakeAdmin(id) {
-  if (!confirm('هل تريد تغيير صلاحية الأدمن لهذا العضو؟')) return;
-  const r = await fetch(`/api/admin/users/${id}/make-admin`, { method: 'POST' });
+  if (!confirm('تغيير صلاحية الأدمن لهذا العضو؟')) return;
+  const r = await fetch(`/api/admin/users/${id}/make-admin`,{method:'POST'});
   const d = await r.json();
-  if (d.error) return toast(d.error, 'error');
-  toast(d.is_admin ? '👑 تم إعطاء صلاحية أدمن' : 'تم سحب صلاحية الأدمن', 'success');
-  renderAdminUsers(document.getElementById('admin-tab-content'), adminUserPage, adminUserSearch);
+  if (d.error) return toast(d.error,'error');
+  toast(d.is_admin?'👑 تم إعطاء صلاحية أدمن':'تم سحب صلاحية الأدمن','success');
+  renderAdminUsers(document.getElementById('admin-tab-content'),adminUserPage,adminUserSearch);
 }
-
-async function adminDeleteUser(id, name) {
-  if (!confirm(`هل تريد حذف عضو "${name}" نهائياً؟`)) return;
-  const r = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+async function adminDeleteUser(id,name) {
+  if (!confirm(`حذف عضو "${name}" نهائياً؟`)) return;
+  const r = await fetch(`/api/admin/users/${id}`,{method:'DELETE'});
   const d = await r.json();
-  if (d.error) return toast(d.error, 'error');
-  toast('تم حذف العضو', 'info');
-  renderAdminUsers(document.getElementById('admin-tab-content'), adminUserPage, adminUserSearch);
+  if (d.error) return toast(d.error,'error');
+  toast('تم الحذف','info');
+  renderAdminUsers(document.getElementById('admin-tab-content'),adminUserPage,adminUserSearch);
 }
 
 // ── المنشورات ────────────────────────────────────────────────────
-let adminPostPage = 0, adminPostSearch = '';
-async function renderAdminPosts(el, page = 0, search = '') {
-  adminPostPage = page; adminPostSearch = search;
-  const r = await fetch(`/api/admin/posts?page=${page}&search=${encodeURIComponent(search)}`);
+let adminPostPage=0, adminPostSearch='', adminPostDeleted=false;
+async function renderAdminPosts(el, page=0, search='', showDeleted=false) {
+  adminPostPage=page; adminPostSearch=search; adminPostDeleted=showDeleted;
+  const r = await fetch(`/api/admin/posts?page=${page}&search=${encodeURIComponent(search)}&deleted=${showDeleted?1:0}`);
   const d = await r.json();
   el.innerHTML = `
-    <div style="display:flex;gap:8px;margin-bottom:14px">
+    <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center">
       <input class="form-input" style="max-width:280px" placeholder="بحث في المنشورات..." 
-        value="${search}" oninput="renderAdminPosts(document.getElementById('admin-tab-content'),0,this.value)">
+        value="${search}" oninput="renderAdminPosts(document.getElementById('admin-tab-content'),0,this.value,${showDeleted})">
+      ${showDeleted ? '<span style="background:var(--gold-bg);color:var(--gold);padding:4px 12px;border-radius:10px;font-size:12px;font-weight:700">🗂️ المحذوفات مؤقتاً</span>' : ''}
     </div>
+    ${d.posts.length === 0 ? '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">لا توجد منشورات</div></div>' : ''}
     ${d.posts.map(p => `
       <div class="post-card" id="apost-${p.id}" style="margin-bottom:10px">
         <div style="display:flex;align-items:flex-start;gap:10px">
           <div style="flex:1">
-            ${p.is_pinned ? '<span style="font-size:11px;color:var(--gold);font-weight:700">📌 مثبت · </span>' : ''}
-            <span style="font-size:12px;color:var(--text3)">@${p.username} · ${p.time_ago}</span>
-            <div style="font-size:14px;margin-top:4px;color:var(--text)">${p.content.substring(0,150)}${p.content.length>150?'...':''}</div>
+            ${p.is_pinned?'<span style="font-size:11px;color:var(--gold);font-weight:700">📌 مثبت · </span>':''}
+            <span style="font-size:12px;color:var(--text3);font-weight:600">@${p.username}</span>
+            <span style="font-size:11px;color:var(--text3)"> · ${p.time_ago}</span>
+            <div style="font-size:14px;margin-top:6px;color:var(--text);line-height:1.5">${p.content.substring(0,200)}${p.content.length>200?'...':''}</div>
           </div>
-          <div style="display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0">
-            <button class="pact-btn" onclick="adminPinPost('${p.id}')">${p.is_pinned?'📌 إلغاء':'📍 تثبيت'}</button>
-            <button class="pact-btn" onclick="adminEditPost('${p.id}',this)">✏️ تعديل</button>
-            <button class="pact-btn danger" onclick="adminDeletePost('${p.id}')">🗑️ حذف</button>
+          <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+            ${showDeleted ? `
+              ${isSuperAdmin?`<button class="pact-btn" onclick="adminRestorePost('${p.id}')">♻️ استعادة</button>`:''}
+              ${isSuperAdmin?`<button class="pact-btn danger" onclick="adminHardDeletePost('${p.id}')">🗑️ حذف نهائي</button>`:''}
+            ` : `
+              <button class="pact-btn" onclick="adminPinPost('${p.id}')">${p.is_pinned?'📌 إلغاء':'📍 تثبيت'}</button>
+              <button class="pact-btn" onclick="adminEditPost('${p.id}')">✏️ تعديل</button>
+              <button class="pact-btn danger" onclick="adminSoftDeletePost('${p.id}')">🗂️ حذف مؤقت</button>
+              ${isSuperAdmin?`<button class="pact-btn danger" onclick="adminHardDeletePost('${p.id}')">🗑️ نهائي</button>`:''}
+            `}
           </div>
         </div>
         <div id="edit-${p.id}" style="display:none;margin-top:10px">
-          <textarea class="compose-textarea" id="edit-txt-${p.id}" style="min-height:80px;border:1px solid var(--border2);border-radius:8px;padding:8px">${p.content}</textarea>
+          <textarea id="edit-txt-${p.id}" style="width:100%;min-height:80px;padding:10px;border:1px solid var(--border2);border-radius:8px;font-family:inherit;font-size:14px;background:var(--bg3);color:var(--text)">${p.content}</textarea>
           <div style="display:flex;gap:6px;margin-top:6px">
-            <button class="btn btn-primary btn-sm" onclick="adminSavePost('${p.id}')">حفظ</button>
+            <button class="btn btn-primary btn-sm" onclick="adminSavePost('${p.id}')">💾 حفظ</button>
             <button class="btn btn-ghost btn-sm" onclick="document.getElementById('edit-${p.id}').style.display='none'">إلغاء</button>
           </div>
         </div>
       </div>`).join('')}
     <div style="display:flex;gap:8px;margin-top:14px;justify-content:center">
-      ${page > 0 ? `<button class="btn btn-ghost btn-sm" onclick="renderAdminPosts(document.getElementById('admin-tab-content'),${page-1},'${search}')">← السابق</button>` : ''}
-      ${d.posts.length === 20 ? `<button class="btn btn-ghost btn-sm" onclick="renderAdminPosts(document.getElementById('admin-tab-content'),${page+1},'${search}')">التالي →</button>` : ''}
+      ${page>0?`<button class="btn btn-ghost btn-sm" onclick="renderAdminPosts(document.getElementById('admin-tab-content'),${page-1},'${search}',${showDeleted})">← السابق</button>`:''}
+      ${d.posts.length===20?`<button class="btn btn-ghost btn-sm" onclick="renderAdminPosts(document.getElementById('admin-tab-content'),${page+1},'${search}',${showDeleted})">التالي →</button>`:''}
     </div>`;
 }
 
 async function adminPinPost(id) {
-  const r = await fetch(`/api/admin/posts/${id}/pin`, { method: 'POST' });
-  const d = await r.json();
-  if (d.error) return toast(d.error, 'error');
-  toast(d.is_pinned ? '📌 تم التثبيت' : 'تم إلغاء التثبيت', 'success');
-  renderAdminPosts(document.getElementById('admin-tab-content'), adminPostPage, adminPostSearch);
+  const r=await fetch(`/api/admin/posts/${id}/pin`,{method:'POST'});
+  const d=await r.json();
+  if(d.error)return toast(d.error,'error');
+  toast(d.is_pinned?'📌 تم التثبيت':'تم إلغاء التثبيت','success');
+  renderAdminPosts(document.getElementById('admin-tab-content'),adminPostPage,adminPostSearch,adminPostDeleted);
 }
-
-function adminEditPost(id) {
-  const el = document.getElementById(`edit-${id}`);
-  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+function adminEditPost(id){
+  const el=document.getElementById(`edit-${id}`);
+  el.style.display=el.style.display==='none'?'block':'none';
 }
-
-async function adminSavePost(id) {
-  const content = document.getElementById(`edit-txt-${id}`).value.trim();
-  const r = await fetch(`/api/admin/posts/${id}`, {
-    method: 'PUT', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ content })
-  });
-  const d = await r.json();
-  if (d.error) return toast(d.error, 'error');
-  toast('✅ تم تعديل المنشور', 'success');
-  renderAdminPosts(document.getElementById('admin-tab-content'), adminPostPage, adminPostSearch);
+async function adminSavePost(id){
+  const content=document.getElementById(`edit-txt-${id}`).value.trim();
+  const r=await fetch(`/api/admin/posts/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({content})});
+  const d=await r.json();
+  if(d.error)return toast(d.error,'error');
+  toast('✅ تم تعديل المنشور','success');
+  renderAdminPosts(document.getElementById('admin-tab-content'),adminPostPage,adminPostSearch,adminPostDeleted);
 }
-
-async function adminDeletePost(id) {
-  if (!confirm('هل تريد حذف هذا المنشور؟')) return;
-  const r = await fetch(`/api/admin/posts/${id}`, { method: 'DELETE' });
-  const d = await r.json();
-  if (d.error) return toast(d.error, 'error');
-  toast('تم حذف المنشور', 'info');
-  renderAdminPosts(document.getElementById('admin-tab-content'), adminPostPage, adminPostSearch);
+async function adminSoftDeletePost(id){
+  if(!confirm('حذف مؤقت؟ يمكن استعادته لاحقاً'))return;
+  const r=await fetch(`/api/admin/posts/${id}/soft-delete`,{method:'POST'});
+  const d=await r.json();
+  if(d.error)return toast(d.error,'error');
+  toast('🗂️ تم الحذف المؤقت — يمكن استعادته من تبويب المحذوفات','info');
+  renderAdminPosts(document.getElementById('admin-tab-content'),adminPostPage,adminPostSearch,false);
+}
+async function adminRestorePost(id){
+  const r=await fetch(`/api/admin/posts/${id}/restore`,{method:'POST'});
+  const d=await r.json();
+  if(d.error)return toast(d.error,'error');
+  toast('♻️ تم استعادة المنشور','success');
+  renderAdminPosts(document.getElementById('admin-tab-content'),adminPostPage,adminPostSearch,true);
+}
+async function adminHardDeletePost(id){
+  if(!confirm('حذف نهائي؟ لا يمكن التراجع!'))return;
+  const r=await fetch(`/api/admin/posts/${id}`,{method:'DELETE'});
+  const d=await r.json();
+  if(d.error)return toast(d.error,'error');
+  toast('تم الحذف النهائي','info');
+  renderAdminPosts(document.getElementById('admin-tab-content'),adminPostPage,adminPostSearch,adminPostDeleted);
 }
 
 // ── التعليقات ────────────────────────────────────────────────────
-async function renderAdminComments(el, page = 0, search = '') {
-  const r = await fetch(`/api/admin/comments?page=${page}&search=${encodeURIComponent(search)}`);
-  const d = await r.json();
-  el.innerHTML = `
+async function renderAdminComments(el, page=0, search='') {
+  const r=await fetch(`/api/admin/comments?page=${page}&search=${encodeURIComponent(search)}`);
+  const d=await r.json();
+  el.innerHTML=`
     <div style="display:flex;gap:8px;margin-bottom:14px">
       <input class="form-input" style="max-width:280px" placeholder="بحث في التعليقات..." 
         oninput="renderAdminComments(document.getElementById('admin-tab-content'),0,this.value)">
     </div>
-    ${d.comments.map(c => `
-      <div style="display:flex;gap:10px;padding:10px;border:1px solid var(--border);border-radius:var(--radius2);margin-bottom:8px">
+    ${d.comments.map(c=>`
+      <div style="display:flex;gap:10px;padding:12px;border:1px solid var(--border);border-radius:var(--radius2);margin-bottom:8px;background:var(--bg2)">
         <div style="flex:1">
-          <span style="font-size:12px;color:var(--text3)">@${c.username} · ${c.time_ago}</span>
-          <div style="font-size:14px;margin-top:4px">${c.content}</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:4px"><strong>@${c.username}</strong> · ${c.time_ago}</div>
+          <div style="font-size:14px;color:var(--text)">${c.content}</div>
         </div>
-        <button class="pact-btn danger" onclick="adminDeleteComment('${c.id}',this)">🗑️</button>
+        <button class="pact-btn danger" onclick="adminDeleteComment('${c.id}',this)" style="flex-shrink:0">🗑️</button>
       </div>`).join('')}
     <div style="display:flex;gap:8px;margin-top:14px;justify-content:center">
-      ${page > 0 ? `<button class="btn btn-ghost btn-sm" onclick="renderAdminComments(document.getElementById('admin-tab-content'),${page-1})">← السابق</button>` : ''}
-      ${d.comments.length === 20 ? `<button class="btn btn-ghost btn-sm" onclick="renderAdminComments(document.getElementById('admin-tab-content'),${page+1})">التالي →</button>` : ''}
+      ${page>0?`<button class="btn btn-ghost btn-sm" onclick="renderAdminComments(document.getElementById('admin-tab-content'),${page-1})">← السابق</button>`:''}
+      ${d.comments.length===20?`<button class="btn btn-ghost btn-sm" onclick="renderAdminComments(document.getElementById('admin-tab-content'),${page+1})">التالي →</button>`:''}
     </div>`;
 }
-
-async function adminDeleteComment(id, btn) {
-  const r = await fetch(`/api/admin/comments/${id}`, { method: 'DELETE' });
-  const d = await r.json();
-  if (d.error) return toast(d.error, 'error');
+async function adminDeleteComment(id,btn){
+  const r=await fetch(`/api/admin/comments/${id}`,{method:'DELETE'});
+  const d=await r.json();
+  if(d.error)return toast(d.error,'error');
   btn.closest('div[style]').remove();
-  toast('تم حذف التعليق', 'info');
+  toast('تم حذف التعليق','info');
 }
 
 // ── الأخبار ──────────────────────────────────────────────────────
 async function renderAdminNews(el) {
-  el.innerHTML = `
-    <div class="panel-card" style="margin-bottom:20px">
-      <div class="panel-title">📰 إضافة خبر جديد</div>
-      <div class="form-group">
-        <label class="form-label">عنوان الخبر *</label>
-        <input class="form-input" id="news-title" placeholder="عنوان الخبر">
-      </div>
-      <div class="form-group">
-        <label class="form-label">ملخص</label>
-        <textarea class="form-input" id="news-summary" rows="3" placeholder="ملخص الخبر..."></textarea>
-      </div>
-      <div class="form-group">
-        <label class="form-label">المصدر</label>
-        <input class="form-input" id="news-source" placeholder="مثال: أرقام، مباشر...">
-      </div>
-      <div class="form-group">
-        <label class="form-label">الأسهم المرتبطة</label>
-        <input class="form-input" id="news-stocks" placeholder="مثال: \$2222، \$1120">
-      </div>
+  el.innerHTML=`
+    <div class="panel-card">
+      <div class="panel-title">📰 نشر خبر جديد</div>
+      <div class="form-group"><label class="form-label">العنوان *</label><input class="form-input" id="news-title" placeholder="عنوان الخبر"></div>
+      <div class="form-group"><label class="form-label">الملخص</label><textarea class="form-input" id="news-summary" rows="3" placeholder="ملخص الخبر..."></textarea></div>
+      <div class="form-group"><label class="form-label">المصدر</label><input class="form-input" id="news-source" placeholder="أرقام، مباشر..."></div>
+      <div class="form-group"><label class="form-label">الأسهم المرتبطة</label><input class="form-input" id="news-stocks" placeholder="\$2222، \$1120"></div>
       <button class="btn btn-primary" onclick="adminAddNews()">📰 نشر الخبر</button>
     </div>`;
 }
+async function adminAddNews(){
+  const title=document.getElementById('news-title')?.value.trim();
+  const summary=document.getElementById('news-summary')?.value.trim();
+  const source=document.getElementById('news-source')?.value.trim();
+  const stocks=document.getElementById('news-stocks')?.value.trim();
+  if(!title)return toast('العنوان مطلوب','error');
+  const r=await fetch('/api/admin/news',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,summary,source,stock_symbols:stocks})});
+  const d=await r.json();
+  if(d.error)return toast(d.error,'error');
+  toast('✅ تم نشر الخبر!','success');
+  ['news-title','news-summary','news-source','news-stocks'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+}
 
-async function adminAddNews() {
-  const title = document.getElementById('news-title')?.value.trim();
-  const summary = document.getElementById('news-summary')?.value.trim();
-  const source = document.getElementById('news-source')?.value.trim();
-  const stocks = document.getElementById('news-stocks')?.value.trim();
-  if (!title) return toast('العنوان مطلوب', 'error');
-  const r = await fetch('/api/admin/news', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ title, summary, source, stock_symbols: stocks })
-  });
-  const d = await r.json();
-  if (d.error) return toast(d.error, 'error');
-  toast('✅ تم نشر الخبر!', 'success');
-  document.getElementById('news-title').value = '';
-  document.getElementById('news-summary').value = '';
-  document.getElementById('news-source').value = '';
-  document.getElementById('news-stocks').value = '';
+// ── سجل التحركات (سوبر أدمن فقط) ────────────────────────────────
+async function renderAdminLogs(el, page=0) {
+  const r=await fetch(`/api/admin/logs?page=${page}`);
+  const d=await r.json();
+  el.innerHTML=`
+    <div style="margin-bottom:14px">
+      <div style="font-size:13px;color:var(--text2)">سجل كامل بكل تحركات الأدمن — للمراقبة فقط</div>
+    </div>
+    ${d.logs.length===0?'<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">لا يوجد سجل بعد</div></div>':''}
+    ${d.logs.map(l=>`
+      <div style="display:flex;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);align-items:flex-start">
+        <div style="width:36px;height:36px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700;flex-shrink:0">${l.admin_name[0]}</div>
+        <div style="flex:1">
+          <div style="font-size:13px">
+            <strong style="color:var(--primary)">${l.admin_name}</strong>
+            <span style="color:var(--text)"> · ${l.action}</span>
+            ${l.target_name?`<span style="color:var(--text3)"> على "${l.target_name.substring(0,40)}"</span>`:''}
+          </div>
+          ${l.details?`<div style="font-size:12px;color:var(--text3);margin-top:2px">${l.details}</div>`:''}
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${l.time_ago}</div>
+        </div>
+        <span style="font-size:11px;background:var(--bg3);padding:2px 8px;border-radius:10px;color:var(--text3);flex-shrink:0">${l.target_type||''}</span>
+      </div>`).join('')}
+    <div style="display:flex;gap:8px;margin-top:14px;justify-content:center">
+      ${page>0?`<button class="btn btn-ghost btn-sm" onclick="renderAdminLogs(document.getElementById('admin-tab-content'),${page-1})">← السابق</button>`:''}
+      ${d.logs.length===30?`<button class="btn btn-ghost btn-sm" onclick="renderAdminLogs(document.getElementById('admin-tab-content'),${page+1})">التالي →</button>`:''}
+    </div>`;
 }
 </script>

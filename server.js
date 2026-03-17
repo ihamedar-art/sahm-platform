@@ -329,7 +329,7 @@ app.get('/api/posts', (req, res) => {
   } else {
     posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
       FROM posts p JOIN users u ON p.user_id = u.id
-      WHERE p.is_pinned = 0 OR p.is_pinned IS NULL
+      WHERE p.is_pinned = 0 OR p.is_pinned IS NULL AND (p.is_soft_deleted=0 OR p.is_soft_deleted IS NULL)
       ORDER BY (p.upvotes * 2 - p.downvotes + p.comments_count) DESC, p.created_at DESC
       LIMIT ? OFFSET ?`
     ).all(limit, offset);
@@ -797,37 +797,71 @@ app.get('/api/poll/history', (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ADMIN ROUTES — نظام الأدمن الكامل
+// ADMIN ROUTES — نظام الأدمن الكامل مع تسلسل الصلاحيات
 // ══════════════════════════════════════════════════════════════════════════════
 
-// إضافة حقول الأدمن إذا ما كانت موجودة
+// إضافة الحقول الجديدة
 try { db.exec(`ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0`); } catch(e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN is_super_admin INTEGER DEFAULT 0`); } catch(e) {}
 try { db.exec(`ALTER TABLE users ADD COLUMN is_suspended INTEGER DEFAULT 0`); } catch(e) {}
 try { db.exec(`ALTER TABLE posts ADD COLUMN is_pinned INTEGER DEFAULT 0`); } catch(e) {}
 try { db.exec(`ALTER TABLE posts ADD COLUMN pinned_at DATETIME`); } catch(e) {}
-try { db.exec(`ALTER TABLE comments ADD COLUMN is_deleted INTEGER DEFAULT 0`); } catch(e) {}
+try { db.exec(`ALTER TABLE posts ADD COLUMN is_soft_deleted INTEGER DEFAULT 0`); } catch(e) {}
+try { db.exec(`ALTER TABLE posts ADD COLUMN soft_deleted_at DATETIME`); } catch(e) {}
+try { db.exec(`ALTER TABLE posts ADD COLUMN soft_deleted_by TEXT`); } catch(e) {}
 
-// middleware: تحقق من صلاحية الأدمن عبر الجلسة أو عبر حساب المستخدم
-function requireAdmin(req, res, next) {
-  if (req.session.isAdmin) return next();
-  if (req.session.userId) {
-    const user = db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.session.userId);
-    if (user && user.is_admin) { req.session.isAdmin = true; return next(); }
-  }
-  return res.status(401).json({ error: 'غير مصرح' });
+// جدول سجل تحركات الأدمن
+db.exec(`CREATE TABLE IF NOT EXISTS admin_logs (
+  id TEXT PRIMARY KEY,
+  admin_id TEXT NOT NULL,
+  admin_name TEXT NOT NULL,
+  action TEXT NOT NULL,
+  target_type TEXT,
+  target_id TEXT,
+  target_name TEXT,
+  details TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)`);
+
+// ── Helper: تسجيل حركة الأدمن ───────────────────────────────────
+function logAdminAction(adminId, adminName, action, targetType, targetId, targetName, details='') {
+  db.prepare(`INSERT INTO admin_logs (id,admin_id,admin_name,action,target_type,target_id,target_name,details) VALUES (?,?,?,?,?,?,?,?)`)
+    .run(uuidv4(), adminId, adminName, action, targetType||'', targetId||'', targetName||'', details);
 }
 
-// تحقق الأدمن
+// ── Helper: جلب بيانات الأدمن الحالي ───────────────────────────
+function getAdminUser(req) {
+  if (!req.session.userId) return null;
+  return db.prepare('SELECT id,username,display_name,is_admin,is_super_admin FROM users WHERE id=?').get(req.session.userId);
+}
+
+// ── Middleware ──────────────────────────────────────────────────
+function requireAdmin(req, res, next) {
+  if (!req.session.userId) return res.status(401).json({ error: 'غير مصرح' });
+  const user = db.prepare('SELECT is_admin,is_super_admin FROM users WHERE id=?').get(req.session.userId);
+  if (!user || (!user.is_admin && !user.is_super_admin)) return res.status(401).json({ error: 'غير مصرح' });
+  req.session.isAdmin = true;
+  next();
+}
+
+function requireSuperAdmin(req, res, next) {
+  if (!req.session.userId) return res.status(401).json({ error: 'غير مصرح' });
+  const user = db.prepare('SELECT is_super_admin FROM users WHERE id=?').get(req.session.userId);
+  if (!user || !user.is_super_admin) return res.status(403).json({ error: 'هذه الصلاحية للسوبر أدمن فقط' });
+  next();
+}
+
+// ── تحقق الأدمن ─────────────────────────────────────────────────
 app.get('/api/admin/check', (req, res) => {
-  if (req.session.isAdmin) return res.json({ isAdmin: true });
-  if (req.session.userId) {
-    const user = db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.session.userId);
-    if (user && user.is_admin) { req.session.isAdmin = true; return res.json({ isAdmin: true }); }
-  }
-  res.json({ isAdmin: false });
+  if (!req.session.userId) return res.json({ isAdmin: false, isSuperAdmin: false });
+  const user = db.prepare('SELECT is_admin,is_super_admin FROM users WHERE id=?').get(req.session.userId);
+  if (!user) return res.json({ isAdmin: false, isSuperAdmin: false });
+  res.json({
+    isAdmin: !!(user.is_admin || user.is_super_admin),
+    isSuperAdmin: !!user.is_super_admin
+  });
 });
 
-// لوحة القديمة — login بباسورد (نبقيها للتوافق)
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'sahm-admin-2026';
 app.post('/api/admin/login', (req, res) => {
   if (req.body.password === ADMIN_PASSWORD) { req.session.isAdmin = true; res.json({ success: true }); }
@@ -838,14 +872,15 @@ app.post('/api/admin/logout', (req, res) => { req.session.isAdmin = false; res.j
 // ── إحصائيات ────────────────────────────────────────────────────
 app.get('/api/admin/stats', requireAdmin, (req, res) => {
   res.json({
-    totalUsers:    db.prepare('SELECT COUNT(*) as c FROM users').get().c,
-    totalPosts:    db.prepare('SELECT COUNT(*) as c FROM posts').get().c,
-    totalComments: db.prepare('SELECT COUNT(*) as c FROM comments').get().c,
-    totalVotes:    db.prepare('SELECT COUNT(*) as c FROM votes').get().c,
-    newUsersToday: db.prepare("SELECT COUNT(*) as c FROM users WHERE DATE(created_at)=DATE('now')").get().c,
-    newPostsToday: db.prepare("SELECT COUNT(*) as c FROM posts WHERE DATE(created_at)=DATE('now')").get().c,
+    totalUsers:     db.prepare('SELECT COUNT(*) as c FROM users').get().c,
+    totalPosts:     db.prepare('SELECT COUNT(*) as c FROM posts WHERE is_soft_deleted=0').get().c,
+    deletedPosts:   db.prepare('SELECT COUNT(*) as c FROM posts WHERE is_soft_deleted=1').get().c,
+    totalComments:  db.prepare('SELECT COUNT(*) as c FROM comments').get().c,
+    totalVotes:     db.prepare('SELECT COUNT(*) as c FROM votes').get().c,
+    newUsersToday:  db.prepare("SELECT COUNT(*) as c FROM users WHERE DATE(created_at)=DATE('now')").get().c,
+    newPostsToday:  db.prepare("SELECT COUNT(*) as c FROM posts WHERE DATE(created_at)=DATE('now') AND is_soft_deleted=0").get().c,
     suspendedUsers: db.prepare('SELECT COUNT(*) as c FROM users WHERE is_suspended=1').get().c,
-    topStocks:     db.prepare("SELECT stock_symbols, COUNT(*) as c FROM posts WHERE stock_symbols!='' GROUP BY stock_symbols ORDER BY c DESC LIMIT 5").all(),
+    topStocks:      db.prepare("SELECT stock_symbols, COUNT(*) as c FROM posts WHERE stock_symbols!='' AND is_soft_deleted=0 GROUP BY stock_symbols ORDER BY c DESC LIMIT 5").all(),
   });
 });
 
@@ -855,83 +890,127 @@ app.get('/api/admin/users', requireAdmin, (req, res) => {
   const limit = 20, offset = (parseInt(page)||0)*limit;
   const like = `%${search||''}%`;
   const users = search
-    ? db.prepare('SELECT id,username,display_name,email,reputation,level,posts_count,followers_count,is_verified,is_admin,is_suspended,created_at FROM users WHERE username LIKE ? OR display_name LIKE ? OR email LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(like,like,like,limit,offset)
-    : db.prepare('SELECT id,username,display_name,email,reputation,level,posts_count,followers_count,is_verified,is_admin,is_suspended,created_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?').all(limit,offset);
+    ? db.prepare('SELECT id,username,display_name,email,reputation,level,posts_count,followers_count,is_verified,is_admin,is_super_admin,is_suspended,created_at FROM users WHERE username LIKE ? OR display_name LIKE ? OR email LIKE ? ORDER BY is_super_admin DESC, is_admin DESC, created_at DESC LIMIT ? OFFSET ?').all(like,like,like,limit,offset)
+    : db.prepare('SELECT id,username,display_name,email,reputation,level,posts_count,followers_count,is_verified,is_admin,is_super_admin,is_suspended,created_at FROM users ORDER BY is_super_admin DESC, is_admin DESC, created_at DESC LIMIT ? OFFSET ?').all(limit,offset);
   res.json({ users: users.map(u => ({ ...u, level_name: getLevelName(u.level), joined: formatTime(u.created_at) })) });
 });
 
 // توثيق عضو
 app.post('/api/admin/users/:id/verify', requireAdmin, (req, res) => {
-  const user = db.prepare('SELECT is_verified FROM users WHERE id=?').get(req.params.id);
+  const admin = getAdminUser(req);
+  const user = db.prepare('SELECT id,username,display_name,is_verified,is_super_admin FROM users WHERE id=?').get(req.params.id);
   if (!user) return res.json({ error: 'غير موجود' });
+  if (user.is_super_admin) return res.json({ error: 'لا يمكن تعديل السوبر أدمن' });
   const v = user.is_verified ? 0 : 1;
   db.prepare('UPDATE users SET is_verified=? WHERE id=?').run(v, req.params.id);
+  logAdminAction(admin.id, admin.display_name, v?'توثيق عضو':'إلغاء توثيق', 'user', user.id, user.display_name);
   res.json({ success: true, is_verified: v });
 });
 
 // إيقاف/تفعيل عضو
 app.post('/api/admin/users/:id/suspend', requireAdmin, (req, res) => {
-  const user = db.prepare('SELECT is_suspended, is_admin FROM users WHERE id=?').get(req.params.id);
+  const admin = getAdminUser(req);
+  const user = db.prepare('SELECT id,username,display_name,is_suspended,is_admin,is_super_admin FROM users WHERE id=?').get(req.params.id);
   if (!user) return res.json({ error: 'غير موجود' });
-  if (user.is_admin) return res.json({ error: 'لا يمكن إيقاف أدمن' });
+  if (user.is_super_admin) return res.json({ error: 'لا يمكن إيقاف السوبر أدمن' });
+  if (user.is_admin && !admin.is_super_admin) return res.json({ error: 'فقط السوبر أدمن يستطيع إيقاف أدمن' });
   const v = user.is_suspended ? 0 : 1;
   db.prepare('UPDATE users SET is_suspended=? WHERE id=?').run(v, req.params.id);
+  logAdminAction(admin.id, admin.display_name, v?'إيقاف عضو':'تفعيل عضو', 'user', user.id, user.display_name);
   res.json({ success: true, is_suspended: v });
 });
 
-// إعطاء/سحب صلاحية أدمن
-app.post('/api/admin/users/:id/make-admin', requireAdmin, (req, res) => {
-  const user = db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.params.id);
+// إعطاء/سحب صلاحية أدمن (سوبر أدمن فقط)
+app.post('/api/admin/users/:id/make-admin', requireSuperAdmin, (req, res) => {
+  const admin = getAdminUser(req);
+  const user = db.prepare('SELECT id,username,display_name,is_admin,is_super_admin FROM users WHERE id=?').get(req.params.id);
   if (!user) return res.json({ error: 'غير موجود' });
+  if (user.is_super_admin) return res.json({ error: 'لا يمكن تعديل السوبر أدمن' });
   const v = user.is_admin ? 0 : 1;
   db.prepare('UPDATE users SET is_admin=? WHERE id=?').run(v, req.params.id);
+  logAdminAction(admin.id, admin.display_name, v?'إعطاء صلاحية أدمن':'سحب صلاحية أدمن', 'user', user.id, user.display_name);
   res.json({ success: true, is_admin: v });
 });
 
-// حذف عضو
-app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
-  const user = db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.params.id);
-  if (user && user.is_admin) return res.json({ error: 'لا يمكن حذف أدمن' });
+// حذف عضو (سوبر أدمن فقط)
+app.delete('/api/admin/users/:id', requireSuperAdmin, (req, res) => {
+  const admin = getAdminUser(req);
+  const user = db.prepare('SELECT id,display_name,is_super_admin FROM users WHERE id=?').get(req.params.id);
+  if (!user) return res.json({ error: 'غير موجود' });
+  if (user.is_super_admin) return res.json({ error: 'لا يمكن حذف السوبر أدمن' });
   ['DELETE FROM comments WHERE user_id=?','DELETE FROM votes WHERE user_id=?',
    'DELETE FROM follows WHERE follower_id=? OR following_id=?','DELETE FROM posts WHERE user_id=?',
    'DELETE FROM notifications WHERE user_id=? OR from_user_id=?','DELETE FROM users WHERE id=?'
   ].forEach((q,i) => i===2||i===4 ? db.prepare(q).run(req.params.id,req.params.id) : db.prepare(q).run(req.params.id));
+  logAdminAction(admin.id, admin.display_name, 'حذف عضو نهائي', 'user', req.params.id, user.display_name);
   res.json({ success: true });
 });
 
 // ── إدارة المنشورات ─────────────────────────────────────────────
 app.get('/api/admin/posts', requireAdmin, (req, res) => {
-  const { search, page } = req.query;
+  const { search, page, deleted } = req.query;
   const limit = 20, offset = (parseInt(page)||0)*limit;
   const like = `%${search||''}%`;
+  const showDeleted = deleted === '1' ? 1 : 0;
   const posts = search
-    ? db.prepare('SELECT p.*,u.username,u.display_name FROM posts p JOIN users u ON p.user_id=u.id WHERE p.content LIKE ? OR u.username LIKE ? ORDER BY p.created_at DESC LIMIT ? OFFSET ?').all(like,like,limit,offset)
-    : db.prepare('SELECT p.*,u.username,u.display_name FROM posts p JOIN users u ON p.user_id=u.id ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ? OFFSET ?').all(limit,offset);
+    ? db.prepare('SELECT p.*,u.username,u.display_name FROM posts p JOIN users u ON p.user_id=u.id WHERE (p.content LIKE ? OR u.username LIKE ?) AND p.is_soft_deleted=? ORDER BY p.created_at DESC LIMIT ? OFFSET ?').all(like,like,showDeleted,limit,offset)
+    : db.prepare('SELECT p.*,u.username,u.display_name FROM posts p JOIN users u ON p.user_id=u.id WHERE p.is_soft_deleted=? ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ? OFFSET ?').all(showDeleted,limit,offset);
   res.json({ posts: posts.map(p => ({ ...p, time_ago: formatTime(p.created_at) })) });
 });
 
-// تثبيت/إلغاء تثبيت منشور
+// تثبيت/إلغاء تثبيت
 app.post('/api/admin/posts/:id/pin', requireAdmin, (req, res) => {
-  const post = db.prepare('SELECT id, is_pinned FROM posts WHERE id=?').get(req.params.id);
+  const admin = getAdminUser(req);
+  const post = db.prepare('SELECT id,is_pinned,content FROM posts WHERE id=?').get(req.params.id);
   if (!post) return res.json({ error: 'المنشور غير موجود' });
   const newVal = post.is_pinned ? 0 : 1;
-  db.prepare('UPDATE posts SET is_pinned=?, pinned_at=? WHERE id=?').run(newVal, newVal ? new Date().toISOString() : null, req.params.id);
+  db.prepare('UPDATE posts SET is_pinned=?,pinned_at=? WHERE id=?').run(newVal, newVal?new Date().toISOString():null, req.params.id);
+  logAdminAction(admin.id, admin.display_name, newVal?'تثبيت منشور':'إلغاء تثبيت منشور', 'post', post.id, post.content.substring(0,50));
   res.json({ success: true, is_pinned: newVal });
 });
 
-// تعديل محتوى منشور
+// تعديل منشور
 app.put('/api/admin/posts/:id', requireAdmin, (req, res) => {
+  const admin = getAdminUser(req);
   const { content } = req.body;
   if (!content || content.trim().length < 3) return res.json({ error: 'المحتوى قصير' });
+  const post = db.prepare('SELECT id,content FROM posts WHERE id=?').get(req.params.id);
+  if (!post) return res.json({ error: 'غير موجود' });
   db.prepare('UPDATE posts SET content=? WHERE id=?').run(content.trim(), req.params.id);
+  logAdminAction(admin.id, admin.display_name, 'تعديل منشور', 'post', post.id, post.content.substring(0,50), `جديد: ${content.substring(0,50)}`);
   res.json({ success: true });
 });
 
-// حذف منشور
-app.delete('/api/admin/posts/:id', requireAdmin, (req, res) => {
+// حذف مؤقت (أدمن + سوبر أدمن)
+app.post('/api/admin/posts/:id/soft-delete', requireAdmin, (req, res) => {
+  const admin = getAdminUser(req);
+  const post = db.prepare('SELECT id,content,is_soft_deleted FROM posts WHERE id=?').get(req.params.id);
+  if (!post) return res.json({ error: 'غير موجود' });
+  db.prepare('UPDATE posts SET is_soft_deleted=1,soft_deleted_at=?,soft_deleted_by=? WHERE id=?')
+    .run(new Date().toISOString(), admin.id, req.params.id);
+  logAdminAction(admin.id, admin.display_name, 'حذف مؤقت لمنشور', 'post', post.id, post.content.substring(0,50));
+  res.json({ success: true });
+});
+
+// استعادة منشور محذوف مؤقتاً (سوبر أدمن فقط)
+app.post('/api/admin/posts/:id/restore', requireSuperAdmin, (req, res) => {
+  const admin = getAdminUser(req);
+  const post = db.prepare('SELECT id,content FROM posts WHERE id=?').get(req.params.id);
+  if (!post) return res.json({ error: 'غير موجود' });
+  db.prepare('UPDATE posts SET is_soft_deleted=0,soft_deleted_at=NULL,soft_deleted_by=NULL WHERE id=?').run(req.params.id);
+  logAdminAction(admin.id, admin.display_name, 'استعادة منشور محذوف', 'post', post.id, post.content.substring(0,50));
+  res.json({ success: true });
+});
+
+// حذف نهائي (سوبر أدمن فقط)
+app.delete('/api/admin/posts/:id', requireSuperAdmin, (req, res) => {
+  const admin = getAdminUser(req);
+  const post = db.prepare('SELECT id,content FROM posts WHERE id=?').get(req.params.id);
+  if (!post) return res.json({ error: 'غير موجود' });
   db.prepare('DELETE FROM comments WHERE post_id=?').run(req.params.id);
   db.prepare("DELETE FROM votes WHERE target_id=? AND target_type='post'").run(req.params.id);
   db.prepare('DELETE FROM posts WHERE id=?').run(req.params.id);
+  logAdminAction(admin.id, admin.display_name, 'حذف نهائي لمنشور', 'post', req.params.id, post.content.substring(0,50));
   res.json({ success: true });
 });
 
@@ -947,26 +1026,39 @@ app.get('/api/admin/comments', requireAdmin, (req, res) => {
 });
 
 app.delete('/api/admin/comments/:id', requireAdmin, (req, res) => {
+  const admin = getAdminUser(req);
+  const comment = db.prepare('SELECT id,content FROM comments WHERE id=?').get(req.params.id);
+  if (!comment) return res.json({ error: 'غير موجود' });
   db.prepare('DELETE FROM comments WHERE id=?').run(req.params.id);
+  logAdminAction(admin.id, admin.display_name, 'حذف تعليق', 'comment', comment.id, comment.content.substring(0,50));
   res.json({ success: true });
+});
+
+// ── سجل تحركات الأدمن (سوبر أدمن فقط) ──────────────────────────
+app.get('/api/admin/logs', requireSuperAdmin, (req, res) => {
+  const { page } = req.query;
+  const limit = 30, offset = (parseInt(page)||0)*limit;
+  const logs = db.prepare('SELECT * FROM admin_logs ORDER BY created_at DESC LIMIT ? OFFSET ?').all(limit, offset);
+  res.json({ logs: logs.map(l => ({ ...l, time_ago: formatTime(l.created_at) })) });
 });
 
 // ── إدارة الأخبار ───────────────────────────────────────────────
 app.delete('/api/admin/news/:id', requireAdmin, (req, res) => {
+  const admin = getAdminUser(req);
   const news = db.prepare('SELECT post_id FROM news_posts WHERE id = ?').get(req.params.id);
   if (news?.post_id) {
     db.prepare('DELETE FROM comments WHERE post_id = ?').run(news.post_id);
     db.prepare('DELETE FROM posts WHERE id = ?').run(news.post_id);
   }
   db.prepare('DELETE FROM news_posts WHERE id = ?').run(req.params.id);
+  logAdminAction(admin.id, admin.display_name, 'حذف خبر', 'news', req.params.id, '');
   res.json({ success: true });
 });
 
-// إضافة خبر يدوي
 app.post('/api/admin/news', requireAdmin, async (req, res) => {
+  const admin = getAdminUser(req);
   const { title, summary, source, stock_symbols } = req.body;
   if (!title) return res.json({ error: 'العنوان مطلوب' });
-  // ابحث عن jalsat_news user أو أنشئه
   let newsUser = db.prepare("SELECT id FROM users WHERE username='jalsat_news'").get();
   if (!newsUser) {
     const id = uuidv4();
@@ -981,6 +1073,7 @@ app.post('/api/admin/news', requireAdmin, async (req, res) => {
   db.prepare("INSERT INTO posts (id,user_id,content,stock_symbols,post_type) VALUES (?,?,?,?,?)").run(
     postId, newsUser.id, content, stock_symbols||'', 'news'
   );
+  logAdminAction(admin.id, admin.display_name, 'إضافة خبر', 'post', postId, title);
   res.json({ success: true, post_id: postId });
 });
 
