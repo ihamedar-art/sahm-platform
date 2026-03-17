@@ -1684,7 +1684,39 @@ async function submitEditProfile(e) {
 // ══════════════════════════════════════════════════════════════════
 // STOCK PAGE
 // ══════════════════════════════════════════════════════════════════
-async function loadStockPage(symbol) {
+function updateStockCharCount(textarea) {
+  const remaining = 2000 - textarea.value.length;
+  const el = document.getElementById('stock-char-count');
+  if (el) {
+    el.textContent = `2000 / ${remaining}`;
+    el.style.color = remaining < 100 ? 'var(--red)' : remaining < 200 ? 'var(--gold)' : '#C4AE5A';
+  }
+}
+
+async function submitStockPost(symbol) {
+  if (!currentUser) { showLoginModal(); return; }
+  const textarea = document.getElementById('stock-compose-text');
+  let content = textarea?.value.trim();
+  if (!content || content.length < 3) return toast('المحتوى قصير جداً', 'error');
+  // تأكد إن التاق موجود
+  if (!content.includes(symbol)) content = `${symbol} ${content}`;
+
+  const formData = new FormData();
+  formData.append('content', content);
+  formData.append('post_type', 'opinion');
+
+  const r = await fetch('/api/posts', { method: 'POST', body: formData });
+  const d = await r.json();
+  if (d.error) { toast(d.error, 'error'); return; }
+
+  textarea.value = `${symbol} `;
+  updateStockCharCount(textarea);
+  toast('✅ تم نشر المنشور!', 'success');
+
+  // أضف المنشور في الأعلى
+  const sp = document.getElementById('stock-posts');
+  if (sp) sp.insertAdjacentHTML('afterbegin', createPostCard(d.post));
+}
   const el = document.getElementById('stock-content');
   const statsRes = await fetch(`/api/stocks/${symbol}/stats`);
   const stats = await statsRes.json();
@@ -1718,6 +1750,16 @@ async function loadStockPage(symbol) {
       </div>
     </div>
     <h3 style="margin-bottom:16px">منشورات ${symbol}</h3>
+    ${currentUser ? `
+    <div class="compose-box" style="margin-bottom:20px" id="stock-compose">
+      <textarea class="compose-textarea" id="stock-compose-text" 
+        placeholder="شارك رأيك في ${symbol}..." 
+        maxlength="2000" oninput="updateStockCharCount(this)">${symbol} </textarea>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid #EDE08A">
+        <span id="stock-char-count" style="font-size:12px;color:#C4AE5A">2000 / ${2000-(symbol.length+1)}</span>
+        <button class="btn btn-primary btn-sm" onclick="submitStockPost('${symbol}')">✍️ نشر</button>
+      </div>
+    </div>` : ''}
     <div id="stock-posts"></div>`;
 
   const postsRes = await fetch(`/api/posts?symbol=${symbol}`);
