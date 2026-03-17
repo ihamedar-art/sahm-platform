@@ -924,6 +924,10 @@ body {
       <div id="trending-stocks"></div>
     </div>
     <div id="poll-widget-wrap"></div>
+    <div class="panel-card" id="hot-posts-panel">
+      <div class="panel-title">🔥 الأكثر نقاشاً</div>
+      <div id="hot-posts-list"></div>
+    </div>
   </aside>
 </div>
 </div>
@@ -970,8 +974,33 @@ async function init() {
   loadTrendingStocks();
   renderFeed();
   loadPoll();
+  loadHotPosts();
   if (currentUser) pollNotifications();
   setTimeout(checkNewPosts, 15000);
+  setInterval(loadHotPosts, 120000); // تحديث كل دقيقتين
+}
+
+async function loadHotPosts() {
+  const el = document.getElementById('hot-posts-list');
+  if (!el) return;
+  try {
+    const r = await fetch('/api/posts/hot');
+    const d = await r.json();
+    if (!d.posts || !d.posts.length) { el.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:10px">لا توجد منشورات بعد</div>'; return; }
+    el.innerHTML = d.posts.map((p, i) => `
+      <div onclick="navigate('post','${p.id}')" style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s" 
+        onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+        <div style="font-size:18px;font-weight:700;color:var(--border2);width:20px;flex-shrink:0;text-align:center">${i+1}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;color:var(--text);line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${p.content.replace(/<[^>]*>/g,'').substring(0,80)}${p.content.length>80?'...':''}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;display:flex;gap:8px">
+            <span>@${p.username}</span>
+            <span>💬 ${p.comments_count}</span>
+            <span>👍 ${p.upvotes}</span>
+          </div>
+        </div>
+      </div>`).join('');
+  } catch(e) {}
 }
 
 async function checkAuth() {

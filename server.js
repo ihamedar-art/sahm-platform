@@ -295,6 +295,18 @@ app.post('/api/posts', requireAuth, upload.single('image'), async (req, res) => 
   res.json({ success: true, post: { ...post, time_ago: 'الآن', level_name: getLevelName(post.level) } });
 });
 
+// الأكثر نقاشاً
+app.get('/api/posts/hot', (req, res) => {
+  const posts = db.prepare(`
+    SELECT p.id, p.content, p.comments_count, p.upvotes, u.display_name, u.username
+    FROM posts p JOIN users u ON p.user_id = u.id
+    WHERE p.is_soft_deleted=0 OR p.is_soft_deleted IS NULL
+    ORDER BY p.comments_count DESC, p.upvotes DESC
+    LIMIT 5
+  `).all();
+  res.json({ posts });
+});
+
 app.get('/api/posts', (req, res) => {
   const { feed, symbol, user_id, page } = req.query;
   const limit = 20;
