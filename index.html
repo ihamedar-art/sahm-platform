@@ -1018,6 +1018,7 @@ async function checkAuth() {
     const adminCheck = await fetch('/api/admin/check');
     const adminData = await adminCheck.json();
     currentUser.isAdmin = adminData.isAdmin;
+    currentUser.isSuperAdmin = adminData.isSuperAdmin;
     // إظهار/إخفاء رابط لوحة التحكم
     const adminNav = document.getElementById('nav-admin');
     if (adminNav) adminNav.style.display = adminData.isAdmin ? '' : 'none';
@@ -1326,7 +1327,8 @@ function createPostCard(p, standalone = false) {
   }
 
   const isOwner = currentUser && currentUser.id === p.user_id;
-  const isAdmin = currentUser && currentUser.is_verified === 2; // أدمن
+  const isAdmin = currentUser && currentUser.isAdmin;
+  const isSuperAdminUser = currentUser && currentUser.isSuperAdmin;
   const upActive = p.my_vote === 'up' ? 'active' : '';
   const downActive = p.my_vote === 'down' ? 'active' : '';
 
@@ -1345,8 +1347,10 @@ function createPostCard(p, standalone = false) {
         <div class="post-time">${p.time_ago}</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
-        ${currentUser?.isAdmin ? `<div class="post-menu" onclick="event.stopPropagation();togglePin('${p.id}',${p.is_pinned?1:0})" title="${p.is_pinned?'إلغاء التثبيت':'تثبيت'}">${p.is_pinned?'📌':'📍'}</div>` : ''}
-        ${isOwner ? `<div class="post-menu" onclick="event.stopPropagation();deletePost('${p.id}')">🗑️</div>` : ''}
+        ${isAdmin ? `<div class="post-menu" onclick="event.stopPropagation();togglePin('${p.id}',${p.is_pinned?1:0})" title="${p.is_pinned?'إلغاء التثبيت':'تثبيت'}">${p.is_pinned?'📌':'📍'}</div>` : ''}
+        ${isAdmin ? `<div class="post-menu" onclick="event.stopPropagation();adminSoftDeletePostFeed('${p.id}')" title="إخفاء مؤقت">🚫</div>` : ''}
+        ${isSuperAdminUser ? `<div class="post-menu" style="color:var(--red)" onclick="event.stopPropagation();adminHardDeletePostFeed('${p.id}')" title="حذف نهائي">🗑️</div>` : ''}
+        ${(isOwner && !isAdmin) ? `<div class="post-menu" onclick="event.stopPropagation();deletePost('${p.id}')">🗑️</div>` : ''}
       </div>
     </div>
     ${analysisBadge}
@@ -1603,6 +1607,34 @@ async function deletePost(postId) {
   if (data.success) {
     document.getElementById(`post-${postId}`)?.remove();
     toast('تم حذف المنشور', 'info');
+  } else {
+    toast(data.error || 'حدث خطأ', 'error');
+  }
+}
+
+// حذف مؤقت من الأدمن مباشرة من الفيد
+async function adminSoftDeletePostFeed(postId) {
+  if (!confirm('إخفاء هذا المنشور مؤقتاً؟')) return;
+  const res = await fetch(`/api/admin/posts/${postId}/soft-delete`, { method:'POST' });
+  const data = await res.json();
+  if (data.success) {
+    document.getElementById(`post-${postId}`)?.remove();
+    toast('🚫 تم إخفاء المنشور', 'info');
+  } else {
+    toast(data.error || 'حدث خطأ', 'error');
+  }
+}
+
+// حذف نهائي من السوبر أدمن مباشرة من الفيد
+async function adminHardDeletePostFeed(postId) {
+  if (!confirm('⚠️ حذف نهائي لا يمكن التراجع عنه؟')) return;
+  const res = await fetch(`/api/admin/posts/${postId}`, { method:'DELETE' });
+  const data = await res.json();
+  if (data.success) {
+    document.getElementById(`post-${postId}`)?.remove();
+    toast('🗑️ تم الحذف النهائي', 'info');
+  } else {
+    toast(data.error || 'حدث خطأ', 'error');
   }
 }
 

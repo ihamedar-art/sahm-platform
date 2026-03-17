@@ -430,9 +430,13 @@ app.get('/api/posts', (req, res) => {
 app.delete('/api/posts/:id', requireAuth, (req, res) => {
   const post = db.prepare('SELECT * FROM posts WHERE id = ?').get(req.params.id);
   if (!post) return res.json({ error: 'المنشور غير موجود' });
-  if (post.user_id !== req.session.userId) return res.json({ error: 'غير مصرح' });
+  const user = db.prepare('SELECT is_admin,is_super_admin FROM users WHERE id=?').get(req.session.userId);
+  const isAdmin = user && (user.is_admin || user.is_super_admin);
+  if (post.user_id !== req.session.userId && !isAdmin) return res.json({ error: 'غير مصرح' });
+  db.prepare('DELETE FROM comments WHERE post_id=?').run(req.params.id);
+  db.prepare("DELETE FROM votes WHERE target_id=? AND target_type='post'").run(req.params.id);
   db.prepare('DELETE FROM posts WHERE id = ?').run(req.params.id);
-  db.prepare('UPDATE users SET posts_count = posts_count - 1 WHERE id = ?').run(req.session.userId);
+  db.prepare('UPDATE users SET posts_count = MAX(0, posts_count - 1) WHERE id = ?').run(post.user_id);
   res.json({ success: true });
 });
 
