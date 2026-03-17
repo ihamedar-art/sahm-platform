@@ -386,23 +386,27 @@ app.get('/api/posts', (req, res) => {
   if (symbol) {
     posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
       FROM posts p JOIN users u ON p.user_id = u.id
-      WHERE p.stock_symbols LIKE ? ORDER BY p.created_at DESC LIMIT ? OFFSET ?`
+      WHERE (p.stock_symbols LIKE ?) AND (p.is_soft_deleted=0 OR p.is_soft_deleted IS NULL)
+      ORDER BY p.created_at DESC LIMIT ? OFFSET ?`
     ).all(`%${symbol}%`, limit, offset);
   } else if (user_id) {
     posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
       FROM posts p JOIN users u ON p.user_id = u.id
-      WHERE p.user_id = ? ORDER BY p.created_at DESC LIMIT ? OFFSET ?`
+      WHERE p.user_id = ? AND (p.is_soft_deleted=0 OR p.is_soft_deleted IS NULL)
+      ORDER BY p.created_at DESC LIMIT ? OFFSET ?`
     ).all(user_id, limit, offset);
   } else if (feed === 'following' && userId) {
     posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
       FROM posts p JOIN users u ON p.user_id = u.id
       WHERE p.user_id IN (SELECT following_id FROM follows WHERE follower_id = ?)
+      AND (p.is_soft_deleted=0 OR p.is_soft_deleted IS NULL)
       ORDER BY p.created_at DESC LIMIT ? OFFSET ?`
     ).all(userId, limit, offset);
   } else {
     posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
       FROM posts p JOIN users u ON p.user_id = u.id
-      WHERE p.is_pinned = 0 OR p.is_pinned IS NULL AND (p.is_soft_deleted=0 OR p.is_soft_deleted IS NULL)
+      WHERE (p.is_pinned = 0 OR p.is_pinned IS NULL)
+      AND (p.is_soft_deleted=0 OR p.is_soft_deleted IS NULL)
       ORDER BY (p.upvotes * 2 - p.downvotes + p.comments_count) DESC, p.created_at DESC
       LIMIT ? OFFSET ?`
     ).all(limit, offset);

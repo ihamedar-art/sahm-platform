@@ -1347,8 +1347,8 @@ function createPostCard(p, standalone = false) {
         <div class="post-time">${p.time_ago}</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
-        ${isAdmin ? `<div class="post-menu" onclick="event.stopPropagation();togglePin('${p.id}',${p.is_pinned?1:0})" title="${p.is_pinned?'إلغاء التثبيت':'تثبيت'}">${p.is_pinned?'📌':'📍'}</div>` : ''}
-        ${isAdmin ? `<div class="post-menu" onclick="event.stopPropagation();adminSoftDeletePostFeed('${p.id}')" title="إخفاء مؤقت">🚫</div>` : ''}
+        ${isSuperAdminUser ? `<div class="post-menu" onclick="event.stopPropagation();togglePin('${p.id}',${p.is_pinned?1:0})" title="${p.is_pinned?'إلغاء التثبيت':'تثبيت'}">${p.is_pinned?'📌':'📍'}</div>` : ''}
+        ${isAdmin ? `<div class="post-menu" onclick="event.stopPropagation();adminSoftDeletePostFeed('${p.id}')" title="حذف مؤقت">🚫</div>` : ''}
         ${isSuperAdminUser ? `<div class="post-menu" style="color:var(--red)" onclick="event.stopPropagation();adminHardDeletePostFeed('${p.id}')" title="حذف نهائي">🗑️</div>` : ''}
         ${(isOwner && !isAdmin) ? `<div class="post-menu" onclick="event.stopPropagation();deletePost('${p.id}')">🗑️</div>` : ''}
       </div>
@@ -1614,14 +1614,26 @@ async function deletePost(postId) {
 
 // حذف مؤقت من الأدمن مباشرة من الفيد
 async function adminSoftDeletePostFeed(postId) {
-  if (!confirm('إخفاء هذا المنشور مؤقتاً؟')) return;
-  const res = await fetch(`/api/admin/posts/${postId}/soft-delete`, { method:'POST' });
-  const data = await res.json();
-  if (data.success) {
-    document.getElementById(`post-${postId}`)?.remove();
-    toast('🚫 تم إخفاء المنشور', 'info');
-  } else {
-    toast(data.error || 'حدث خطأ', 'error');
+  if (!confirm('إخفاء هذا المنشور مؤقتاً؟ يمكن استعادته من لوحة التحكم.')) return;
+  try {
+    const res = await fetch(`/api/admin/posts/${postId}/soft-delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (data.success) {
+      const el = document.getElementById(`post-${postId}`);
+      if (el) {
+        el.style.transition = 'opacity 0.3s';
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 300);
+      }
+      toast('🚫 تم إخفاء المنشور مؤقتاً', 'info');
+    } else {
+      toast(data.error || 'حدث خطأ، تأكد من صلاحياتك', 'error');
+    }
+  } catch(e) {
+    toast('خطأ في الاتصال بالسيرفر', 'error');
   }
 }
 
