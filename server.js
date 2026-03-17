@@ -437,10 +437,16 @@ app.delete('/api/posts/:id', requireAuth, (req, res) => {
   const user = db.prepare('SELECT is_admin,is_super_admin FROM users WHERE id=?').get(req.session.userId);
   const isAdmin = user && (user.is_admin || user.is_super_admin);
   if (post.user_id !== req.session.userId && !isAdmin) return res.json({ error: 'غير مصرح' });
+  // حذف بالترتيب الصحيح — votes للتعليقات أولاً ثم التعليقات ثم votes المنشور ثم المنشور
+  const commentIds = db.prepare('SELECT id FROM comments WHERE post_id=?').all(req.params.id).map(c => c.id);
+  if (commentIds.length > 0) {
+    const placeholders = commentIds.map(() => '?').join(',');
+    db.prepare(`DELETE FROM votes WHERE target_id IN (${placeholders}) AND target_type='comment'`).run(...commentIds);
+  }
   db.prepare('DELETE FROM comments WHERE post_id=?').run(req.params.id);
   db.prepare("DELETE FROM votes WHERE target_id=? AND target_type='post'").run(req.params.id);
-  db.prepare('DELETE FROM posts WHERE id = ?').run(req.params.id);
-  db.prepare('UPDATE users SET posts_count = MAX(0, posts_count - 1) WHERE id = ?').run(post.user_id);
+  db.prepare('DELETE FROM posts WHERE id=?').run(req.params.id);
+  db.prepare('UPDATE users SET posts_count = MAX(0, posts_count - 1) WHERE id=?').run(post.user_id);
   res.json({ success: true });
 });
 
@@ -1342,11 +1348,17 @@ app.post('/api/admin/posts/:id/restore', requireSuperAdmin, (req, res) => {
 // حذف نهائي (سوبر أدمن فقط)
 app.delete('/api/admin/posts/:id', requireSuperAdmin, (req, res) => {
   const admin = getAdminUser(req);
-  const post = db.prepare('SELECT id,content FROM posts WHERE id=?').get(req.params.id);
+  const post = db.prepare('SELECT id,content,user_id FROM posts WHERE id=?').get(req.params.id);
   if (!post) return res.json({ error: 'غير موجود' });
+  const commentIds = db.prepare('SELECT id FROM comments WHERE post_id=?').all(req.params.id).map(c => c.id);
+  if (commentIds.length > 0) {
+    const placeholders = commentIds.map(() => '?').join(',');
+    db.prepare(`DELETE FROM votes WHERE target_id IN (${placeholders}) AND target_type='comment'`).run(...commentIds);
+  }
   db.prepare('DELETE FROM comments WHERE post_id=?').run(req.params.id);
   db.prepare("DELETE FROM votes WHERE target_id=? AND target_type='post'").run(req.params.id);
   db.prepare('DELETE FROM posts WHERE id=?').run(req.params.id);
+  if (post.user_id) db.prepare('UPDATE users SET posts_count = MAX(0, posts_count - 1) WHERE id=?').run(post.user_id);
   logAdminAction(admin.id, admin.display_name, 'حذف نهائي لمنشور', 'post', req.params.id, post.content.substring(0,50));
   res.json({ success: true });
 });
