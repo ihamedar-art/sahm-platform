@@ -1407,7 +1407,9 @@ app.delete('/api/rooms/:id', requireAuth, (req, res) => {
   const room = db.prepare(`SELECT * FROM voice_rooms WHERE id = ?`).get(req.params.id);
   if (!room) return res.json({ error: 'الروم غير موجود' });
   if (room.host_id !== req.session.userId) return res.json({ error: 'غير مصرح' });
-  db.prepare(`UPDATE voice_rooms SET is_active = 0 WHERE id = ?`).run(req.params.id);
+  db.prepare(`UPDATE voice_rooms SET is_active=0, participants_count=0 WHERE id=?`).run(req.params.id);
+  db.prepare(`DELETE FROM room_members WHERE room_id=?`).run(req.params.id);
+  db.prepare(`DELETE FROM room_hand_requests WHERE room_id=?`).run(req.params.id);
   res.json({ success: true });
 });
 
