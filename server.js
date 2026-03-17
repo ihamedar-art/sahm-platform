@@ -409,15 +409,17 @@ app.post('/api/vote', requireAuth, (req, res) => {
 });
 
 // ── Comments ─────────────────────────────────────────────────────────────────
+// إضافة حقل is_pinned للتعليقات
+try { db.exec(`ALTER TABLE comments ADD COLUMN is_pinned INTEGER DEFAULT 0`); } catch(e) {}
+
 app.get('/api/posts/:id/comments', (req, res) => {
-  // جلب التعليقات الرئيسية فقط (بدون parent)
+  // جلب التعليقات — المثبت أولاً ثم الباقي
   const comments = db.prepare(`SELECT c.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
     FROM comments c JOIN users u ON c.user_id = u.id
     WHERE c.post_id = ? AND (c.parent_id IS NULL OR c.parent_id = '')
-    ORDER BY c.upvotes DESC, c.created_at ASC`
+    ORDER BY c.is_pinned DESC, c.upvotes DESC, c.created_at ASC`
   ).all(req.params.id);
 
-  // جلب الردود لكل تعليق
   const result = comments.map(c => {
     const replies = db.prepare(`SELECT c.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
       FROM comments c JOIN users u ON c.user_id = u.id
@@ -462,6 +464,32 @@ app.post('/api/posts/:id/comments', requireAuth, (req, res) => {
   const comment = db.prepare(`SELECT c.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
     FROM comments c JOIN users u ON c.user_id = u.id WHERE c.id = ?`).get(id);
   res.json({ success: true, comment: { ...comment, time_ago: 'الآن', level_name: getLevelName(comment.level), replies: [] } });
+});
+
+// تثبيت تعليق — لصاحب المنشور فقط
+app.post('/api/comments/:id/pin', requireAuth, (req, res) => {
+  const comment = db.prepare('SELECT * FROM comments WHERE id=?').get(req.params.id);
+  if (!comment) return res.json({ error: 'التعليق غير موجود' });
+  const post = db.prepare('SELECT * FROM posts WHERE id=?').get(comment.post_id);
+  if (!post) return res.json({ error: 'المنشور غير موجود' });
+  if (post.user_id !== req.session.userId) return res.json({ error: 'فقط صاحب المنشور يستطيع تثبيت التعليقات' });
+  // إلغاء تثبيت أي تعليق سابق في نفس المنشور
+  db.prepare('UPDATE comments SET is_pinned=0 WHERE post_id=?').run(comment.post_id);
+  const newVal = comment.is_pinned ? 0 : 1;
+  db.prepare('UPDATE comments SET is_pinned=? WHERE id=?').run(newVal, req.params.id);
+  res.json({ success: true, is_pinned: newVal });
+});
+
+// حذف تعليق — للأدمن أو صاحب التعليق
+app.delete('/api/comments/:id', requireAuth, (req, res) => {
+  const comment = db.prepare('SELECT * FROM comments WHERE id=?').get(req.params.id);
+  if (!comment) return res.json({ error: 'غير موجود' });
+  const user = db.prepare('SELECT is_admin,is_super_admin FROM users WHERE id=?').get(req.session.userId);
+  const isAdmin = user && (user.is_admin || user.is_super_admin);
+  if (comment.user_id !== req.session.userId && !isAdmin) return res.json({ error: 'غير مصرح' });
+  db.prepare('DELETE FROM comments WHERE id=?').run(req.params.id);
+  db.prepare('UPDATE posts SET comments_count=MAX(0,comments_count-1) WHERE id=?').run(comment.post_id);
+  res.json({ success: true });
 });
 
 // ── Follow ───────────────────────────────────────────────────────────────────

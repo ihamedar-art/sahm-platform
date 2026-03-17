@@ -248,6 +248,7 @@ body {
 .post-card:hover { border-color: var(--border2); box-shadow: 0 4px 20px rgba(29,78,216,.1); }
 .post-card.pinned-post { border-color: var(--gold); border-right: 3px solid var(--gold); background: linear-gradient(to left, rgba(217,119,6,.03), var(--bg2)); }
 .pin-badge { font-size: 12px; font-weight: 700; color: var(--gold); margin-bottom: 10px; display: flex; align-items: center; gap: 5px; }
+.pinned-comment { background: rgba(217,119,6,.05); border-right: 3px solid var(--gold); border-radius: var(--radius2); padding: 10px; margin-bottom: 8px; }
 @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 
 .post-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
@@ -1889,6 +1890,14 @@ async function loadPostPage(postId) {
 async function loadPostPageComments(postId) {
   const list = document.getElementById('post-page-comments');
   if (!list) return;
+  // جلب بيانات المنشور لمعرفة صاحبه
+  let postOwnerId = null;
+  try {
+    const pr = await fetch('/api/posts/' + postId);
+    const pd = await pr.json();
+    postOwnerId = pd.post?.user_id;
+  } catch(e) {}
+
   try {
     const r = await fetch(`/api/posts/${postId}/comments`);
     const d = await r.json();
@@ -1899,9 +1908,13 @@ async function loadPostPageComments(postId) {
         <div>لا تعليقات بعد — كن أول من يناقش!</div></div>`;
       return;
     }
+    const isPostOwner = currentUser && currentUser.id === postOwnerId;
+    const isAdmin = currentUser?.isAdmin;
+
     list.innerHTML = cmts.map(c => `
-      <div class="single-comment-item" id="cmt-${c.id}">
-        <div class="avatar avatar-sm" onclick="navigate('profile','${c.username}')" style="cursor:pointer">
+      <div class="single-comment-item${c.is_pinned?' pinned-comment':''}" id="cmt-${c.id}">
+        ${c.is_pinned ? '<div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:6px">📌 تعليق مثبت</div>' : ''}
+        <div class="avatar avatar-sm" onclick="navigate('profile','${c.username}')" style="cursor:pointer;flex-shrink:0">
           ${c.avatar ? `<img src="${c.avatar}">` : c.display_name[0]}
         </div>
         <div style="flex:1">
@@ -1912,13 +1925,21 @@ async function loadPostPageComments(postId) {
             <span style="font-size:11px;color:var(--text3)">${c.time_ago}</span>
           </div>
           <div style="font-size:14px;color:var(--text)">${c.content.replace(/\n/g,'<br>')}</div>
-          <div class="comment-actions">
-            <button class="comment-action-btn" onclick="likeComment('${c.id}', this)">
+          <div class="comment-actions" style="margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <button class="comment-action-btn" onclick="likeComment('${c.id}',this)">
               👍 <span class="cmt-likes-${c.id}">${c.upvotes||0}</span>
             </button>
-            <button class="comment-action-btn reply-btn" onclick="toggleReplyBox('${c.id}', '${c.display_name}')">
+            <button class="comment-action-btn reply-btn" onclick="toggleReplyBox('${c.id}','${c.display_name}')">
               💬 رد
             </button>
+            ${isPostOwner ? `
+              <button class="comment-action-btn" onclick="pinComment('${c.id}','${postId}')" title="${c.is_pinned?'إلغاء التثبيت':'تثبيت'}">
+                ${c.is_pinned?'📌':'📍'}
+              </button>` : ''}
+            ${(isAdmin || (currentUser && currentUser.id === c.user_id)) ? `
+              <button class="comment-action-btn" style="color:var(--red)" onclick="deleteComment('${c.id}','${postId}')">
+                🗑️
+              </button>` : ''}
           </div>
           <div class="reply-box" id="reply-box-${c.id}">
             <div class="avatar avatar-sm" style="flex-shrink:0">
@@ -1932,6 +1953,23 @@ async function loadPostPageComments(postId) {
         </div>
       </div>`).join('');
   } catch(e) {}
+}
+
+async function pinComment(commentId, postId) {
+  const r = await fetch(`/api/comments/${commentId}/pin`, { method: 'POST' });
+  const d = await r.json();
+  if (d.error) { toast(d.error, 'error'); return; }
+  toast(d.is_pinned ? '📌 تم تثبيت التعليق' : 'تم إلغاء التثبيت', 'success');
+  loadPostPageComments(postId);
+}
+
+async function deleteComment(commentId, postId) {
+  if (!confirm('حذف هذا التعليق؟')) return;
+  const r = await fetch(`/api/comments/${commentId}`, { method: 'DELETE' });
+  const d = await r.json();
+  if (d.error) { toast(d.error, 'error'); return; }
+  toast('تم حذف التعليق', 'info');
+  loadPostPageComments(postId);
 }
 
 async function submitPostPageComment(postId) {
