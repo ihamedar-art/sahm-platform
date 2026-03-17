@@ -1371,6 +1371,17 @@ db.exec(`
   );
 `);
 
+// إضافة عمود permanently_closed إذا ما كان موجوداً (migration آمن)
+try { db.exec(`ALTER TABLE voice_rooms ADD COLUMN permanently_closed INTEGER DEFAULT 0`); } catch(e) {}
+// تنظيف: أي روم غير نشط موجود مسبقاً يُعتبر مغلقاً نهائياً
+try { db.prepare(`UPDATE voice_rooms SET permanently_closed=1, participants_count=0 WHERE is_active=0`).run(); } catch(e) {}
+// إصلاح عداد المشاركين ليطابق الواقع الفعلي
+try {
+  db.prepare(`UPDATE voice_rooms SET participants_count = (
+    SELECT COUNT(*) FROM room_members WHERE room_id = voice_rooms.id AND is_banned = 0
+  ) WHERE is_active = 1`).run();
+} catch(e) {}
+
 // helper: تحقق صلاحية المستخدم في الروم
 function getRoomRole(roomId, userId, room) {
   if (room.host_id === userId) return 'owner';
@@ -1382,7 +1393,7 @@ function canModerate(role) { return role === 'owner' || role === 'mod'; }
 
 // توليد Token
 app.post('/api/rooms/:id/token', requireAuth, async (req, res) => {
-  const room = db.prepare(`SELECT * FROM voice_rooms WHERE id = ? AND is_active = 1`).get(req.params.id);
+  const room = db.prepare(`SELECT * FROM voice_rooms WHERE id = ? AND is_active = 1 AND permanently_closed = 0`).get(req.params.id);
   if (!room) return res.json({ error: 'الروم غير موجود' });
   const user = getUser(req.session.userId);
   const role = getRoomRole(req.params.id, req.session.userId, room);
@@ -1440,9 +1451,18 @@ app.post('/api/rooms', requireAuth, (req, res) => {
 });
 
 app.post('/api/rooms/:id/join', requireAuth, (req, res) => {
-  db.prepare(`UPDATE voice_rooms SET participants_count = participants_count + 1 WHERE id = ? AND is_active = 1`).run(req.params.id);
-  // تسجيل العضو
-  db.prepare(`INSERT OR IGNORE INTO room_members (room_id, user_id) VALUES (?,?)`).run(req.params.id, req.session.userId);
+  const room = db.prepare(`SELECT * FROM voice_rooms WHERE id = ?`).get(req.params.id);
+  // منع الانضمام للرومات المغلقة نهائياً أو غير النشطة
+  if (!room) return res.json({ error: 'الروم غير موجود' });
+  if (room.permanently_closed) return res.json({ error: 'هذا الروم مغلق نهائياً ولا يمكن الانضمام إليه' });
+  if (!room.is_active) return res.json({ error: 'الروم غير نشط' });
+
+  // تحقق إذا كان المستخدم موجود مسبقاً لتجنب تكرار العداد
+  const existing = db.prepare(`SELECT 1 FROM room_members WHERE room_id=? AND user_id=? AND is_banned=0`).get(req.params.id, req.session.userId);
+  if (!existing) {
+    db.prepare(`UPDATE voice_rooms SET participants_count = participants_count + 1 WHERE id = ?`).run(req.params.id);
+    db.prepare(`INSERT OR IGNORE INTO room_members (room_id, user_id) VALUES (?,?)`).run(req.params.id, req.session.userId);
+  }
   res.json({ success: true });
 });
 
@@ -1451,17 +1471,25 @@ app.post('/api/rooms/:id/leave', requireAuth, (req, res) => {
   db.prepare(`DELETE FROM room_members WHERE room_id=? AND user_id=?`).run(req.params.id, req.session.userId);
   db.prepare(`DELETE FROM room_hand_requests WHERE room_id=? AND user_id=?`).run(req.params.id, req.session.userId);
   const room = db.prepare(`SELECT * FROM voice_rooms WHERE id = ?`).get(req.params.id);
-  if (room && room.participants_count === 0) db.prepare(`UPDATE voice_rooms SET is_active = 0 WHERE id = ?`).run(req.params.id);
+  // أغلق الروم تلقائياً فقط إذا لم يكن مغلقاً نهائياً
+  if (room && !room.permanently_closed && room.participants_count === 0) {
+    db.prepare(`UPDATE voice_rooms SET is_active = 0 WHERE id = ?`).run(req.params.id);
+  }
   res.json({ success: true });
 });
 
 app.delete('/api/rooms/:id', requireAuth, (req, res) => {
   const room = db.prepare(`SELECT * FROM voice_rooms WHERE id = ?`).get(req.params.id);
   if (!room) return res.json({ error: 'الروم غير موجود' });
-  if (room.host_id !== req.session.userId) return res.json({ error: 'غير مصرح' });
-  db.prepare(`UPDATE voice_rooms SET is_active=0, participants_count=0 WHERE id=?`).run(req.params.id);
+  const user = db.prepare('SELECT is_admin,is_super_admin FROM users WHERE id=?').get(req.session.userId);
+  const isAdmin = user && (user.is_admin || user.is_super_admin);
+  if (room.host_id !== req.session.userId && !isAdmin) return res.json({ error: 'غير مصرح' });
+  // إغلاق نهائي — يمنع إعادة التفعيل تلقائياً
+  db.prepare(`UPDATE voice_rooms SET is_active=0, permanently_closed=1, participants_count=0 WHERE id=?`).run(req.params.id);
   db.prepare(`DELETE FROM room_members WHERE room_id=?`).run(req.params.id);
   db.prepare(`DELETE FROM room_hand_requests WHERE room_id=?`).run(req.params.id);
+  // محاولة إغلاق الروم في LiveKit
+  try { livekitService.deleteRoom(req.params.id).catch(()=>{}); } catch(e) {}
   res.json({ success: true });
 });
 
