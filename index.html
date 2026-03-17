@@ -3808,6 +3808,8 @@ async function adminDeletePoll(id) {
   loadPoll();
   renderAdminPolls(document.getElementById('admin-tab-content'));
 }
+
+async function renderAdminNews(el) {
   el.innerHTML=`
     <div class="panel-card">
       <div class="panel-title">📰 نشر خبر جديد</div>
