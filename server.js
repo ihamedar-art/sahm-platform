@@ -16,6 +16,15 @@ const db = new Database('./sahm.db');
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+// ── تثبيت صلاحيات السوبر أدمن ───────────────────────────────────────────────
+const SUPER_ADMIN_USERNAME = 'Hamed';
+setTimeout(() => {
+  try {
+    const u = db.prepare('SELECT id FROM users WHERE username=?').get(SUPER_ADMIN_USERNAME);
+    if (u) db.prepare('UPDATE users SET is_admin=1,is_super_admin=1 WHERE username=?').run(SUPER_ADMIN_USERNAME);
+  } catch(e) {}
+}, 2000);
+
 // إنشاء الجداول
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
