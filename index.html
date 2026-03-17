@@ -1717,6 +1717,8 @@ async function submitStockPost(symbol) {
   const sp = document.getElementById('stock-posts');
   if (sp) sp.insertAdjacentHTML('afterbegin', createPostCard(d.post));
 }
+
+async function loadStockPage(symbol) {
   const el = document.getElementById('stock-content');
   const statsRes = await fetch(`/api/stocks/${symbol}/stats`);
   const stats = await statsRes.json();
