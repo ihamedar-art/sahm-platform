@@ -3037,16 +3037,73 @@ async function loadPoll() {
   const el = document.getElementById('poll-widget-wrap');
   if (!el) return;
   try {
+    // أولاً: جرب الاستطلاع المخصص النشط
+    const cr = await fetch('/api/custom-poll/active');
+    const cd = await cr.json();
+    if (cd.poll) {
+      renderCustomPoll(cd.poll);
+      return;
+    }
+    // ثانياً: الاستطلاع اليومي
     const r = await fetch('/api/poll/today');
     const d = await r.json();
     renderPoll(d.poll);
   } catch(e) {
-    // Demo poll if API fails
     renderPoll({ id:'demo', date: new Date().toISOString().split('T')[0],
       question:'ما توقعك لمؤشر تاسي اليوم؟',
       bullish_count:142, bearish_count:67, neutral_count:38,
       total:247, bullPct:57, bearPct:27, neutPct:16, myVote:null });
   }
+}
+
+function renderCustomPoll(poll) {
+  const el = document.getElementById('poll-widget-wrap');
+  if (!el) return;
+  const voted = !!poll.myVote;
+  el.innerHTML = `
+    <div class="poll-widget">
+      <div class="poll-header">
+        <span class="poll-badge">📊 استطلاع</span>
+      </div>
+      <div class="poll-title">${poll.question}</div>
+      ${!voted ? `
+        <div class="poll-btns" style="flex-direction:column">
+          ${poll.options.map(o => `
+            <button class="poll-btn" style="text-align:right;justify-content:flex-start;gap:8px" 
+              onclick="voteCustomPoll('${poll.id}','${o.id}')">
+              ${o.emoji} ${o.label}
+            </button>`).join('')}
+        </div>
+        <div style="font-size:12px;opacity:.6;text-align:center">${poll.total>0?`${poll.total} صوت حتى الآن`:'كن أول من يصوّت!'}</div>
+      ` : `
+        <div class="poll-bars">
+          ${poll.options.map(o => `
+            <div class="poll-bar-row">
+              <span class="poll-bar-label" style="width:auto;max-width:90px;font-size:11px">${o.emoji} ${o.label.substring(0,15)}</span>
+              <div class="poll-bar-track" style="flex:1">
+                <div class="poll-bar-fill bull" style="width:${o.pct}%;background:${poll.myVote===o.id?'#34D399':'rgba(255,255,255,.4)'}"></div>
+              </div>
+              <span class="poll-bar-pct">${o.pct}%</span>
+              ${poll.myVote===o.id?'<span style="font-size:10px;opacity:.8">✓</span>':''}
+            </div>`).join('')}
+        </div>
+        <div class="poll-total">${poll.total} صوت</div>
+      `}
+    </div>`;
+}
+
+async function voteCustomPoll(pollId, optionId) {
+  if (!currentUser) { showLoginModal(); return; }
+  try {
+    const r = await fetch(`/api/custom-poll/${pollId}/vote`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ option_id: optionId })
+    });
+    const d = await r.json();
+    if (d.error) { toast(d.error,'error'); return; }
+    renderCustomPoll(d.poll);
+    toast('تم تسجيل صوتك! +1 نقطة سمعة 🎉','success');
+  } catch(e) { toast('حدث خطأ','error'); }
 }
 
 function renderPoll(poll) {
@@ -3345,6 +3402,7 @@ function renderAdminShell() {
     ['posts','📝 المنشورات', true],
     ['deleted','🗂️ المحذوفات', isSuperAdmin],
     ['comments','💬 التعليقات', true],
+    ['polls','📊 الاستطلاعات', true],
     ['news','📰 الأخبار', true],
     ['logs','📋 سجل التحركات', isSuperAdmin],
   ].filter(t => t[2]);
@@ -3375,6 +3433,7 @@ async function loadAdminTab(tab) {
   else if (tab === 'posts') await renderAdminPosts(el, 0, '', false);
   else if (tab === 'deleted') await renderAdminPosts(el, 0, '', true);
   else if (tab === 'comments') await renderAdminComments(el);
+  else if (tab === 'polls') await renderAdminPolls(el);
   else if (tab === 'news') await renderAdminNews(el);
   else if (tab === 'logs') await renderAdminLogs(el);
 }
@@ -3614,8 +3673,141 @@ async function adminDeleteComment(id,btn){
   toast('تم حذف التعليق','info');
 }
 
-// ── الأخبار ──────────────────────────────────────────────────────
-async function renderAdminNews(el) {
+// ── الاستطلاعات ──────────────────────────────────────────────────
+async function renderAdminPolls(el) {
+  const r = await fetch('/api/admin/polls');
+  const d = await r.json();
+
+  el.innerHTML = `
+    <!-- تعديل سؤال الاستطلاع اليومي -->
+    <div class="panel-card" style="margin-bottom:20px;border-right:3px solid var(--primary)">
+      <div class="panel-title">📈 تعديل سؤال الاستطلاع اليومي (صاعد/محايد/هابط)</div>
+      <div style="display:flex;gap:8px">
+        <input class="form-input" id="daily-q" placeholder="مثال: ما توقعك لمؤشر تاسي اليوم؟" style="flex:1">
+        <button class="btn btn-primary" onclick="adminUpdateDailyQuestion()">💾 تحديث</button>
+      </div>
+      <div style="font-size:12px;color:var(--text3);margin-top:6px">يُعدّل سؤال استطلاع اليوم الحالي فقط</div>
+    </div>
+
+    <!-- إنشاء استطلاع مخصص -->
+    <div class="panel-card" style="margin-bottom:20px;border-right:3px solid var(--green)">
+      <div class="panel-title">➕ إنشاء استطلاع مخصص جديد</div>
+      <div class="form-group">
+        <label class="form-label">السؤال *</label>
+        <input class="form-input" id="cpoll-q" placeholder="مثال: ما هو أفضل قطاع للاستثمار الآن؟">
+      </div>
+      <div class="form-group">
+        <label class="form-label">الخيارات * (اضغط + لإضافة خيار)</label>
+        <div id="cpoll-options">
+          <div class="cpoll-option" style="display:flex;gap:6px;margin-bottom:6px">
+            <input class="form-input" style="width:50px" placeholder="🔥" maxlength="4">
+            <input class="form-input" placeholder="نص الخيار" style="flex:1">
+          </div>
+          <div class="cpoll-option" style="display:flex;gap:6px;margin-bottom:6px">
+            <input class="form-input" style="width:50px" placeholder="💡" maxlength="4">
+            <input class="form-input" placeholder="نص الخيار" style="flex:1">
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="addPollOption()" style="margin-top:4px">+ إضافة خيار</button>
+      </div>
+      <button class="btn btn-primary" onclick="adminCreatePoll()">🚀 نشر الاستطلاع</button>
+      <div style="font-size:12px;color:var(--text3);margin-top:6px">⚠️ نشر استطلاع جديد سيوقف الاستطلاع الحالي تلقائياً</div>
+    </div>
+
+    <!-- الاستطلاعات السابقة -->
+    <div class="panel-card">
+      <div class="panel-title">📋 الاستطلاعات المخصصة (${d.polls.length})</div>
+      ${d.polls.length === 0 ? '<div style="color:var(--text3);text-align:center;padding:20px">لا توجد استطلاعات بعد</div>' : ''}
+      ${d.polls.map(p => `
+        <div style="border:1px solid ${p.is_active?'var(--green)':'var(--border)'};border-radius:var(--radius2);padding:14px;margin-bottom:10px;background:${p.is_active?'var(--green-bg)':'var(--bg3)'}">
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <div style="flex:1">
+              ${p.is_active?'<span style="background:var(--green);color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:700">● نشط</span>':'<span style="background:var(--bg2);color:var(--text3);font-size:11px;padding:2px 8px;border-radius:10px">متوقف</span>'}
+              <div style="font-size:15px;font-weight:600;margin-top:6px">${p.question}</div>
+              <div style="font-size:12px;color:var(--text3);margin-top:4px">إجمالي الأصوات: ${p.total}</div>
+            </div>
+            <div style="display:flex;gap:4px">
+              <button class="pact-btn" onclick="adminTogglePoll('${p.id}')">${p.is_active?'⏸️ إيقاف':'▶️ تفعيل'}</button>
+              <button class="pact-btn danger" onclick="adminDeletePoll('${p.id}')">🗑️</button>
+            </div>
+          </div>
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:5px">
+            ${p.options.map(o => `
+              <div style="display:flex;align-items:center;gap:8px;font-size:13px">
+                <span style="width:20px;text-align:center">${o.emoji||'•'}</span>
+                <span style="flex:1">${o.label}</span>
+                <div style="width:100px;height:6px;background:var(--border2);border-radius:3px;overflow:hidden">
+                  <div style="height:100%;background:var(--primary);width:${p.total?Math.round(o.votes_count/p.total*100):0}%"></div>
+                </div>
+                <span style="width:35px;text-align:left;font-size:12px;color:var(--text3)">${o.votes_count} صوت</span>
+              </div>`).join('')}
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function addPollOption() {
+  const container = document.getElementById('cpoll-options');
+  const div = document.createElement('div');
+  div.className = 'cpoll-option';
+  div.style.cssText = 'display:flex;gap:6px;margin-bottom:6px';
+  div.innerHTML = `
+    <input class="form-input" style="width:50px" placeholder="😊" maxlength="4">
+    <input class="form-input" placeholder="نص الخيار" style="flex:1">
+    <button class="btn btn-ghost btn-sm" onclick="this.parentElement.remove()">✕</button>`;
+  container.appendChild(div);
+}
+
+async function adminUpdateDailyQuestion() {
+  const q = document.getElementById('daily-q')?.value.trim();
+  if (!q) return toast('السؤال مطلوب','error');
+  const r = await fetch('/api/admin/poll/daily-question',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});
+  const d = await r.json();
+  if (d.error) return toast(d.error,'error');
+  toast('✅ تم تحديث السؤال اليومي','success');
+  document.getElementById('daily-q').value='';
+  loadPoll();
+}
+
+async function adminCreatePoll() {
+  const q = document.getElementById('cpoll-q')?.value.trim();
+  if (!q) return toast('السؤال مطلوب','error');
+  const rows = document.querySelectorAll('#cpoll-options .cpoll-option');
+  const options = [];
+  rows.forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const emoji = inputs[0]?.value.trim();
+    const label = inputs[1]?.value.trim();
+    if (label) options.push({ emoji, label });
+  });
+  if (options.length < 2) return toast('أضف خيارين على الأقل','error');
+  const r = await fetch('/api/admin/polls',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,options})});
+  const d = await r.json();
+  if (d.error) return toast(d.error,'error');
+  toast('✅ تم نشر الاستطلاع!','success');
+  document.getElementById('cpoll-q').value='';
+  loadPoll();
+  renderAdminPolls(document.getElementById('admin-tab-content'));
+}
+
+async function adminTogglePoll(id) {
+  const r = await fetch(`/api/admin/polls/${id}/toggle`,{method:'POST'});
+  const d = await r.json();
+  if (d.error) return toast(d.error,'error');
+  toast(d.is_active?'▶️ تم تفعيل الاستطلاع':'⏸️ تم إيقاف الاستطلاع','success');
+  loadPoll();
+  renderAdminPolls(document.getElementById('admin-tab-content'));
+}
+
+async function adminDeletePoll(id) {
+  if (!confirm('حذف هذا الاستطلاع؟')) return;
+  const r = await fetch(`/api/admin/polls/${id}`,{method:'DELETE'});
+  const d = await r.json();
+  if (d.error) return toast(d.error,'error');
+  toast('تم الحذف','info');
+  loadPoll();
+  renderAdminPolls(document.getElementById('admin-tab-content'));
+}
   el.innerHTML=`
     <div class="panel-card">
       <div class="panel-title">📰 نشر خبر جديد</div>

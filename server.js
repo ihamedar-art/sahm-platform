@@ -702,8 +702,7 @@ ${summary}
 // DAILY POLL — استطلاع تاسي اليومي
 // ══════════════════════════════════════════════════════════════════════════════
 
-// جدول الاستطلاعات اليومية
-const db2 = db; // نفس قاعدة البيانات
+// جداول الاستطلاعات
 db.exec(`
   CREATE TABLE IF NOT EXISTS daily_polls (
     id TEXT PRIMARY KEY,
@@ -723,7 +722,35 @@ db.exec(`
   );
 `);
 
-// الحصول على أو إنشاء استطلاع اليوم
+// جداول الاستطلاعات المخصصة
+try { db.exec(`
+  CREATE TABLE IF NOT EXISTS custom_polls (
+    id TEXT PRIMARY KEY,
+    question TEXT NOT NULL,
+    is_active INTEGER DEFAULT 1,
+    created_by TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    ends_at DATETIME
+  );
+  CREATE TABLE IF NOT EXISTS custom_poll_options (
+    id TEXT PRIMARY KEY,
+    poll_id TEXT NOT NULL,
+    label TEXT NOT NULL,
+    emoji TEXT DEFAULT '',
+    votes_count INTEGER DEFAULT 0,
+    sort_order INTEGER DEFAULT 0,
+    FOREIGN KEY (poll_id) REFERENCES custom_polls(id)
+  );
+  CREATE TABLE IF NOT EXISTS custom_poll_votes (
+    user_id TEXT NOT NULL,
+    poll_id TEXT NOT NULL,
+    option_id TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, poll_id)
+  );
+`); } catch(e) {}
+
+// ── الاستطلاع اليومي ─────────────────────────────────────────────
 function getTodayPoll() {
   const today = new Date().toISOString().split('T')[0];
   let poll = db.prepare('SELECT * FROM daily_polls WHERE date = ?').get(today);
@@ -736,7 +763,6 @@ function getTodayPoll() {
   return poll;
 }
 
-// الحصول على استطلاع اليوم
 app.get('/api/poll/today', (req, res) => {
   const poll = getTodayPoll();
   const total = poll.bullish_count + poll.bearish_count + poll.neutral_count;
@@ -751,30 +777,23 @@ app.get('/api/poll/today', (req, res) => {
   res.json({ poll: { ...poll, total, bullPct, bearPct, neutPct, myVote } });
 });
 
-// التصويت في استطلاع اليوم
 app.post('/api/poll/vote', requireAuth, (req, res) => {
   const { choice } = req.body;
   if (!['bullish','bearish','neutral'].includes(choice))
     return res.json({ error: 'خيار غير صحيح' });
-
   const poll = getTodayPoll();
   const existing = db.prepare('SELECT * FROM daily_poll_votes WHERE user_id=? AND poll_id=?').get(req.session.userId, poll.id);
-
   if (existing) {
-    // تغيير التصويت
     const oldCol = existing.choice + '_count';
     const newCol = choice + '_count';
     db.prepare(`UPDATE daily_polls SET ${oldCol}=${oldCol}-1, ${newCol}=${newCol}+1 WHERE id=?`).run(poll.id);
     db.prepare('UPDATE daily_poll_votes SET choice=? WHERE user_id=? AND poll_id=?').run(choice, req.session.userId, poll.id);
   } else {
-    // تصويت جديد
     const col = choice + '_count';
     db.prepare(`UPDATE daily_polls SET ${col}=${col}+1 WHERE id=?`).run(poll.id);
     db.prepare('INSERT INTO daily_poll_votes (user_id,poll_id,choice) VALUES (?,?,?)').run(req.session.userId, poll.id, choice);
-    // مكافأة السمعة للتصويت اليومي
     db.prepare('UPDATE users SET reputation = reputation + 1 WHERE id=?').run(req.session.userId);
   }
-
   const updated = db.prepare('SELECT * FROM daily_polls WHERE id=?').get(poll.id);
   const total = updated.bullish_count + updated.bearish_count + updated.neutral_count;
   const bullPct = total ? Math.round(updated.bullish_count/total*100) : 0;
@@ -783,7 +802,6 @@ app.post('/api/poll/vote', requireAuth, (req, res) => {
   res.json({ success: true, poll: { ...updated, total, bullPct, bearPct, neutPct, myVote: choice } });
 });
 
-// تاريخ الاستطلاعات السابقة
 app.get('/api/poll/history', (req, res) => {
   const polls = db.prepare('SELECT * FROM daily_polls ORDER BY date DESC LIMIT 7').all();
   res.json({ polls: polls.map(p => {
@@ -794,6 +812,116 @@ app.get('/api/poll/history', (req, res) => {
       neutPct: total ? 100-Math.round(p.bullish_count/total*100)-Math.round(p.bearish_count/total*100) : 0
     };
   })});
+});
+
+// ── الاستطلاعات المخصصة ──────────────────────────────────────────
+
+// جلب الاستطلاع النشط
+app.get('/api/custom-poll/active', (req, res) => {
+  const poll = db.prepare('SELECT * FROM custom_polls WHERE is_active=1 ORDER BY created_at DESC LIMIT 1').get();
+  if (!poll) return res.json({ poll: null });
+  const options = db.prepare('SELECT * FROM custom_poll_options WHERE poll_id=? ORDER BY sort_order').all(poll.id);
+  const total = options.reduce((s,o) => s+o.votes_count, 0);
+  let myVote = null;
+  if (req.session.userId) {
+    const v = db.prepare('SELECT option_id FROM custom_poll_votes WHERE user_id=? AND poll_id=?').get(req.session.userId, poll.id);
+    myVote = v ? v.option_id : null;
+  }
+  res.json({ poll: { ...poll, options: options.map(o => ({ ...o, pct: total ? Math.round(o.votes_count/total*100) : 0 })), total, myVote } });
+});
+
+// التصويت في استطلاع مخصص
+app.post('/api/custom-poll/:id/vote', requireAuth, (req, res) => {
+  const { option_id } = req.body;
+  const poll = db.prepare('SELECT * FROM custom_polls WHERE id=? AND is_active=1').get(req.params.id);
+  if (!poll) return res.json({ error: 'الاستطلاع غير موجود أو منتهي' });
+  const option = db.prepare('SELECT * FROM custom_poll_options WHERE id=? AND poll_id=?').get(option_id, poll.id);
+  if (!option) return res.json({ error: 'خيار غير صحيح' });
+  const existing = db.prepare('SELECT * FROM custom_poll_votes WHERE user_id=? AND poll_id=?').get(req.session.userId, poll.id);
+  if (existing) {
+    if (existing.option_id === option_id) return res.json({ error: 'صوّتت مسبقاً بهذا الخيار' });
+    db.prepare('UPDATE custom_poll_options SET votes_count=votes_count-1 WHERE id=?').run(existing.option_id);
+    db.prepare('UPDATE custom_poll_options SET votes_count=votes_count+1 WHERE id=?').run(option_id);
+    db.prepare('UPDATE custom_poll_votes SET option_id=? WHERE user_id=? AND poll_id=?').run(option_id, req.session.userId, poll.id);
+  } else {
+    db.prepare('UPDATE custom_poll_options SET votes_count=votes_count+1 WHERE id=?').run(option_id);
+    db.prepare('INSERT INTO custom_poll_votes (user_id,poll_id,option_id) VALUES (?,?,?)').run(req.session.userId, poll.id, option_id);
+    db.prepare('UPDATE users SET reputation=reputation+1 WHERE id=?').run(req.session.userId);
+  }
+  // إعادة جلب النتائج
+  const options = db.prepare('SELECT * FROM custom_poll_options WHERE poll_id=? ORDER BY sort_order').all(poll.id);
+  const total = options.reduce((s,o) => s+o.votes_count, 0);
+  res.json({ success: true, poll: { ...poll, options: options.map(o => ({ ...o, pct: total ? Math.round(o.votes_count/total*100) : 0 })), total, myVote: option_id } });
+});
+
+// ── إدارة الاستطلاعات (أدمن) ────────────────────────────────────
+app.get('/api/admin/polls', requireAdmin, (req, res) => {
+  const polls = db.prepare('SELECT * FROM custom_polls ORDER BY created_at DESC').all();
+  const result = polls.map(p => {
+    const options = db.prepare('SELECT * FROM custom_poll_options WHERE poll_id=? ORDER BY sort_order').all(p.id);
+    const total = options.reduce((s,o) => s+o.votes_count, 0);
+    return { ...p, options, total };
+  });
+  res.json({ polls: result });
+});
+
+// إنشاء استطلاع جديد
+app.post('/api/admin/polls', requireAdmin, (req, res) => {
+  const admin = getAdminUser(req);
+  const { question, options, ends_at } = req.body;
+  if (!question || !options || options.length < 2) return res.json({ error: 'السؤال والخيارات مطلوبة (2 على الأقل)' });
+  // إيقاف كل الاستطلاعات النشطة
+  db.prepare('UPDATE custom_polls SET is_active=0').run();
+  const pollId = uuidv4();
+  db.prepare('INSERT INTO custom_polls (id,question,is_active,created_by,ends_at) VALUES (?,?,1,?,?)').run(pollId, question.trim(), admin.id, ends_at||null);
+  options.forEach((opt, i) => {
+    db.prepare('INSERT INTO custom_poll_options (id,poll_id,label,emoji,sort_order) VALUES (?,?,?,?,?)').run(uuidv4(), pollId, opt.label.trim(), opt.emoji||'', i);
+  });
+  logAdminAction(admin.id, admin.display_name, 'إنشاء استطلاع', 'poll', pollId, question);
+  res.json({ success: true, poll_id: pollId });
+});
+
+// تفعيل/إيقاف استطلاع
+app.post('/api/admin/polls/:id/toggle', requireAdmin, (req, res) => {
+  const admin = getAdminUser(req);
+  const poll = db.prepare('SELECT * FROM custom_polls WHERE id=?').get(req.params.id);
+  if (!poll) return res.json({ error: 'غير موجود' });
+  if (!poll.is_active) {
+    // تفعيل — أوقف البقية أولاً
+    db.prepare('UPDATE custom_polls SET is_active=0').run();
+  }
+  const newVal = poll.is_active ? 0 : 1;
+  db.prepare('UPDATE custom_polls SET is_active=? WHERE id=?').run(newVal, req.params.id);
+  logAdminAction(admin.id, admin.display_name, newVal?'تفعيل استطلاع':'إيقاف استطلاع', 'poll', poll.id, poll.question);
+  res.json({ success: true, is_active: newVal });
+});
+
+// حذف استطلاع
+app.delete('/api/admin/polls/:id', requireAdmin, (req, res) => {
+  const admin = getAdminUser(req);
+  const poll = db.prepare('SELECT * FROM custom_polls WHERE id=?').get(req.params.id);
+  if (!poll) return res.json({ error: 'غير موجود' });
+  db.prepare('DELETE FROM custom_poll_votes WHERE poll_id=?').run(req.params.id);
+  db.prepare('DELETE FROM custom_poll_options WHERE poll_id=?').run(req.params.id);
+  db.prepare('DELETE FROM custom_polls WHERE id=?').run(req.params.id);
+  logAdminAction(admin.id, admin.display_name, 'حذف استطلاع', 'poll', poll.id, poll.question);
+  res.json({ success: true });
+});
+
+// تحديث سؤال استطلاع يومي
+app.post('/api/admin/poll/daily-question', requireAdmin, (req, res) => {
+  const admin = getAdminUser(req);
+  const { question } = req.body;
+  if (!question) return res.json({ error: 'السؤال مطلوب' });
+  const today = new Date().toISOString().split('T')[0];
+  const poll = db.prepare('SELECT id FROM daily_polls WHERE date=?').get(today);
+  if (poll) {
+    db.prepare('UPDATE daily_polls SET question=? WHERE date=?').run(question.trim(), today);
+  } else {
+    db.prepare('INSERT INTO daily_polls (id,date,question) VALUES (?,?,?)').run(uuidv4(), today, question.trim());
+  }
+  logAdminAction(admin.id, admin.display_name, 'تعديل سؤال الاستطلاع اليومي', 'poll', today, question);
+  res.json({ success: true });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
