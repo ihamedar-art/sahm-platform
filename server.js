@@ -276,6 +276,58 @@ app.get('/api/me', (req, res) => {
   res.json({ user: safe });
 });
 
+// ── مفكرة السوق ──────────────────────────────────────────────────────────────
+db.exec(`CREATE TABLE IF NOT EXISTS market_events (
+  id TEXT PRIMARY KEY,
+  event_date TEXT NOT NULL,
+  symbol TEXT DEFAULT '',
+  company_name TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  details TEXT DEFAULT '',
+  created_by TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)`);
+
+// جلب أحداث المفكرة
+app.get('/api/market-events', (req, res) => {
+  const { from, to } = req.query;
+  const today = new Date().toISOString().split('T')[0];
+  const start = from || today;
+  const end = to || new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0];
+  const events = db.prepare('SELECT * FROM market_events WHERE event_date BETWEEN ? AND ? ORDER BY event_date ASC, company_name ASC').all(start, end);
+  res.json({ events });
+});
+
+// إضافة حدث (أدمن فقط)
+app.post('/api/admin/market-events', requireAdmin, (req, res) => {
+  const admin = getAdminUser(req);
+  const { event_date, symbol, company_name, event_type, details } = req.body;
+  if (!event_date || !company_name || !event_type) return res.json({ error: 'التاريخ والشركة والنوع مطلوبة' });
+  const id = uuidv4();
+  db.prepare('INSERT INTO market_events (id,event_date,symbol,company_name,event_type,details,created_by) VALUES (?,?,?,?,?,?,?)').run(
+    id, event_date, symbol||'', company_name.trim(), event_type.trim(), details||'', admin.id
+  );
+  logAdminAction(admin.id, admin.display_name, 'إضافة حدث مفكرة', 'event', id, company_name);
+  res.json({ success: true });
+});
+
+// تعديل حدث
+app.put('/api/admin/market-events/:id', requireAdmin, (req, res) => {
+  const { event_date, symbol, company_name, event_type, details } = req.body;
+  db.prepare('UPDATE market_events SET event_date=?,symbol=?,company_name=?,event_type=?,details=? WHERE id=?').run(
+    event_date, symbol||'', company_name, event_type, details||'', req.params.id
+  );
+  res.json({ success: true });
+});
+
+// حذف حدث
+app.delete('/api/admin/market-events/:id', requireAdmin, (req, res) => {
+  const admin = getAdminUser(req);
+  db.prepare('DELETE FROM market_events WHERE id=?').run(req.params.id);
+  logAdminAction(admin.id, admin.display_name, 'حذف حدث مفكرة', 'event', req.params.id, '');
+  res.json({ success: true });
+});
+
 // ── Posts ────────────────────────────────────────────────────────────────────
 app.post('/api/posts', requireAuth, upload.single('image'), async (req, res) => {
   const { content, post_type, target_price, stop_loss, direction, timeframe } = req.body;

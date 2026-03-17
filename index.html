@@ -831,6 +831,9 @@ body {
       <a class="nav-item" id="nav-ipos" onclick="navigate('ipos')">
         <span class="nav-icon">🆕</span> الاكتتابات
       </a>
+      <a class="nav-item" id="nav-calendar" onclick="navigate('calendar')">
+        <span class="nav-icon">📅</span> مفكرة السوق
+      </a>
       <a class="nav-item" id="nav-rooms" onclick="navigate('rooms')">
         <span class="nav-icon">🎙️</span> الرومات الصوتية
       </a>
@@ -884,6 +887,11 @@ body {
         <div class="panel-title">🆕 الاكتتابات القادمة</div>
         <div id="ipos-content"></div>
       </div>
+    </div>
+
+    <!-- Calendar Page -->
+    <div class="page" id="page-calendar">
+      <div id="calendar-content"></div>
     </div>
 
     <!-- Rooms Page -->
@@ -1062,6 +1070,9 @@ function navigate(page, param = '') {
   } else if (page === 'ipos') {
     document.getElementById('page-ipos').classList.add('active');
     loadIPOs();
+  } else if (page === 'calendar') {
+    document.getElementById('page-calendar').classList.add('active');
+    loadCalendarPage();
   } else if (page === 'admin') {
     document.getElementById('page-admin').classList.add('active');
     loadAdminPage();
@@ -3514,6 +3525,7 @@ function renderAdminShell() {
     ['deleted','🗂️ المحذوفات', isSuperAdmin],
     ['comments','💬 التعليقات', true],
     ['polls','📊 الاستطلاعات', true],
+    ['calendar','📅 المفكرة', true],
     ['news','📰 الأخبار', true],
     ['logs','📋 سجل التحركات', isSuperAdmin],
   ].filter(t => t[2]);
@@ -3545,6 +3557,7 @@ async function loadAdminTab(tab) {
   else if (tab === 'deleted') await renderAdminPosts(el, 0, '', true);
   else if (tab === 'comments') await renderAdminComments(el);
   else if (tab === 'polls') await renderAdminPolls(el);
+  else if (tab === 'calendar') await renderAdminCalendar(el);
   else if (tab === 'news') await renderAdminNews(el);
   else if (tab === 'logs') await renderAdminLogs(el);
 }
@@ -3971,5 +3984,199 @@ async function renderAdminLogs(el, page=0) {
       ${page>0?`<button class="btn btn-ghost btn-sm" onclick="renderAdminLogs(document.getElementById('admin-tab-content'),${page-1})">← السابق</button>`:''}
       ${d.logs.length===30?`<button class="btn btn-ghost btn-sm" onclick="renderAdminLogs(document.getElementById('admin-tab-content'),${page+1})">التالي →</button>`:''}
     </div>`;
+}
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// مفكرة السوق — MARKET CALENDAR
+// ══════════════════════════════════════════════════════════════════
+
+const EVENT_TYPES = {
+  'توزيع أرباح': { color: 'var(--green)', bg: 'var(--green-bg)', icon: '💰' },
+  'أحقية أرباح':  { color: '#0891B2', bg: 'rgba(8,145,178,.1)', icon: '📋' },
+  'اكتتاب':       { color: 'var(--primary)', bg: 'rgba(29,78,216,.08)', icon: '🆕' },
+  'نتائج مالية':  { color: 'var(--gold)', bg: 'var(--gold-bg)', icon: '📊' },
+  'اجتماع جمعية': { color: '#7C3AED', bg: 'rgba(124,58,237,.08)', icon: '🤝' },
+  'إجازة رسمية':  { color: 'var(--text3)', bg: 'var(--bg3)', icon: '🏖️' },
+  'أخرى':         { color: 'var(--text2)', bg: 'var(--bg3)', icon: '📌' },
+};
+
+function formatEventDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const days = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+  const months = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  const today = new Date().toISOString().split('T')[0];
+  const tomorrow = new Date(Date.now()+86400000).toISOString().split('T')[0];
+  if (dateStr === today) return 'اليوم';
+  if (dateStr === tomorrow) return 'غداً';
+  return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
+}
+
+async function loadCalendarPage() {
+  const el = document.getElementById('calendar-content');
+  el.innerHTML = `<div class="skeleton" style="height:300px;border-radius:14px"></div>`;
+
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const in30 = new Date(Date.now()+30*24*60*60*1000).toISOString().split('T')[0];
+    const r = await fetch(`/api/market-events?from=${today}&to=${in30}`);
+    const d = await r.json();
+    const events = d.events || [];
+
+    // تجميع الأحداث حسب التاريخ
+    const grouped = {};
+    events.forEach(e => {
+      if (!grouped[e.event_date]) grouped[e.event_date] = [];
+      grouped[e.event_date].push(e);
+    });
+
+    if (!Object.keys(grouped).length) {
+      el.innerHTML = `
+        <div class="panel-card">
+          <div class="panel-title">📅 مفكرة السوق</div>
+          <div class="empty-state">
+            <div class="empty-icon">📅</div>
+            <div class="empty-title">لا توجد أحداث قادمة</div>
+            <p style="color:var(--text2)">سيتم إضافة أحداث السوق من لوحة التحكم</p>
+          </div>
+        </div>`;
+      return;
+    }
+
+    el.innerHTML = `
+      <div style="margin-bottom:20px">
+        <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">📅 مفكرة السوق</h2>
+        <p style="font-size:13px;color:var(--text2)">أهم الأحداث والمواعيد في السوق المالي السعودي</p>
+      </div>
+      ${Object.entries(grouped).map(([date, evs]) => `
+        <div style="margin-bottom:20px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <div style="font-size:15px;font-weight:700;color:var(--text)">${formatEventDate(date)}</div>
+            <div style="font-size:12px;color:var(--text3)">${date}</div>
+            <div style="flex:1;height:1px;background:var(--border)"></div>
+            <div style="font-size:12px;color:var(--text3)">${evs.length} حدث</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            ${evs.map(e => {
+              const type = EVENT_TYPES[e.event_type] || EVENT_TYPES['أخرى'];
+              return `
+                <div style="background:var(--bg2);border:1px solid var(--border);border-right:3px solid ${type.color};border-radius:var(--radius2);padding:12px 14px;display:flex;align-items:center;gap:12px">
+                  <div style="font-size:20px;flex-shrink:0">${type.icon}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                      ${e.symbol ? `<span style="font-size:12px;font-weight:700;color:var(--primary);background:rgba(29,78,216,.08);padding:2px 8px;border-radius:10px">${e.symbol}</span>` : ''}
+                      <span style="font-size:14px;font-weight:600;color:var(--text)">${e.company_name}</span>
+                      <span style="font-size:11px;font-weight:700;color:${type.color};background:${type.bg};padding:2px 8px;border-radius:10px">${e.event_type}</span>
+                    </div>
+                    ${e.details ? `<div style="font-size:13px;color:var(--text2);margin-top:4px">${e.details}</div>` : ''}
+                  </div>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>`).join('')}`;
+  } catch(e) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-title">خطأ في تحميل المفكرة</div></div>`;
+  }
+}
+
+// ── إدارة المفكرة من لوحة الأدمن ──────────────────────────────────
+async function renderAdminCalendar(el) {
+  const today = new Date().toISOString().split('T')[0];
+  const in30 = new Date(Date.now()+30*24*60*60*1000).toISOString().split('T')[0];
+  const r = await fetch(`/api/market-events?from=2020-01-01&to=2030-12-31`);
+  const d = await r.json();
+  const events = d.events || [];
+
+  const typeOptions = Object.keys(EVENT_TYPES).map(t => `<option value="${t}">${t}</option>`).join('');
+
+  el.innerHTML = `
+    <!-- إضافة حدث جديد -->
+    <div class="panel-card" style="margin-bottom:20px;border-right:3px solid var(--primary)">
+      <div class="panel-title">➕ إضافة حدث جديد</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div class="form-group" style="margin:0">
+          <label class="form-label">التاريخ *</label>
+          <input class="form-input" id="ev-date" type="date" value="${today}">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">نوع الحدث *</label>
+          <select class="form-input" id="ev-type">${typeOptions}</select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">رمز السهم</label>
+          <input class="form-input" id="ev-symbol" placeholder="مثال: 2222">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">اسم الشركة *</label>
+          <input class="form-input" id="ev-company" placeholder="مثال: أرامكو السعودية">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">تفاصيل إضافية</label>
+        <input class="form-input" id="ev-details" placeholder="مثال: توزيع 0.35 ريال للسهم">
+      </div>
+      <button class="btn btn-primary" onclick="adminAddEvent()">➕ إضافة الحدث</button>
+    </div>
+
+    <!-- قائمة الأحداث -->
+    <div class="panel-card">
+      <div class="panel-title">📋 الأحداث المضافة (${events.length})</div>
+      ${events.length === 0 ? '<div style="color:var(--text3);text-align:center;padding:20px">لا توجد أحداث بعد</div>' : ''}
+      <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="border-bottom:2px solid var(--border);background:var(--bg3)">
+          <th style="padding:10px;text-align:right">التاريخ</th>
+          <th style="padding:10px;text-align:right">الرمز</th>
+          <th style="padding:10px;text-align:right">الشركة</th>
+          <th style="padding:10px;text-align:right">النوع</th>
+          <th style="padding:10px;text-align:right">التفاصيل</th>
+          <th style="padding:10px;text-align:center">حذف</th>
+        </tr></thead>
+        <tbody>
+        ${events.map(e => {
+          const type = EVENT_TYPES[e.event_type] || EVENT_TYPES['أخرى'];
+          return `
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:10px;font-weight:600">${formatEventDate(e.event_date)}<br><span style="font-size:11px;color:var(--text3)">${e.event_date}</span></td>
+            <td style="padding:10px;color:var(--primary);font-weight:700">${e.symbol||'-'}</td>
+            <td style="padding:10px">${e.company_name}</td>
+            <td style="padding:10px"><span style="color:${type.color};background:${type.bg};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">${type.icon} ${e.event_type}</span></td>
+            <td style="padding:10px;color:var(--text2);font-size:12px">${e.details||'-'}</td>
+            <td style="padding:10px;text-align:center"><button class="pact-btn danger" onclick="adminDeleteEvent('${e.id}')">🗑️</button></td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table></div>
+    </div>`;
+}
+
+async function adminAddEvent() {
+  const date = document.getElementById('ev-date')?.value;
+  const type = document.getElementById('ev-type')?.value;
+  const symbol = document.getElementById('ev-symbol')?.value.trim();
+  const company = document.getElementById('ev-company')?.value.trim();
+  const details = document.getElementById('ev-details')?.value.trim();
+  if (!date || !company || !type) return toast('التاريخ والشركة والنوع مطلوبة', 'error');
+  const r = await fetch('/api/admin/market-events', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ event_date:date, symbol, company_name:company, event_type:type, details })
+  });
+  const d = await r.json();
+  if (d.error) return toast(d.error, 'error');
+  toast('✅ تم إضافة الحدث', 'success');
+  document.getElementById('ev-company').value = '';
+  document.getElementById('ev-symbol').value = '';
+  document.getElementById('ev-details').value = '';
+  renderAdminCalendar(document.getElementById('admin-tab-content'));
+}
+
+async function adminDeleteEvent(id) {
+  if (!confirm('حذف هذا الحدث؟')) return;
+  const r = await fetch(`/api/admin/market-events/${id}`, { method: 'DELETE' });
+  const d = await r.json();
+  if (d.error) return toast(d.error, 'error');
+  toast('تم الحذف', 'info');
+  renderAdminCalendar(document.getElementById('admin-tab-content'));
 }
 </script>
