@@ -1252,9 +1252,21 @@ function createPostCard(p, standalone = false) {
       ).join(' ')
     : '';
 
-  const contentHtml = p.content
+  const PREVIEW_LIMIT = 265;
+  const fullContent = p.content
     .replace(/\$[A-Za-z0-9\u0600-\u06FF]{1,10}/g, s => `<span class="post-symbol" onclick="navigate('stock','${s}')">${s}</span>`)
     .replace(/\n/g, '<br>');
+
+  // اقتطاع النص في الفيد (مش standalone)
+  let contentHtml;
+  if (!standalone && p.content.length > PREVIEW_LIMIT) {
+    const preview = p.content.substring(0, PREVIEW_LIMIT)
+      .replace(/\$[A-Za-z0-9\u0600-\u06FF]{1,10}/g, s => `<span class="post-symbol" onclick="event.stopPropagation();navigate('stock','${s}')">${s}</span>`)
+      .replace(/\n/g, '<br>');
+    contentHtml = `${preview}<span style="color:var(--text3)">... </span><span class="read-more-btn" onclick="event.stopPropagation();navigate('post','${p.id}')" style="color:var(--primary);font-weight:600;cursor:pointer">المزيد</span>`;
+  } else {
+    contentHtml = fullContent;
+  }
 
   let analysisBadge = '';
   if (p.post_type === 'analysis' && p.direction) {
