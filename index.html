@@ -246,6 +246,8 @@ body {
   animation: fadeIn .3s ease;
 }
 .post-card:hover { border-color: var(--border2); box-shadow: 0 4px 20px rgba(29,78,216,.1); }
+.post-card.pinned-post { border-color: var(--gold); border-right: 3px solid var(--gold); background: linear-gradient(to left, rgba(217,119,6,.03), var(--bg2)); }
+.pin-badge { font-size: 12px; font-weight: 700; color: var(--gold); margin-bottom: 10px; display: flex; align-items: center; gap: 5px; }
 @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 
 .post-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
@@ -968,8 +970,22 @@ async function checkAuth() {
   const res = await fetch('/api/me');
   const data = await res.json();
   currentUser = data.user;
+  // تحقق من صلاحية الأدمن
+  if (currentUser) {
+    const adminCheck = await fetch('/api/admin/check');
+    const adminData = await adminCheck.json();
+    currentUser.isAdmin = adminData.isAdmin;
+  }
   renderAuthArea();
   renderComposeArea();
+}
+
+async function togglePin(postId, currentlyPinned) {
+  const r = await fetch(`/api/admin/posts/${postId}/pin`, { method: 'POST' });
+  const d = await r.json();
+  if (d.error) { toast(d.error, 'error'); return; }
+  toast(d.is_pinned ? '📌 تم تثبيت المنشور' : 'تم إلغاء التثبيت', 'success');
+  renderFeed();
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -1246,11 +1262,13 @@ function createPostCard(p, standalone = false) {
   }
 
   const isOwner = currentUser && currentUser.id === p.user_id;
+  const isAdmin = currentUser && currentUser.is_verified === 2; // أدمن
   const upActive = p.my_vote === 'up' ? 'active' : '';
   const downActive = p.my_vote === 'down' ? 'active' : '';
 
   const cardClick = standalone ? '' : `onclick="handlePostClick(event,'${p.id}')"`;
-  return `<div class="post-card" id="post-${p.id}" style="${standalone ? '' : 'cursor:pointer'}" ${cardClick}>
+  return `<div class="post-card${p.is_pinned ? ' pinned-post' : ''}" id="post-${p.id}" style="${standalone ? '' : 'cursor:pointer'}" ${cardClick}>
+    ${p.is_pinned ? `<div class="pin-badge">📌 منشور مثبت</div>` : ''}
     <div class="post-header">
       <div class="avatar" onclick="event.stopPropagation();navigate('profile','${p.username}')">${avatarHtml}</div>
       <div class="post-meta">
@@ -1262,7 +1280,10 @@ function createPostCard(p, standalone = false) {
         </div>
         <div class="post-time">${p.time_ago}</div>
       </div>
-      ${isOwner ? `<div class="post-menu" onclick="event.stopPropagation();deletePost('${p.id}')">🗑️</div>` : ''}
+      <div style="display:flex;gap:6px;align-items:center">
+        ${currentUser?.isAdmin ? `<div class="post-menu" onclick="event.stopPropagation();togglePin('${p.id}',${p.is_pinned?1:0})" title="${p.is_pinned?'إلغاء التثبيت':'تثبيت'}">${p.is_pinned?'📌':'📍'}</div>` : ''}
+        ${isOwner ? `<div class="post-menu" onclick="event.stopPropagation();deletePost('${p.id}')">🗑️</div>` : ''}
+      </div>
     </div>
     ${analysisBadge}
     <div class="post-content">${contentHtml}</div>

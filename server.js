@@ -299,6 +299,14 @@ app.get('/api/posts', (req, res) => {
   const offset = (parseInt(page) || 0) * limit;
   const userId = req.session.userId;
   let posts;
+  let pinnedPosts = [];
+
+  // جلب المنشورات المثبتة فقط في الصفحة الأولى والفيد العام
+  if (!symbol && !user_id && (!page || page === '0')) {
+    pinnedPosts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
+      FROM posts p JOIN users u ON p.user_id = u.id
+      WHERE p.is_pinned = 1 ORDER BY p.pinned_at DESC`).all();
+  }
 
   if (symbol) {
     posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
@@ -319,22 +327,29 @@ app.get('/api/posts', (req, res) => {
   } else {
     posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
       FROM posts p JOIN users u ON p.user_id = u.id
+      WHERE p.is_pinned = 0 OR p.is_pinned IS NULL
       ORDER BY (p.upvotes * 2 - p.downvotes + p.comments_count) DESC, p.created_at DESC
       LIMIT ? OFFSET ?`
     ).all(limit, offset);
   }
 
-  // إضافة معلومات التصويت للمستخدم الحالي
-  const enriched = posts.map(p => {
+  const enrich = (p, pinned = false) => {
     let myVote = null;
     if (userId) {
       const v = db.prepare("SELECT vote_type FROM votes WHERE user_id=? AND target_id=? AND target_type='post'").get(userId, p.id);
       myVote = v ? v.vote_type : null;
     }
-    return { ...p, time_ago: formatTime(p.created_at), level_name: getLevelName(p.level), my_vote: myVote };
-  });
+    return { ...p, time_ago: formatTime(p.created_at), level_name: getLevelName(p.level), my_vote: myVote, is_pinned: pinned || p.is_pinned };
+  };
 
-  res.json({ posts: enriched });
+  const enrichedPinned = pinnedPosts.map(p => enrich(p, true));
+  const enrichedPosts = posts.map(p => enrich(p));
+
+  // دمج المثبتة أولاً ثم الباقي مع إزالة التكرار
+  const pinnedIds = new Set(enrichedPinned.map(p => p.id));
+  const filtered = enrichedPosts.filter(p => !pinnedIds.has(p.id));
+
+  res.json({ posts: [...enrichedPinned, ...filtered] });
 });
 
 app.delete('/api/posts/:id', requireAuth, (req, res) => {
@@ -834,7 +849,18 @@ app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
-app.get('/api/admin/posts', requireAdmin, (req, res) => {
+// إضافة حقل is_pinned إذا ما كان موجوداً
+try { db.exec(`ALTER TABLE posts ADD COLUMN is_pinned INTEGER DEFAULT 0`); } catch(e) {}
+try { db.exec(`ALTER TABLE posts ADD COLUMN pinned_at DATETIME`); } catch(e) {}
+
+// تثبيت/إلغاء تثبيت منشور (أدمن فقط)
+app.post('/api/admin/posts/:id/pin', requireAdmin, (req, res) => {
+  const post = db.prepare('SELECT id, is_pinned FROM posts WHERE id=?').get(req.params.id);
+  if (!post) return res.json({ error: 'المنشور غير موجود' });
+  const newVal = post.is_pinned ? 0 : 1;
+  db.prepare('UPDATE posts SET is_pinned=?, pinned_at=? WHERE id=?').run(newVal, newVal ? new Date().toISOString() : null, req.params.id);
+  res.json({ success: true, is_pinned: newVal });
+});
   const { search, page } = req.query;
   const limit = 20, offset = (parseInt(page)||0)*limit;
   const like = `%${search||''}%`;
