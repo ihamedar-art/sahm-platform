@@ -1261,7 +1261,7 @@ function createPostCard(p, standalone = false) {
       ${isOwner ? `<div class="post-menu" onclick="event.stopPropagation();deletePost('${p.id}')">🗑️</div>` : ''}
     </div>
     ${analysisBadge}
-    <div class="post-content" onclick="event.stopPropagation()">${contentHtml}</div>
+    <div class="post-content">${contentHtml}</div>
     ${targetsHtml}
     ${p.image ? `<img src="${p.image}" class="post-image" onclick="event.stopPropagation();openImage('${p.image}')" alt="تحليل">` : ''}
     <div class="post-actions" onclick="event.stopPropagation()">
