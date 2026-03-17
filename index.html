@@ -844,14 +844,7 @@ body {
         <span class="nav-icon">⚙️</span> لوحة التحكم
       </a>
     </nav>
-
-    <div class="sidebar-card" style="padding:0;overflow:hidden">
-      <div style="padding:12px 14px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-        <div class="sidebar-card-title" style="margin:0">📰 أحدث الأخبار</div>
-        <span style="font-size:11px;color:var(--text3)">يتجدد تلقائياً</span>
-      </div>
-      <div id="news-sidebar"></div>
-    </div>
+    <div id="poll-widget-wrap"></div>
   </aside>
 
   <!-- Feed -->
@@ -931,7 +924,13 @@ body {
       <div class="panel-title">📊 أكثر الأسهم نقاشاً</div>
       <div id="trending-stocks"></div>
     </div>
-    <div id="poll-widget-wrap"></div>
+    <div class="panel-card" style="padding:0;overflow:hidden">
+      <div style="padding:12px 14px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <div class="panel-title" style="margin:0">📰 أحدث الأخبار</div>
+        <span style="font-size:11px;color:var(--text3)">يتجدد تلقائياً</span>
+      </div>
+      <div id="news-sidebar-right"></div>
+    </div>
     <div class="panel-card" id="hot-posts-panel">
       <div class="panel-title">🔥 الأكثر نقاشاً</div>
       <div id="hot-posts-list"></div>
@@ -2068,7 +2067,7 @@ async function loadPopularStocks() {
 }
 
 async function loadNewsSidebar() {
-  const el = document.getElementById('news-sidebar');
+  const el = document.getElementById('news-sidebar-right');
   if (!el) return;
   try {
     const r = await fetch('/api/news/latest?limit=10');
@@ -2084,7 +2083,7 @@ async function loadNewsSidebar() {
 }
 
 function renderNewsSidebar(news) {
-  const el = document.getElementById('news-sidebar');
+  const el = document.getElementById('news-sidebar-right');
   if (!el) return;
   el.innerHTML = news.map(n => `
     <div class="news-item" onclick="goToNews('${n.post_id||''}')">
