@@ -977,6 +977,11 @@ let notifCount = 0;
 // INIT
 // ══════════════════════════════════════════════════════════════════
 async function init() {
+  // تحقق إذا في رابط إعادة تعيين كلمة المرور
+  const urlParams = new URLSearchParams(window.location.search);
+  const resetToken = urlParams.get('token');
+  if (resetToken) { showResetPasswordPage(resetToken); return; }
+
   await checkAuth();
   loadPopularStocks();
   loadLeaderboardPanel();
@@ -986,8 +991,72 @@ async function init() {
   loadHotPosts();
   if (currentUser) pollNotifications();
   setTimeout(checkNewPosts, 15000);
-  setInterval(loadHotPosts, 120000); // تحديث كل دقيقتين
+  setInterval(loadHotPosts, 120000);
 }
+
+async function showResetPasswordPage(token) {
+  // تحقق من صلاحية الـ token
+  const r = await fetch(`/api/auth/reset-password/${token}`);
+  const d = await r.json();
+
+  document.getElementById('app').innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:20px">
+      <div style="background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--radius);padding:32px;max-width:420px;width:100%;box-shadow:var(--shadow);text-align:center">
+        <div style="font-size:48px;margin-bottom:12px">🔐</div>
+        <div style="font-size:22px;font-weight:700;margin-bottom:6px">إعادة تعيين كلمة المرور</div>
+        ${d.valid ? `
+          <div style="color:var(--text2);font-size:14px;margin-bottom:24px">مرحباً ${d.display_name}، أدخل كلمة المرور الجديدة</div>
+          <div class="form-group" style="text-align:right">
+            <label class="form-label">كلمة المرور الجديدة</label>
+            <input class="form-input" id="reset-pass" type="password" placeholder="8 أحرف على الأقل">
+          </div>
+          <div class="form-group" style="text-align:right">
+            <label class="form-label">تأكيد كلمة المرور</label>
+            <input class="form-input" id="reset-pass2" type="password" placeholder="أعد كتابة كلمة المرور"
+              onkeydown="if(event.key==='Enter')submitResetPassword('${token}')">
+          </div>
+          <div id="reset-error" class="form-error" style="text-align:right"></div>
+          <button class="btn btn-primary" id="reset-btn" style="width:100%;justify-content:center;padding:12px;margin-top:8px" onclick="submitResetPassword('${token}')">
+            حفظ كلمة المرور الجديدة
+          </button>
+        ` : `
+          <div style="color:var(--red);font-size:15px;margin-bottom:24px">${d.error}</div>
+          <button class="btn btn-primary" onclick="window.location.href='/'">العودة للرئيسية</button>
+        `}
+      </div>
+    </div>`;
+}
+
+async function submitResetPassword(token) {
+  const pass = document.getElementById('reset-pass')?.value;
+  const pass2 = document.getElementById('reset-pass2')?.value;
+  const errEl = document.getElementById('reset-error');
+  if (!pass || pass.length < 8) { errEl.textContent = 'كلمة المرور يجب أن تكون 8 أحرف على الأقل'; return; }
+  if (pass !== pass2) { errEl.textContent = 'كلمتا المرور غير متطابقتين'; return; }
+
+  const btn = document.getElementById('reset-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'جاري الحفظ...'; }
+  errEl.textContent = '';
+
+  const r = await fetch('/api/auth/reset-password', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ token, new_password: pass })
+  });
+  const d = await r.json();
+  if (d.error) {
+    errEl.textContent = d.error;
+    if (btn) { btn.disabled = false; btn.textContent = 'حفظ كلمة المرور الجديدة'; }
+    return;
+  }
+  document.getElementById('app').innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg)">
+      <div style="text-align:center;padding:40px">
+        <div style="font-size:64px;margin-bottom:16px">✅</div>
+        <div style="font-size:22px;font-weight:700;margin-bottom:8px">تم تغيير كلمة المرور بنجاح!</div>
+        <div style="color:var(--text2);margin-bottom:24px">يمكنك الآن تسجيل الدخول بكلمة المرور الجديدة</div>
+        <button class="btn btn-primary" onclick="window.location.href='/'">تسجيل الدخول</button>
+      </div>
+    </div>`;
 
 async function loadHotPosts() {
   const el = document.getElementById('hot-posts-list');
@@ -2304,6 +2373,9 @@ function showLoginModal() {
     </div>
     <div id="login-error" class="form-error"></div>
     <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;padding:12px" onclick="submitLogin()">دخول</button>
+    <div style="text-align:center;margin-top:10px">
+      <a onclick="showForgotPassword()" style="font-size:13px;color:var(--text3);cursor:pointer;text-decoration:underline">نسيت كلمة المرور؟</a>
+    </div>
     <div class="form-switch">ليس لديك حساب؟ <a onclick="showRegisterModal()">سجّل الآن مجاناً</a></div>`;
   showModal('auth-modal');
 }
@@ -2365,6 +2437,53 @@ async function submitLogin() {
     }
   }
   toast('أهلاً وسهلاً! 🎉', 'success');
+}
+
+function showForgotPassword() {
+  document.getElementById('auth-modal-content').innerHTML = `
+    <div class="modal-title">نسيت كلمة المرور 🔐</div>
+    <div class="modal-subtitle">أدخل بريدك الإلكتروني وسنرسل لك رابط الاستعادة</div>
+    <div class="form-group">
+      <label class="form-label">البريد الإلكتروني</label>
+      <input class="form-input" id="forgot-email" type="email" placeholder="example@email.com"
+        onkeydown="if(event.key==='Enter')submitForgotPassword()">
+    </div>
+    <div id="forgot-error" class="form-error"></div>
+    <div id="forgot-success" style="display:none;background:var(--green-bg);border:1px solid var(--green);border-radius:var(--radius2);padding:12px;color:var(--green);font-size:14px;margin-bottom:10px"></div>
+    <button class="btn btn-primary" id="forgot-btn" style="width:100%;justify-content:center;margin-top:8px;padding:12px" onclick="submitForgotPassword()">إرسال رابط الاستعادة</button>
+    <div class="form-switch"><a onclick="showLoginModal()">← العودة لتسجيل الدخول</a></div>`;
+  showModal('auth-modal');
+}
+
+async function submitForgotPassword() {
+  const email = document.getElementById('forgot-email')?.value?.trim();
+  if (!email) { document.getElementById('forgot-error').textContent = 'أدخل البريد الإلكتروني'; return; }
+  const btn = document.getElementById('forgot-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'جاري الإرسال...'; }
+  document.getElementById('forgot-error').textContent = '';
+  try {
+    const r = await fetch('/api/auth/forgot-password', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email })
+    });
+    const d = await r.json();
+    if (d.error) {
+      document.getElementById('forgot-error').textContent = d.error;
+      if (btn) { btn.disabled = false; btn.textContent = 'إرسال رابط الاستعادة'; }
+      return;
+    }
+    const successEl = document.getElementById('forgot-success');
+    successEl.style.display = 'block';
+    successEl.innerHTML = `✅ ${d.message}`;
+    if (btn) btn.style.display = 'none';
+    // في بيئة التطوير — يعرض الرابط مباشرة
+    if (d._dev_link) {
+      successEl.innerHTML += `<br><br><small style="color:var(--text2)">🔧 رابط التطوير:<br><a href="${d._dev_link}" target="_blank" style="word-break:break-all;font-size:11px">${d._dev_link}</a></small>`;
+    }
+  } catch(e) {
+    document.getElementById('forgot-error').textContent = 'خطأ في الاتصال';
+    if (btn) { btn.disabled = false; btn.textContent = 'إرسال رابط الاستعادة'; }
+  }
 }
 
 async function submitRegister() {
@@ -3686,6 +3805,7 @@ async function renderAdminUsers(el, page = 0, search = '') {
               ${canEdit ? `
                 <button class="pact-btn" onclick="adminVerify('${u.id}')" title="${u.is_verified?'إلغاء توثيق':'توثيق'}">${u.is_verified?'☑️':'☆'}</button>
                 <button class="pact-btn" onclick="adminSuspend('${u.id}')" title="${u.is_suspended?'تفعيل':'إيقاف'}">${u.is_suspended?'✅':'🚫'}</button>
+                ${isSuperAdmin ? `<button class="pact-btn" onclick="adminChangePassword('${u.id}','${u.display_name}')" title="تغيير كلمة المرور">🔑</button>` : ''}
                 ${isSuperAdmin ? `<button class="pact-btn" onclick="adminMakeAdmin('${u.id}')" title="${u.is_admin?'سحب أدمن':'إعطاء أدمن'}">${u.is_admin?'⬇️':'👑'}</button>` : ''}
                 ${isSuperAdmin ? `<button class="pact-btn danger" onclick="adminDeleteUser('${u.id}','${u.display_name}')">🗑️</button>` : ''}
               ` : '<span style="font-size:11px;color:var(--text3)">محمي</span>'}
@@ -3729,6 +3849,19 @@ async function adminDeleteUser(id,name) {
   if (d.error) return toast(d.error,'error');
   toast('تم الحذف','info');
   renderAdminUsers(document.getElementById('admin-tab-content'),adminUserPage,adminUserSearch);
+}
+
+async function adminChangePassword(id, name) {
+  const newPass = prompt(`كلمة المرور الجديدة لـ "${name}" (8 أحرف على الأقل):`);
+  if (!newPass) return;
+  if (newPass.length < 8) return toast('كلمة المرور يجب أن تكون 8 أحرف على الأقل', 'error');
+  const r = await fetch(`/api/admin/users/${id}/change-password`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ new_password: newPass })
+  });
+  const d = await r.json();
+  if (d.error) return toast(d.error, 'error');
+  toast(`✅ تم تغيير كلمة مرور "${name}"`, 'success');
 }
 
 // ── المنشورات ────────────────────────────────────────────────────

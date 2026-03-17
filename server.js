@@ -1169,6 +1169,106 @@ app.post('/api/admin/users/:id/make-admin', requireSuperAdmin, (req, res) => {
   res.json({ success: true, is_admin: v });
 });
 
+// ── تغيير كلمة مرور عضو (سوبر أدمن فقط) ───────────────────────
+app.post('/api/admin/users/:id/change-password', requireSuperAdmin, async (req, res) => {
+  const admin = getAdminUser(req);
+  const { new_password } = req.body;
+  if (!new_password || new_password.length < 8) return res.json({ error: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' });
+  const user = db.prepare('SELECT id,display_name,is_super_admin FROM users WHERE id=?').get(req.params.id);
+  if (!user) return res.json({ error: 'المستخدم غير موجود' });
+  if (user.is_super_admin && admin.id !== user.id) return res.json({ error: 'لا يمكن تغيير كلمة مرور السوبر أدمن' });
+  const hash = await bcrypt.hash(new_password, 12);
+  db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(hash, req.params.id);
+  logAdminAction(admin.id, admin.display_name, 'تغيير كلمة مرور', 'user', user.id, user.display_name);
+  res.json({ success: true });
+});
+
+// ── نظام نسيت كلمة المرور (جاهز للبريد — يُفعَّل عند إضافة SMTP) ──
+// جدول tokens
+try { db.exec(`CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  token TEXT UNIQUE NOT NULL,
+  expires_at DATETIME NOT NULL,
+  used INTEGER DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)`); } catch(e) {}
+
+// طلب إعادة تعيين (يُرسل رابط لاحقاً عبر البريد)
+app.post('/api/auth/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.json({ error: 'البريد الإلكتروني مطلوب' });
+  const user = db.prepare('SELECT id,display_name,email FROM users WHERE email=?').get(email.toLowerCase().trim());
+  // نرجع نفس الرسالة حتى لو البريد مش موجود (أمان)
+  if (!user) return res.json({ success: true, message: 'إذا كان البريد مسجلاً، ستصلك رسالة قريباً' });
+
+  // حذف أي tokens قديمة لهذا المستخدم
+  db.prepare('DELETE FROM password_reset_tokens WHERE user_id=?').run(user.id);
+
+  const token = uuidv4().replace(/-/g,'');
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // ساعة واحدة
+  db.prepare('INSERT INTO password_reset_tokens (id,user_id,token,expires_at) VALUES (?,?,?,?)').run(uuidv4(), user.id, token, expiresAt);
+
+  const resetLink = `${process.env.SITE_URL || 'https://brzan.com'}/reset-password?token=${token}`;
+
+  // ── إرسال البريد (مُعطَّل حتى تُضاف بيانات SMTP) ──
+  // لتفعيله: npm install nodemailer ثم أضف SMTP_HOST, SMTP_USER, SMTP_PASS في .env
+  /*
+  const nodemailer = require('nodemailer');
+  const transporter = nodemailer.createTransporter({
+    host: process.env.SMTP_HOST,
+    port: 587,
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+  });
+  await transporter.sendMail({
+    from: `"جلسة السوق" <${process.env.SMTP_USER}>`,
+    to: user.email,
+    subject: 'إعادة تعيين كلمة المرور — جلسة السوق',
+    html: `<div dir="rtl" style="font-family:Arial;max-width:500px;margin:auto">
+      <h2>مرحباً ${user.display_name}</h2>
+      <p>طلبت إعادة تعيين كلمة المرور. اضغط على الرابط أدناه:</p>
+      <a href="${resetLink}" style="background:#1D4ED8;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;margin:16px 0">إعادة تعيين كلمة المرور</a>
+      <p style="color:#666;font-size:13px">الرابط صالح لمدة ساعة واحدة فقط. إذا لم تطلب هذا، تجاهل الرسالة.</p>
+    </div>`
+  });
+  */
+
+  console.log(`[RESET PASSWORD] رابط إعادة التعيين لـ ${user.email}: ${resetLink}`);
+  res.json({ success: true, message: 'إذا كان البريد مسجلاً، ستصلك رسالة قريباً',
+    // مؤقتاً للتطوير — أزل هذا في الإنتاج
+    _dev_link: process.env.NODE_ENV !== 'production' ? resetLink : undefined
+  });
+});
+
+// التحقق من token
+app.get('/api/auth/reset-password/:token', (req, res) => {
+  const record = db.prepare('SELECT * FROM password_reset_tokens WHERE token=? AND used=0').get(req.params.token);
+  if (!record) return res.json({ valid: false, error: 'الرابط غير صحيح أو منتهي الصلاحية' });
+  if (new Date(record.expires_at) < new Date()) {
+    db.prepare('DELETE FROM password_reset_tokens WHERE token=?').run(req.params.token);
+    return res.json({ valid: false, error: 'انتهت صلاحية الرابط، يرجى طلب رابط جديد' });
+  }
+  const user = db.prepare('SELECT display_name FROM users WHERE id=?').get(record.user_id);
+  res.json({ valid: true, display_name: user?.display_name });
+});
+
+// تعيين كلمة المرور الجديدة
+app.post('/api/auth/reset-password', async (req, res) => {
+  const { token, new_password } = req.body;
+  if (!token || !new_password) return res.json({ error: 'بيانات ناقصة' });
+  if (new_password.length < 8) return res.json({ error: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' });
+  const record = db.prepare('SELECT * FROM password_reset_tokens WHERE token=? AND used=0').get(token);
+  if (!record) return res.json({ error: 'الرابط غير صحيح أو منتهي الصلاحية' });
+  if (new Date(record.expires_at) < new Date()) {
+    db.prepare('DELETE FROM password_reset_tokens WHERE token=?').run(token);
+    return res.json({ error: 'انتهت صلاحية الرابط، يرجى طلب رابط جديد' });
+  }
+  const hash = await bcrypt.hash(new_password, 12);
+  db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(hash, record.user_id);
+  db.prepare('UPDATE password_reset_tokens SET used=1 WHERE token=?').run(token);
+  res.json({ success: true });
+});
+
 // حذف عضو (سوبر أدمن فقط)
 app.delete('/api/admin/users/:id', requireSuperAdmin, (req, res) => {
   const admin = getAdminUser(req);
