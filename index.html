@@ -185,19 +185,24 @@ body {
 
 /* ── Compose ── */
 .compose-box {
-  background: var(--bg2); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 16px; margin-bottom: 20px;
+  background: #FFFDE7;
+  border: 1px solid #F9E44A;
+  border-top: 4px solid #F9C913;
+  border-radius: var(--radius);
+  padding: 16px; margin-bottom: 20px;
+  box-shadow: 2px 3px 10px rgba(249,201,19,.15), 0 1px 3px rgba(0,0,0,.06);
+  position: relative;
 }
 .compose-textarea {
   width: 100%; background: transparent; border: none;
-  color: var(--text); font-family: inherit; font-size: 15px;
-  resize: none; outline: none; min-height: 80px;
-  placeholder-color: var(--text3);
+  color: #3D3000; font-family: inherit; font-size: 15px;
+  resize: none; outline: none; min-height: 90px;
+  line-height: 1.8;
 }
-.compose-textarea::placeholder { color: var(--text3); }
+.compose-textarea::placeholder { color: #B8A440; }
 .compose-footer {
   display: flex; align-items: center; justify-content: space-between;
-  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid #F0DC6A;
   gap: 8px; flex-wrap: wrap;
 }
 .compose-actions { display: flex; gap: 8px; align-items: center; }
