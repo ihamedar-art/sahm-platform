@@ -1083,6 +1083,7 @@ function navigate(page, param = '') {
     else showLoginModal();
   } else if (page === 'post') {
     document.getElementById('page-post').classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'instant' });
     loadPostPage(param);
   } else if (page === 'stock') {
     document.getElementById('page-stock').classList.add('active');
@@ -1925,6 +1926,7 @@ async function loadFullLeaderboard() {
 async function loadPostPage(postId) {
   const el = document.getElementById('post-page-content');
   window._currentPostId = postId;
+  window.scrollTo({ top: 0, behavior: 'instant' });
 
   // تأكد من حالة المستخدم أولاً
   if (!currentUser) await checkAuth();
