@@ -1515,20 +1515,20 @@ function createPostCard(p, standalone = false) {
 
   const symbolsHtml = p.stock_symbols
     ? p.stock_symbols.split(',').filter(Boolean).map(s =>
-        `<span class="post-symbol" onclick="navigate('stock','${s}')">${s}</span>`
+        `<span class="post-symbol" onclick="navigateToStock('${s}')">${s}</span>`
       ).join(' ')
     : '';
 
   const PREVIEW_LIMIT = 265;
   const fullContent = p.content
-    .replace(/\$[A-Za-z0-9\u0600-\u06FF]{1,10}/g, s => `<span class="post-symbol" onclick="navigate('stock','${s}')">${s}</span>`)
+    .replace(/\$[A-Za-z0-9\u0600-\u06FF]{1,10}/g, s => `<span class="post-symbol" onclick="navigateToStock('${s}')">${s}</span>`)
     .replace(/\n/g, '<br>');
 
   // اقتطاع النص في الفيد (مش standalone)
   let contentHtml;
   if (!standalone && p.content.length > PREVIEW_LIMIT) {
     const preview = p.content.substring(0, PREVIEW_LIMIT)
-      .replace(/\$[A-Za-z0-9\u0600-\u06FF]{1,10}/g, s => `<span class="post-symbol" onclick="event.stopPropagation();navigate('stock','${s}')">${s}</span>`)
+      .replace(/\$[A-Za-z0-9\u0600-\u06FF]{1,10}/g, s => `<span class="post-symbol" onclick="event.stopPropagation();navigateToStock('${s}')">${s}</span>`)
       .replace(/\n/g, '<br>');
     contentHtml = `${preview}<span style="color:var(--text3)">... </span><span class="read-more-btn" onclick="event.stopPropagation();navigate('post','${p.id}')" style="color:var(--primary);font-weight:600;cursor:pointer">المزيد</span>`;
   } else {
@@ -2750,6 +2750,15 @@ function resolveSearchQuery(q) {
 
   // ٥. غير محدد → بحث عام (مستخدمين + منشورات)
   return { type: 'general', q: clean };
+}
+
+// التنقل لتاق سهم مع تحويل الاسم للرمز الرسمي
+function navigateToStock(raw) {
+  const clean = raw.replace('$','').trim();
+  const lower = clean.toLowerCase();
+  const alias = SEARCH_ALIASES[clean] || SEARCH_ALIASES[lower];
+  const sym = alias ? '$' + alias : raw;
+  navigate('stock', sym);
 }
 
 async function executeSearch(q) {
