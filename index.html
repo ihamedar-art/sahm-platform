@@ -1189,6 +1189,9 @@ function navigate(page, param = '', pushHistory = true) {
     history.pushState({ page, param }, '', page === 'home' ? '/' : url);
   }
 
+  // ارجع للأعلى دائماً عند التنقل
+  window.scrollTo({ top: 0, behavior: 'instant' });
+
   if (page === 'home') {
     document.getElementById('page-home').classList.add('active');
     renderFeed();
