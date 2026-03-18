@@ -774,9 +774,28 @@ app.delete('/api/posts/:id', requireAuth, (req, res) => {
   const user = db.prepare('SELECT is_admin,is_super_admin FROM users WHERE id=?').get(req.session.userId);
   const isAdmin = user && (user.is_admin || user.is_super_admin);
   if (post.user_id !== req.session.userId && !isAdmin) return res.json({ error: 'غير مصرح' });
-  // تقييد المنشور بدل الحذف النهائي — يظهر "مقيد لحين المراجعة" للمستخدمين
+  // حذف نهائي للعضو العادي
+  db.pragma('foreign_keys = OFF');
+  try {
+    db.prepare("DELETE FROM votes WHERE target_id IN (SELECT id FROM comments WHERE post_id=?) AND target_type='comment'").run(req.params.id);
+    db.prepare('DELETE FROM comments WHERE post_id=?').run(req.params.id);
+    db.prepare("DELETE FROM votes WHERE target_id=? AND target_type='post'").run(req.params.id);
+    db.prepare('DELETE FROM posts WHERE id=?').run(req.params.id);
+    db.prepare('UPDATE users SET posts_count = MAX(0, posts_count - 1) WHERE id=?').run(post.user_id);
+  } finally {
+    db.pragma('foreign_keys = ON');
+  }
+  res.json({ success: true });
+});
+
+// تقييد منشور — سوبر أدمن فقط
+app.post('/api/posts/:id/restrict', requireSuperAdmin, (req, res) => {
+  const admin = getAdminUser(req);
+  const post = db.prepare('SELECT id,content FROM posts WHERE id=?').get(req.params.id);
+  if (!post) return res.json({ error: 'المنشور غير موجود' });
   db.prepare('UPDATE posts SET is_soft_deleted=1, soft_deleted_at=?, soft_deleted_by=? WHERE id=?')
-    .run(new Date().toISOString(), req.session.userId, req.params.id);
+    .run(new Date().toISOString(), admin.id, req.params.id);
+  logAdminAction(admin.id, admin.display_name, 'تقييد منشور', 'post', post.id, post.content.substring(0,50));
   res.json({ success: true });
 });
 
@@ -2141,6 +2160,148 @@ app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html'))
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// ── جدول طلبات الحذف ─────────────────────────────────────────────
+try { db.exec(`
+  CREATE TABLE IF NOT EXISTS delete_requests (
+    id TEXT PRIMARY KEY,
+    post_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    reviewed_by TEXT DEFAULT NULL,
+    reviewed_at DATETIME DEFAULT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (post_id) REFERENCES posts(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  )
+`); } catch(e) {}
+
+// إنشاء طلب حذف (العضو صاحب المنشور بعد ساعة)
+app.post('/api/posts/:id/delete-request', requireAuth, (req, res) => {
+  const { reason } = req.body;
+  if (!reason || reason.trim().length < 5) return res.json({ error: 'يرجى كتابة سبب واضح (5 أحرف على الأقل)' });
+  const post = db.prepare('SELECT * FROM posts WHERE id=?').get(req.params.id);
+  if (!post) return res.json({ error: 'المنشور غير موجود' });
+  if (post.user_id !== req.session.userId) return res.json({ error: 'غير مصرح' });
+
+  // تحقق مضى أكثر من ساعة
+  const ageMinutes = (Date.now() - new Date(post.created_at).getTime()) / 60000;
+  if (ageMinutes < 60) return res.json({ error: 'لا يزال بإمكانك حذف المنشور مباشرة خلال الساعة الأولى' });
+
+  // تحقق ما فيه طلب سابق
+  const existing = db.prepare('SELECT id FROM delete_requests WHERE post_id=? AND status=?').get(req.params.id, 'pending');
+  if (existing) return res.json({ error: 'طلب الحذف مُرسل مسبقاً وقيد المراجعة' });
+
+  // أنشئ الطلب وقيّد المنشور
+  const id = uuidv4();
+  db.prepare('INSERT INTO delete_requests (id,post_id,user_id,reason) VALUES (?,?,?,?)').run(id, req.params.id, req.session.userId, reason.trim());
+  db.prepare('UPDATE posts SET is_soft_deleted=1, soft_deleted_at=?, soft_deleted_by=? WHERE id=?').run(new Date().toISOString(), req.session.userId, req.params.id);
+
+  // إشعار السوبر أدمن
+  try {
+    const superAdmin = db.prepare('SELECT id FROM users WHERE is_super_admin=1 LIMIT 1').get();
+    if (superAdmin) {
+      const requester = db.prepare('SELECT display_name FROM users WHERE id=?').get(req.session.userId);
+      db.prepare('INSERT INTO notifications (id,user_id,from_user_id,type,message,link) VALUES (?,?,?,?,?,?)').run(
+        uuidv4(), superAdmin.id, req.session.userId, 'delete_request',
+        `${requester.display_name} طلب حذف منشوره — السبب: ${reason.trim().substring(0,60)}`,
+        '/admin'
+      );
+    }
+  } catch(e) {}
+
+  res.json({ success: true });
+});
+
+// جلب طلبات الحذف — سوبر أدمن فقط
+app.get('/api/admin/delete-requests', requireSuperAdmin, (req, res) => {
+  const { status } = req.query;
+  const s = status || 'pending';
+  const requests = db.prepare(`
+    SELECT dr.*, p.content, p.created_at as post_created_at,
+           u.username, u.display_name, u.avatar
+    FROM delete_requests dr
+    JOIN posts p ON dr.post_id = p.id
+    JOIN users u ON dr.user_id = u.id
+    WHERE dr.status = ?
+    ORDER BY dr.created_at DESC
+    LIMIT 50
+  `).all(s);
+  res.json({ requests: requests.map(r => ({ ...r, time_ago: formatTime(r.created_at) })) });
+});
+
+// قبول طلب الحذف — حذف نهائي
+app.post('/api/admin/delete-requests/:id/approve', requireSuperAdmin, (req, res) => {
+  const admin = getAdminUser(req);
+  const req2 = db.prepare('SELECT * FROM delete_requests WHERE id=?').get(req.params.id);
+  if (!req2) return res.json({ error: 'الطلب غير موجود' });
+  const post = db.prepare('SELECT * FROM posts WHERE id=?').get(req2.post_id);
+  if (!post) return res.json({ error: 'المنشور غير موجود' });
+
+  // حذف نهائي
+  db.pragma('foreign_keys = OFF');
+  try {
+    db.prepare("DELETE FROM votes WHERE target_id IN (SELECT id FROM comments WHERE post_id=?) AND target_type='comment'").run(post.id);
+    db.prepare('DELETE FROM comments WHERE post_id=?').run(post.id);
+    db.prepare("DELETE FROM votes WHERE target_id=? AND target_type='post'").run(post.id);
+    db.prepare('DELETE FROM posts WHERE id=?').run(post.id);
+    if (post.user_id) db.prepare('UPDATE users SET posts_count = MAX(0, posts_count - 1) WHERE id=?').run(post.user_id);
+  } finally { db.pragma('foreign_keys = ON'); }
+
+  db.prepare('UPDATE delete_requests SET status=?, reviewed_by=?, reviewed_at=? WHERE id=?')
+    .run('approved', admin.id, new Date().toISOString(), req.params.id);
+
+  // إشعار العضو
+  try {
+    db.prepare('INSERT INTO notifications (id,user_id,from_user_id,type,message,link) VALUES (?,?,?,?,?,?)').run(
+      uuidv4(), req2.user_id, admin.id, 'delete_approved', 'تمت الموافقة على طلب حذف منشورك ✅', ''
+    );
+  } catch(e) {}
+
+  logAdminAction(admin.id, admin.display_name, 'قبول طلب حذف منشور', 'post', post.id, post.content.substring(0,50));
+  res.json({ success: true });
+});
+
+// رفض طلب الحذف — استعادة المنشور
+app.post('/api/admin/delete-requests/:id/reject', requireSuperAdmin, (req, res) => {
+  const admin = getAdminUser(req);
+  const req2 = db.prepare('SELECT * FROM delete_requests WHERE id=?').get(req.params.id);
+  if (!req2) return res.json({ error: 'الطلب غير موجود' });
+
+  db.prepare('UPDATE posts SET is_soft_deleted=0, soft_deleted_at=NULL, soft_deleted_by=NULL WHERE id=?').run(req2.post_id);
+  db.prepare('UPDATE delete_requests SET status=?, reviewed_by=?, reviewed_at=? WHERE id=?')
+    .run('rejected', admin.id, new Date().toISOString(), req.params.id);
+
+  // إشعار العضو
+  try {
+    db.prepare('INSERT INTO notifications (id,user_id,from_user_id,type,message,link) VALUES (?,?,?,?,?,?)').run(
+      uuidv4(), req2.user_id, admin.id, 'delete_rejected', 'تم رفض طلب حذف منشورك — المنشور مُعاد للظهور', ''
+    );
+  } catch(e) {}
+
+  logAdminAction(admin.id, admin.display_name, 'رفض طلب حذف منشور', 'post', req2.post_id, '');
+  res.json({ success: true });
+});
+
+// ترك المنشور مقيداً (بدون حذف)
+app.post('/api/admin/delete-requests/:id/keep-restricted', requireSuperAdmin, (req, res) => {
+  const admin = getAdminUser(req);
+  const req2 = db.prepare('SELECT * FROM delete_requests WHERE id=?').get(req.params.id);
+  if (!req2) return res.json({ error: 'الطلب غير موجود' });
+
+  db.prepare('UPDATE delete_requests SET status=?, reviewed_by=?, reviewed_at=? WHERE id=?')
+    .run('restricted', admin.id, new Date().toISOString(), req.params.id);
+
+  try {
+    db.prepare('INSERT INTO notifications (id,user_id,from_user_id,type,message,link) VALUES (?,?,?,?,?,?)').run(
+      uuidv4(), req2.user_id, admin.id, 'delete_restricted', 'تقرر إبقاء منشورك مقيداً لحين المراجعة 🔒', ''
+    );
+  } catch(e) {}
+
+  logAdminAction(admin.id, admin.display_name, 'إبقاء منشور مقيداً', 'post', req2.post_id, '');
+  res.json({ success: true });
 });
 
 app.listen(PORT, () => console.log(`✅ جلسة السوق تعمل على المنفذ ${PORT}`));

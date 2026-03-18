@@ -1547,6 +1547,10 @@ function createPostCard(p, standalone = false) {
   const isOwner = currentUser && currentUser.id === p.user_id;
   const isAdmin = currentUser && currentUser.isAdmin;
   const isSuperAdminUser = currentUser && currentUser.isSuperAdmin;
+
+  // حساب عمر المنشور — خلال ساعة: حذف مباشر، بعدها: طلب حذف
+  const postAgeMinutes = p.created_at ? (Date.now() - new Date(p.created_at).getTime()) / 60000 : 999;
+  const canDirectDelete = postAgeMinutes < 60;
   const upActive = p.my_vote === 'up' ? 'active' : '';
   const downActive = p.my_vote === 'down' ? 'active' : '';
 
@@ -1581,9 +1585,14 @@ function createPostCard(p, standalone = false) {
       </div>
       <div style="display:flex;gap:6px;align-items:center">
         ${isSuperAdminUser ? `<div class="post-menu" onclick="event.stopPropagation();togglePin('${p.id}',${p.is_pinned?1:0})" title="${p.is_pinned?'إلغاء التثبيت':'تثبيت'}">${p.is_pinned?'📌':'📍'}</div>` : ''}
+        ${isSuperAdminUser && !p.is_soft_deleted ? `<div class="post-menu" onclick="event.stopPropagation();restrictPost('${p.id}')" title="تقييد المنشور">🔒</div>` : ''}
+        ${isSuperAdminUser && p.is_soft_deleted ? `<div class="post-menu" onclick="event.stopPropagation();restorePost('${p.id}')" title="استعادة المنشور" style="color:var(--green)">🔓</div>` : ''}
         ${isAdmin ? `<div class="post-menu" onclick="event.stopPropagation();adminSoftDeletePostFeed('${p.id}')" title="حذف مؤقت">🚫</div>` : ''}
         ${isSuperAdminUser ? `<div class="post-menu" style="color:var(--red)" onclick="event.stopPropagation();adminHardDeletePostFeed('${p.id}')" title="حذف نهائي">🗑️</div>` : ''}
-        ${(isOwner && !isAdmin) ? `<div class="post-menu" title="تقييد المنشور" onclick="event.stopPropagation();deletePost('${p.id}')">🔒</div>` : ''}
+        ${(isOwner && !isAdmin) ? (canDirectDelete
+          ? `<div class="post-menu" onclick="event.stopPropagation();deletePost('${p.id}')" title="حذف المنشور (متاح لمدة ساعة)">🗑️</div>`
+          : `<div class="post-menu" onclick="event.stopPropagation();openDeleteRequest('${p.id}')" title="طلب حذف المنشور">📋</div>`
+        ) : ''}
       </div>
     </div>
     ${analysisBadge}
@@ -1865,23 +1874,40 @@ function handlePostClick(event, postId) {
 }
 
 async function deletePost(postId) {
-  if (!confirm('سيتم تقييد هذا المنشور لحين مراجعته من قِبل الإدارة.\nهل تريد المتابعة؟')) return;
+  if (!confirm('هل أنت متأكد من حذف المنشور نهائياً؟')) return;
   const res = await fetch(`/api/posts/${postId}`, { method:'DELETE' });
   const data = await res.json();
   if (data.success) {
-    // استبدل بطاقة المنشور برسالة التقييد بدل الإزالة
+    document.getElementById(`post-${postId}`)?.remove();
+    toast('تم حذف المنشور', 'info');
+  } else {
+    toast(data.error || 'حدث خطأ', 'error');
+  }
+}
+
+// تقييد منشور — سوبر أدمن فقط
+async function restrictPost(postId) {
+  if (!confirm('تقييد هذا المنشور؟ سيظهر للأعضاء كـ "مقيد لحين المراجعة" ويبقى مرئياً لك في لوحة التحكم.')) return;
+  const res = await fetch(`/api/posts/${postId}/restrict`, { method:'POST' });
+  const data = await res.json();
+  if (data.success) {
     const card = document.getElementById(`post-${postId}`);
-    if (card) {
-      card.innerHTML = `
-        <div style="display:flex;align-items:center;gap:12px;padding:8px;background:var(--bg3);border-radius:var(--radius2)">
-          <span style="font-size:22px">🔒</span>
-          <div>
-            <div style="font-weight:600;font-size:14px;color:var(--text2)">هذا المنشور مقيد لحين المراجعة</div>
-            <div style="font-size:12px;color:var(--text3);margin-top:2px">سيتم مراجعته من قِبل الإدارة قريباً</div>
-          </div>
-        </div>`;
-    }
-    toast('🔒 تم تقييد المنشور لحين المراجعة', 'info');
+    if (card) card.style.opacity = '0.6';
+    toast('🔒 تم تقييد المنشور', 'info');
+    setTimeout(() => loadFeed(), 800);
+  } else {
+    toast(data.error || 'حدث خطأ', 'error');
+  }
+}
+
+// استعادة منشور مقيد — سوبر أدمن فقط
+async function restorePost(postId) {
+  if (!confirm('استعادة هذا المنشور وإظهاره للجميع؟')) return;
+  const res = await fetch(`/api/admin/posts/${postId}/restore`, { method:'POST' });
+  const data = await res.json();
+  if (data.success) {
+    toast('🔓 تم استعادة المنشور', 'success');
+    setTimeout(() => loadFeed(), 800);
   } else {
     toast(data.error || 'حدث خطأ', 'error');
   }
@@ -4003,6 +4029,7 @@ function renderAdminShell() {
     ['users','👥 الأعضاء', true],
     ['posts','📝 المنشورات', true],
     ['deleted','🗂️ المحذوفات', isSuperAdmin],
+    ['delete-requests','📋 طلبات الحذف', isSuperAdmin],
     ['comments','💬 التعليقات', true],
     ['polls','📊 الاستطلاعات', true],
     ['calendar','📅 المفكرة', true],
@@ -4035,6 +4062,7 @@ async function loadAdminTab(tab) {
   else if (tab === 'users') await renderAdminUsers(el);
   else if (tab === 'posts') await renderAdminPosts(el, 0, '', false);
   else if (tab === 'deleted') await renderAdminPosts(el, 0, '', true);
+  else if (tab === 'delete-requests') await renderAdminDeleteRequests(el);
   else if (tab === 'comments') await renderAdminComments(el);
   else if (tab === 'polls') await renderAdminPolls(el);
   else if (tab === 'calendar') await renderAdminCalendar(el);
@@ -4459,6 +4487,88 @@ async function adminAddNews(){
   if(d.error)return toast(d.error,'error');
   toast('✅ تم نشر الخبر!','success');
   ['news-title','news-summary','news-source','news-stocks'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+}
+
+// ── طلبات الحذف (سوبر أدمن فقط) ─────────────────────────────────
+async function renderAdminDeleteRequests(el, status = 'pending') {
+  const r = await fetch(`/api/admin/delete-requests?status=${status}`);
+  const d = await r.json();
+
+  const tabs = [
+    ['pending',  '⏳ قيد المراجعة'],
+    ['approved', '✅ تم الحذف'],
+    ['rejected', '🔓 تم الرفض'],
+    ['restricted','🔒 مقيد'],
+  ];
+
+  el.innerHTML = `
+    <div style="margin-bottom:16px">
+      <div style="font-weight:700;font-size:16px;margin-bottom:12px">📋 طلبات الحذف</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
+        ${tabs.map(([s,l]) => `
+          <button onclick="renderAdminDeleteRequests(document.getElementById('admin-tab-content'),'${s}')"
+            class="btn btn-sm ${status===s?'btn-primary':'btn-ghost'}">${l}</button>`).join('')}
+      </div>
+      ${d.requests.length === 0 ? `
+        <div style="text-align:center;padding:40px;color:var(--text3)">
+          <div style="font-size:32px;margin-bottom:8px">📭</div>
+          <div>لا توجد طلبات ${status==='pending'?'قيد المراجعة':''}</div>
+        </div>` :
+        d.requests.map(req => `
+          <div style="background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px">
+            <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px">
+              <div style="flex:1">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                  <span style="font-weight:600;font-size:14px">${req.display_name}</span>
+                  <span style="font-size:12px;color:var(--text3)">@${req.username}</span>
+                  <span style="font-size:11px;color:var(--text3);margin-right:auto">${req.time_ago}</span>
+                </div>
+                <div style="font-size:14px;color:var(--text2);background:var(--bg3);padding:10px 12px;border-radius:var(--radius2);margin-bottom:8px;line-height:1.6">
+                  ${req.content.substring(0, 200)}${req.content.length > 200 ? '...' : ''}
+                </div>
+                <div style="background:var(--gold-bg);border:1px solid var(--gold);border-radius:var(--radius2);padding:8px 12px;font-size:13px">
+                  <span style="font-weight:600;color:var(--gold)">📝 سبب الطلب:</span>
+                  <span style="color:var(--text);margin-right:6px">${req.reason}</span>
+                </div>
+              </div>
+            </div>
+            ${status === 'pending' ? `
+              <div style="display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:12px">
+                <button onclick="handleDeleteRequest('${req.id}','approve')"
+                  class="btn btn-sm" style="background:var(--green-bg);color:var(--green);border:1px solid var(--green)">
+                  ✅ قبول الحذف
+                </button>
+                <button onclick="handleDeleteRequest('${req.id}','reject')"
+                  class="btn btn-sm" style="background:rgba(29,78,216,.08);color:var(--primary);border:1px solid var(--primary)">
+                  🔓 رفض ورجوع المنشور
+                </button>
+                <button onclick="handleDeleteRequest('${req.id}','keep-restricted')"
+                  class="btn btn-sm" style="background:var(--red-bg);color:var(--red);border:1px solid var(--red)">
+                  🔒 إبقاؤه مقيداً
+                </button>
+              </div>` : `
+              <div style="font-size:12px;color:var(--text3);border-top:1px solid var(--border);padding-top:8px">
+                الحالة: <span style="font-weight:600">${
+                  status==='approved'?'✅ تم حذفه نهائياً':
+                  status==='rejected'?'🔓 تم رد المنشور':
+                  '🔒 لا يزال مقيداً'
+                }</span>
+              </div>`}
+          </div>`).join('')}
+    </div>`;
+}
+
+async function handleDeleteRequest(reqId, action) {
+  const labels = { approve: 'قبول الحذف النهائي', reject: 'رفض الطلب وإعادة المنشور', 'keep-restricted': 'إبقاء المنشور مقيداً' };
+  if (!confirm(`${labels[action]}؟`)) return;
+  const res = await fetch(`/api/admin/delete-requests/${reqId}/${action}`, { method: 'POST' });
+  const data = await res.json();
+  if (data.success) {
+    toast('✅ تم تنفيذ الإجراء', 'success');
+    renderAdminDeleteRequests(document.getElementById('admin-tab-content'), 'pending');
+  } else {
+    toast(data.error || 'حدث خطأ', 'error');
+  }
 }
 
 // ── سجل التحركات (سوبر أدمن فقط) ────────────────────────────────
@@ -4995,4 +5105,77 @@ async function saveChartAsImage() {
     toast('✅ تم إضافة الشارت للمنشور', 'success');
   }, 'image/png');
 }
+</script>
+
+<!-- ── modal طلب الحذف ── -->
+<div id="delete-request-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:var(--bg2);border-radius:var(--radius);padding:24px;width:90%;max-width:460px;box-shadow:var(--shadow);border:1.5px solid var(--border)">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <span style="font-size:24px">📋</span>
+      <div>
+        <div style="font-weight:700;font-size:16px">طلب حذف المنشور</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px">سيُقيَّد المنشور فوراً ريثما تتم المراجعة</div>
+      </div>
+    </div>
+    <div style="background:var(--gold-bg);border:1px solid var(--gold);border-radius:var(--radius2);padding:10px 14px;margin-bottom:16px;font-size:13px;color:var(--gold)">
+      ⚠️ انتهت مدة الحذف المباشر (ساعة واحدة). سيراجع الفريق طلبك ويتخذ القرار المناسب.
+    </div>
+    <label style="font-size:13px;font-weight:600;color:var(--text2);display:block;margin-bottom:6px">سبب طلب الحذف <span style="color:var(--red)">*</span></label>
+    <textarea id="delete-request-reason" placeholder="اكتب سبب طلب الحذف بوضوح..." style="width:100%;min-height:100px;padding:10px 14px;background:var(--bg3);border:1.5px solid var(--border2);border-radius:var(--radius2);color:var(--text);font-family:inherit;font-size:14px;resize:none;outline:none;line-height:1.7"></textarea>
+    <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
+      <button onclick="closeDeleteRequest()" style="padding:8px 18px;border-radius:var(--radius2);border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:inherit;font-size:14px;cursor:pointer">إلغاء</button>
+      <button onclick="submitDeleteRequest()" style="padding:8px 18px;border-radius:var(--radius2);border:none;background:var(--red);color:#fff;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer">📋 إرسال الطلب</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let _deleteRequestPostId = null;
+
+function openDeleteRequest(postId) {
+  _deleteRequestPostId = postId;
+  document.getElementById('delete-request-reason').value = '';
+  const modal = document.getElementById('delete-request-modal');
+  modal.style.display = 'flex';
+}
+
+function closeDeleteRequest() {
+  document.getElementById('delete-request-modal').style.display = 'none';
+  _deleteRequestPostId = null;
+}
+
+async function submitDeleteRequest() {
+  const reason = document.getElementById('delete-request-reason').value.trim();
+  if (!reason || reason.length < 5) { toast('يرجى كتابة سبب واضح', 'error'); return; }
+  if (!_deleteRequestPostId) return;
+  const res = await fetch(`/api/posts/${_deleteRequestPostId}/delete-request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason })
+  });
+  const data = await res.json();
+  if (data.success) {
+    closeDeleteRequest();
+    // استبدل بطاقة المنشور برسالة التقييد
+    const card = document.getElementById(`post-${_deleteRequestPostId}`);
+    if (card) {
+      card.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg3);border-radius:var(--radius2)">
+          <span style="font-size:22px">🔒</span>
+          <div>
+            <div style="font-weight:600;font-size:14px;color:var(--text2)">هذا المنشور مقيد لحين المراجعة</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:2px">تم إرسال طلب الحذف — سيراجعه الفريق قريباً</div>
+          </div>
+        </div>`;
+    }
+    toast('📋 تم إرسال طلب الحذف بنجاح', 'success');
+  } else {
+    toast(data.error || 'حدث خطأ', 'error');
+  }
+}
+
+// إغلاق الـ modal عند الضغط خارجه
+document.getElementById('delete-request-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeDeleteRequest();
+});
 </script>
