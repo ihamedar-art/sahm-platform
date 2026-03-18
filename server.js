@@ -1848,7 +1848,8 @@ app.post('/api/admin/news', requireAdmin, async (req, res) => {
 });
 
 app.get('/api/posts/:id', (req, res) => {
-  const post = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
+  const post = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified,
+    (strftime('%s','now') - strftime('%s', p.created_at)) < 3600 as can_direct_delete
     FROM posts p JOIN users u ON p.user_id = u.id WHERE p.id = ?`).get(req.params.id);
   if (!post) return res.status(404).json({ error: 'المنشور غير موجود' });
   let myVote = null;
@@ -1856,7 +1857,7 @@ app.get('/api/posts/:id', (req, res) => {
     const v = db.prepare(`SELECT vote_type FROM votes WHERE user_id=? AND target_id=? AND target_type='post'`).get(req.session.userId, post.id);
     myVote = v ? v.vote_type : null;
   }
-  res.json({ post: { ...post, time_ago: formatTime(post.created_at), level_name: getLevelName(post.level), my_vote: myVote } });
+  res.json({ post: { ...post, can_direct_delete: post.can_direct_delete == 1, time_ago: formatTime(post.created_at), level_name: getLevelName(post.level), my_vote: myVote } });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
