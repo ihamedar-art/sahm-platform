@@ -799,6 +799,43 @@ body {
   color: var(--text); font-family: inherit; font-size: 13px; outline: none;
 }
 
+/* ── Chart Drawer ── */
+.chart-drawer-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.7);
+  z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.chart-drawer {
+  background: var(--bg2); border-radius: var(--radius); width: 100%; max-width: 900px;
+  max-height: 95vh; display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,.4);
+}
+.chart-drawer-header {
+  display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+  border-bottom: 1px solid var(--border); background: var(--bg3); flex-shrink: 0;
+}
+.chart-toolbar {
+  display: flex; align-items: center; gap: 6px; padding: 8px 12px;
+  border-bottom: 1px solid var(--border); background: var(--bg3);
+  flex-wrap: wrap; flex-shrink: 0;
+}
+.chart-tool-btn {
+  padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg2); cursor: pointer; font-size: 13px; font-family: inherit;
+  transition: all .15s; color: var(--text2);
+}
+.chart-tool-btn:hover, .chart-tool-btn.active {
+  background: var(--primary); color: #fff; border-color: var(--primary);
+}
+.chart-canvas-wrap {
+  flex: 1; overflow: hidden; position: relative; min-height: 0;
+  background: #fff; cursor: crosshair;
+}
+#chart-canvas { display: block; }
+.chart-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; border-top: 1px solid var(--border); background: var(--bg3); flex-shrink: 0;
+}
+
 </style>
 </head>
 <body>
@@ -1247,6 +1284,7 @@ function renderComposeArea() {
           <label class="btn btn-ghost btn-sm" style="cursor:pointer">
             🖼️ صورة <input type="file" id="post-image" accept="image/*" style="display:none" onchange="previewImage(this)">
           </label>
+          <button class="btn btn-ghost btn-sm" onclick="openChartDrawer()">📊 رسم شارت</button>
           <select class="compose-type-select" id="post-type" onchange="toggleAnalysisFields(this.value)">
             <option value="opinion">💬 رأي</option>
             <option value="analysis">📊 تحليل فني</option>
@@ -4483,5 +4521,290 @@ async function adminDeleteEvent(id) {
   if (d.error) return toast(d.error, 'error');
   toast('تم الحذف', 'info');
   renderAdminCalendar(document.getElementById('admin-tab-content'));
+}
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// CHART DRAWER — شارت Canvas قابل للرسم
+// ══════════════════════════════════════════════════════════════════
+let chartDrawerOpen = false;
+let chartCandles = [];
+let chartTool = 'line';
+let chartColor = '#1D4ED8';
+let chartLineWidth = 2;
+let chartDrawings = [];
+let chartIsDrawing = false;
+let chartStartX, chartStartY;
+
+function openChartDrawer() {
+  if (document.getElementById('chart-drawer-overlay')) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'chart-drawer-overlay';
+  overlay.id = 'chart-drawer-overlay';
+  overlay.innerHTML = `
+    <div class="chart-drawer">
+      <div class="chart-drawer-header">
+        <span style="font-size:15px;font-weight:700">📊 رسم شارت تقني</span>
+        <div style="display:flex;gap:8px;margin-right:auto;align-items:center;flex-wrap:wrap">
+          <select id="cd-exchange" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);font-family:inherit;font-size:13px;background:var(--bg2)">
+            <option value="SR">تداول 🇸🇦</option>
+            <option value="">رمز مباشر</option>
+            <option value="US">أمريكي</option>
+          </select>
+          <input id="cd-symbol" placeholder="رمز السهم — مثال: 2222" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border);font-family:inherit;font-size:13px;background:var(--bg2);width:150px" onkeydown="if(event.key==='Enter')loadChartData()">
+          <button class="btn btn-primary btn-sm" onclick="loadChartData()">📥 تحميل</button>
+          <button class="btn btn-ghost btn-sm" onclick="closeChartDrawer()">✕</button>
+        </div>
+      </div>
+      <div class="chart-toolbar">
+        <button class="chart-tool-btn active" id="tool-line" onclick="setChartTool('line')">╱ خط</button>
+        <button class="chart-tool-btn" id="tool-hline" onclick="setChartTool('hline')">― أفقي</button>
+        <button class="chart-tool-btn" id="tool-rect" onclick="setChartTool('rect')">▭ مستطيل</button>
+        <button class="chart-tool-btn" id="tool-arrow" onclick="setChartTool('arrow')">➜ سهم</button>
+        <button class="chart-tool-btn" id="tool-text" onclick="setChartTool('text')">T نص</button>
+        <div style="width:1px;height:24px;background:var(--border);margin:0 4px"></div>
+        <input type="color" id="cd-color" value="#1D4ED8" onchange="chartColor=this.value" style="width:32px;height:28px;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:2px">
+        <select id="cd-width" onchange="chartLineWidth=parseInt(this.value)" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-family:inherit;font-size:13px;background:var(--bg2)">
+          <option value="1">رفيع</option>
+          <option value="2" selected>عادي</option>
+          <option value="3">سميك</option>
+          <option value="5">غليظ</option>
+        </select>
+        <div style="width:1px;height:24px;background:var(--border);margin:0 4px"></div>
+        <button class="chart-tool-btn" onclick="undoLastDrawing()">↩ تراجع</button>
+        <button class="chart-tool-btn" onclick="clearAllDrawings()">🗑 مسح</button>
+        <span id="cd-status" style="font-size:12px;color:var(--text3);margin-right:auto;padding-right:8px"></span>
+      </div>
+      <div class="chart-canvas-wrap" id="chart-canvas-wrap">
+        <canvas id="chart-canvas"></canvas>
+      </div>
+      <div class="chart-footer">
+        <span style="font-size:12px;color:var(--text3)">ارسم على الشارت ثم احفظه في المنشور</span>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="closeChartDrawer()">إلغاء</button>
+          <button class="btn btn-primary btn-sm" onclick="saveChartAsImage()">💾 إضافة للمنشور</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(initChartCanvas, 50);
+}
+
+function closeChartDrawer() {
+  document.getElementById('chart-drawer-overlay')?.remove();
+  chartDrawings = [];
+  chartCandles = [];
+}
+
+function setChartTool(tool) {
+  chartTool = tool;
+  document.querySelectorAll('.chart-tool-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tool-' + tool)?.classList.add('active');
+}
+
+function initChartCanvas() {
+  const wrap = document.getElementById('chart-canvas-wrap');
+  const canvas = document.getElementById('chart-canvas');
+  if (!canvas || !wrap) return;
+  canvas.width = wrap.clientWidth;
+  canvas.height = Math.max(360, wrap.clientHeight);
+  drawChart();
+  canvas.addEventListener('mousedown', onChartMouseDown);
+  canvas.addEventListener('mousemove', onChartMouseMove);
+  canvas.addEventListener('mouseup', onChartMouseUp);
+  canvas.addEventListener('mouseleave', onChartMouseUp);
+}
+
+async function loadChartData() {
+  const symbolInput = document.getElementById('cd-symbol')?.value.trim();
+  const exchange = document.getElementById('cd-exchange')?.value;
+  if (!symbolInput) { toast('أدخل رمز السهم', 'error'); return; }
+  let yahooSymbol = symbolInput;
+  if (exchange === 'SR') yahooSymbol = `${symbolInput}.SR`;
+  document.getElementById('cd-status').textContent = '⏳ جاري التحميل...';
+  try {
+    const r = await fetch(`/api/stock-chart/${encodeURIComponent(yahooSymbol)}`);
+    const d = await r.json();
+    if (d.error) { toast(d.error, 'error'); document.getElementById('cd-status').textContent = '❌ ' + d.error; return; }
+    chartCandles = d.candles;
+    chartDrawings = [];
+    document.getElementById('cd-status').textContent = `✅ ${d.name || yahooSymbol} — ${d.candles.length} شمعة`;
+    drawChart();
+  } catch(e) {
+    toast('خطأ في التحميل', 'error');
+    document.getElementById('cd-status').textContent = '❌ خطأ في الاتصال';
+  }
+}
+
+function drawChart() {
+  const canvas = document.getElementById('chart-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const PAD = { top: 20, right: 65, bottom: 30, left: 10 };
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  if (!chartCandles.length) {
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '15px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('أدخل رمز السهم واضغط تحميل 📥', W/2, H/2);
+    return;
+  }
+
+  const candles = chartCandles;
+  const n = candles.length;
+  const prices = candles.flatMap(c => [c.high, c.low]).filter(Boolean);
+  const minP = Math.min(...prices), maxP = Math.max(...prices);
+  const padP = (maxP - minP) * 0.06;
+  const pMin = minP - padP, pMax = maxP + padP;
+
+  const chartW = W - PAD.left - PAD.right;
+  const chartH = H - PAD.top - PAD.bottom;
+  const gap = chartW / n;
+  const candleW = Math.max(1, gap * 0.7);
+
+  const px = p => PAD.top + chartH - ((p - pMin) / (pMax - pMin)) * chartH;
+  const cx = i => PAD.left + i * gap + gap / 2;
+
+  // شبكة أفقية
+  ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 5; i++) {
+    const y = PAD.top + (chartH / 5) * i;
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+    const price = pMax - ((pMax - pMin) / 5) * i;
+    ctx.fillStyle = '#94a3b8'; ctx.font = '11px Arial'; ctx.textAlign = 'left';
+    ctx.fillText(price.toFixed(2), W - PAD.right + 4, y + 4);
+  }
+
+  // شمعات
+  candles.forEach((c, i) => {
+    if (!c.open || !c.close) return;
+    const x = cx(i);
+    const isUp = c.close >= c.open;
+    const color = isUp ? '#059669' : '#dc2626';
+    ctx.strokeStyle = color; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, px(c.high)); ctx.lineTo(x, px(c.low)); ctx.stroke();
+    const bodyTop = Math.min(px(c.open), px(c.close));
+    const bodyH = Math.max(1, Math.abs(px(c.close) - px(c.open)));
+    ctx.fillStyle = color;
+    ctx.fillRect(x - candleW/2, bodyTop, candleW, bodyH);
+  });
+
+  // تواريخ
+  ctx.fillStyle = '#94a3b8'; ctx.font = '10px Arial'; ctx.textAlign = 'center';
+  const step = Math.max(1, Math.floor(n / 8));
+  candles.forEach((c, i) => {
+    if (i % step === 0) {
+      const d = new Date(c.time);
+      ctx.fillText(`${d.getDate()}/${d.getMonth()+1}`, cx(i), H - 8);
+    }
+  });
+
+  // رسومات
+  chartDrawings.forEach(d => renderDrawing(ctx, d, pMin, pMax, W, H, PAD));
+}
+
+function renderDrawing(ctx, d, pMin, pMax, W, H, PAD) {
+  ctx.strokeStyle = d.color; ctx.lineWidth = d.width; ctx.fillStyle = d.color;
+  if (d.type === 'line') {
+    ctx.beginPath(); ctx.moveTo(d.x1, d.y1); ctx.lineTo(d.x2, d.y2); ctx.stroke();
+  } else if (d.type === 'arrow') {
+    ctx.beginPath(); ctx.moveTo(d.x1, d.y1); ctx.lineTo(d.x2, d.y2); ctx.stroke();
+    const angle = Math.atan2(d.y2 - d.y1, d.x2 - d.x1);
+    ctx.beginPath();
+    ctx.moveTo(d.x2, d.y2);
+    ctx.lineTo(d.x2 - 14 * Math.cos(angle - 0.4), d.y2 - 14 * Math.sin(angle - 0.4));
+    ctx.lineTo(d.x2 - 14 * Math.cos(angle + 0.4), d.y2 - 14 * Math.sin(angle + 0.4));
+    ctx.closePath(); ctx.fill();
+  } else if (d.type === 'hline') {
+    ctx.setLineDash([6, 3]);
+    ctx.beginPath(); ctx.moveTo(PAD.left, d.y1); ctx.lineTo(W - PAD.right, d.y1); ctx.stroke();
+    ctx.setLineDash([]);
+    const price = pMin + ((H - PAD.bottom - d.y1) / (H - PAD.top - PAD.bottom)) * (pMax - pMin);
+    ctx.font = '11px Arial'; ctx.textAlign = 'left'; ctx.fillStyle = d.color;
+    ctx.fillText(price.toFixed(2), W - PAD.right + 4, d.y1 + 4);
+  } else if (d.type === 'rect') {
+    ctx.globalAlpha = 0.12;
+    ctx.fillRect(d.x1, d.y1, d.x2 - d.x1, d.y2 - d.y1);
+    ctx.globalAlpha = 1;
+    ctx.strokeRect(d.x1, d.y1, d.x2 - d.x1, d.y2 - d.y1);
+  } else if (d.type === 'text') {
+    ctx.font = `bold ${12 + d.width * 2}px IBM Plex Sans Arabic, Arial`;
+    ctx.textAlign = 'right'; ctx.fillStyle = d.color;
+    ctx.fillText(d.text, d.x1, d.y1);
+  }
+}
+
+function onChartMouseDown(e) {
+  const canvas = document.getElementById('chart-canvas');
+  const rect = canvas.getBoundingClientRect();
+  chartStartX = e.clientX - rect.left;
+  chartStartY = e.clientY - rect.top;
+  if (chartTool === 'text') {
+    const text = prompt('أدخل النص:');
+    if (text) {
+      chartDrawings.push({ type: 'text', x1: chartStartX, y1: chartStartY, text, color: chartColor, width: chartLineWidth });
+      drawChart();
+    }
+    return;
+  }
+  chartIsDrawing = true;
+}
+
+function onChartMouseMove(e) {
+  if (!chartIsDrawing) return;
+  const canvas = document.getElementById('chart-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  drawChart();
+  const ctx = canvas.getContext('2d');
+  ctx.strokeStyle = chartColor; ctx.lineWidth = chartLineWidth; ctx.fillStyle = chartColor;
+  if (chartTool === 'line' || chartTool === 'arrow') {
+    ctx.beginPath(); ctx.moveTo(chartStartX, chartStartY); ctx.lineTo(x, y); ctx.stroke();
+  } else if (chartTool === 'hline') {
+    ctx.setLineDash([6, 3]);
+    ctx.beginPath(); ctx.moveTo(0, chartStartY); ctx.lineTo(canvas.width, chartStartY); ctx.stroke();
+    ctx.setLineDash([]);
+  } else if (chartTool === 'rect') {
+    ctx.globalAlpha = 0.12;
+    ctx.fillRect(chartStartX, chartStartY, x - chartStartX, y - chartStartY);
+    ctx.globalAlpha = 1;
+    ctx.strokeRect(chartStartX, chartStartY, x - chartStartX, y - chartStartY);
+  }
+}
+
+function onChartMouseUp(e) {
+  if (!chartIsDrawing) return;
+  chartIsDrawing = false;
+  const canvas = document.getElementById('chart-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  chartDrawings.push({ type: chartTool, x1: chartStartX, y1: chartStartY, x2: x, y2: y, color: chartColor, width: chartLineWidth });
+  drawChart();
+}
+
+function undoLastDrawing() { chartDrawings.pop(); drawChart(); }
+function clearAllDrawings() { chartDrawings = []; drawChart(); }
+
+async function saveChartAsImage() {
+  const canvas = document.getElementById('chart-canvas');
+  if (!canvas) return;
+  canvas.toBlob(async (blob) => {
+    if (!blob) { toast('خطأ في حفظ الصورة', 'error'); return; }
+    const symbol = document.getElementById('cd-symbol')?.value || 'chart';
+    const file = new File([blob], `chart-${symbol}.png`, { type: 'image/png' });
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    const input = document.getElementById('post-image');
+    if (input) { input.files = dt.files; previewImage(input); }
+    closeChartDrawer();
+    toast('✅ تم إضافة الشارت للمنشور', 'success');
+  }, 'image/png');
 }
 </script>

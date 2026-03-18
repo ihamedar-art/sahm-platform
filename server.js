@@ -286,7 +286,61 @@ app.get('/api/me', (req, res) => {
   res.json({ user: safe });
 });
 
-// ── مفكرة السوق ──────────────────────────────────────────────────────────────
+// ── بيانات الأسهم من Yahoo Finance ───────────────────────────────────────────
+const https = require('https');
+
+function fetchYahooData(symbol) {
+  return new Promise((resolve, reject) => {
+    // تداول السعودي يحتاج .SR في النهاية
+    const yahooSymbol = symbol.match(/^\d+$/) ? `${symbol}.SR` : symbol;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?interval=1d&range=3mo`;
+    const options = {
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        'Accept': 'application/json'
+      }
+    };
+    https.get(url, options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch(e) { reject(e); }
+      });
+    }).on('error', reject);
+  });
+}
+
+app.get('/api/stock-chart/:symbol', async (req, res) => {
+  try {
+    const data = await fetchYahooData(req.params.symbol);
+    const chart = data?.chart?.result?.[0];
+    if (!chart) return res.json({ error: 'السهم غير موجود' });
+
+    const timestamps = chart.timestamp;
+    const quote = chart.indicators.quote[0];
+    const candles = timestamps.map((t, i) => ({
+      time: t * 1000,
+      open:  quote.open[i],
+      high:  quote.high[i],
+      low:   quote.low[i],
+      close: quote.close[i],
+      volume: quote.volume[i]
+    })).filter(c => c.open && c.high && c.low && c.close);
+
+    const meta = chart.meta;
+    res.json({
+      symbol: meta.symbol,
+      currency: meta.currency,
+      name: meta.longName || meta.symbol,
+      candles
+    });
+  } catch(e) {
+    res.json({ error: 'خطأ في جلب البيانات: ' + e.message });
+  }
+});
+
+
 db.exec(`CREATE TABLE IF NOT EXISTS market_events (
   id TEXT PRIMARY KEY,
   event_date TEXT NOT NULL,
