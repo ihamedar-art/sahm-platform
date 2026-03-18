@@ -2479,15 +2479,14 @@ async function loadTrendingStocks() {
   const res = await fetch('/api/stocks/popular');
   const data = await res.json();
   const periodLabel = data.period === '24h' ? 'آخر 24 ساعة' : data.period === '7d' ? 'آخر 7 أيام' : '';
-  const titleEl = document.querySelector('.panel-title');
-
-  // تحديث عنوان البانل بالفترة الزمنية
   const trendingTitle = document.getElementById('trending-title');
   if (trendingTitle && periodLabel) trendingTitle.textContent = `📊 أكثر الأسهم نقاشاً · ${periodLabel}`;
 
-  document.getElementById('trending-stocks').innerHTML = data.stocks.slice(0,8).map((s,i) => `
+  // عرض القائمة أولاً بدون أسعار
+  const container = document.getElementById('trending-stocks');
+  container.innerHTML = data.stocks.slice(0,8).map((s,i) => `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer"
-      onclick="navigate('stock','${s.symbol}')">
+      onclick="navigate('stock','${s.symbol}')" id="trending-item-${s.symbol.replace('$','')}">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:12px;color:var(--text3);width:16px">${i+1}</span>
         <div>
@@ -2495,8 +2494,30 @@ async function loadTrendingStocks() {
           <div style="font-size:12px;color:var(--text3)">${s.name}</div>
         </div>
       </div>
-      <div style="font-size:11px;color:var(--text3)">${s.post_count ? s.post_count + ' منشور' : s.sector}</div>
+      <div id="trending-price-${s.symbol.replace('$','')}" style="text-align:left">
+        <div style="width:40px;height:8px;background:var(--bg3);border-radius:4px;animation:pulse 1s infinite"></div>
+      </div>
     </div>`).join('');
+
+  // جلب الأسعار بالتوازي
+  const pricePromises = data.stocks.slice(0,8).map(s =>
+    fetch(`/api/stock-price/${s.symbol.replace('$','')}`)
+      .then(r => r.json())
+      .catch(() => null)
+  );
+  const prices = await Promise.all(pricePromises);
+
+  // تحديث الأسعار في القائمة
+  prices.forEach((p, i) => {
+    const sym = data.stocks[i]?.symbol.replace('$','');
+    const el = document.getElementById(`trending-price-${sym}`);
+    if (!el || !p || p.error) return;
+    const color = p.isUp ? 'var(--green)' : 'var(--red)';
+    const arrow = p.isUp ? '▲' : '▼';
+    el.innerHTML = `
+      <div style="font-size:13px;font-weight:700;color:var(--text)">${p.price}</div>
+      <div style="font-size:11px;color:${color}">${arrow} ${Math.abs(p.changePct)}%</div>`;
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════
