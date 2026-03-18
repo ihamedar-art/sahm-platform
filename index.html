@@ -1483,6 +1483,27 @@ async function vote(postId, type) {
       upBtn.classList.remove('active');
     }
   }
+
+  // في صفحة المنشور المفرد — تحديث الأرقام من السيرفر مباشرة
+  if (!upEl || !downEl) {
+    try {
+      const r2 = await fetch('/api/posts/' + postId);
+      const d2 = await r2.json();
+      if (d2.post) {
+        const upEl2 = document.getElementById(`upvotes-${postId}`);
+        const downEl2 = document.getElementById(`downvotes-${postId}`);
+        const upBtn2 = document.getElementById(`up-${postId}`);
+        const downBtn2 = document.getElementById(`down-${postId}`);
+        if (upEl2) upEl2.textContent = d2.post.upvotes;
+        if (downEl2) downEl2.textContent = d2.post.downvotes;
+        if (upBtn2 && downBtn2) {
+          if (data.action === 'removed') { upBtn2.classList.remove('active'); downBtn2.classList.remove('active'); }
+          else if (type === 'up') { upBtn2.classList.add('active'); downBtn2.classList.remove('active'); }
+          else { downBtn2.classList.add('active'); upBtn2.classList.remove('active'); }
+        }
+      }
+    } catch(e) {}
+  }
 }
 
 const commentsCache = {};
