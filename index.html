@@ -272,7 +272,20 @@ body {
 }
 .author-name:hover { color: var(--primary); text-decoration: underline; }
 .author-handle { color: var(--text3); font-size: 13px; }
-.verified-badge { color: var(--primary); font-size: 14px; }
+.verified-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: linear-gradient(135deg, #D97706, #F59E0B);
+  color: #fff; font-size: 11px; font-weight: 700;
+  box-shadow: 0 1px 4px rgba(217,119,6,.4);
+}
+.verified-badge-lg {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: linear-gradient(135deg, #D97706, #F59E0B);
+  color: #fff; font-size: 14px; font-weight: 700;
+  box-shadow: 0 2px 8px rgba(217,119,6,.4);
+}
 .level-badge {
   font-size: 11px; padding: 2px 7px; border-radius: 10px;
   background: var(--bg3); color: var(--text2); border: 1px solid var(--border2);
@@ -1912,8 +1925,8 @@ async function loadProfile(username) {
       <div class="profile-cover"></div>
       <div class="profile-avatar-wrap">
         <div class="avatar profile-avatar">${u.avatar ? `<img src="${u.avatar}">` : u.display_name[0]}</div>
-        <div class="profile-name">${u.display_name} ${u.is_verified ? '<span class="verified-badge">✓</span>' : ''}</div>
-        <div class="profile-handle">@${u.username} · <span style="color:var(--primary)">${u.level_name}</span></div>
+        <div class="profile-name">${u.display_name} ${u.is_verified ? '<span class="verified-badge-lg" title="موثّق">✓</span>' : ''}</div>
+        <div class="profile-handle">@${u.username}</div>
         ${u.bio ? `<div class="profile-bio">${u.bio}</div>` : ''}
         <div class="profile-stats">
           <div class="stat-item"><div class="stat-num">${u.posts_count}</div><div class="stat-label">منشور</div></div>
