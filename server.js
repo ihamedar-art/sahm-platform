@@ -340,7 +340,7 @@ app.delete('/api/admin/market-events/:id', requireAdmin, (req, res) => {
 
 // ── Posts ────────────────────────────────────────────────────────────────────
 app.post('/api/posts', requireAuth, upload.single('image'), async (req, res) => {
-  const { content, post_type, target_price, stop_loss, direction, timeframe } = req.body;
+  const { content, post_type, target_price, stop_loss, direction, timeframe, chart_symbol, chart_exchange } = req.body;
   if (!content || content.trim().length < 3) return res.json({ error: 'المحتوى قصير جداً' });
   if (content.length > 2000) return res.json({ error: 'المحتوى طويل جداً (الحد 2000 حرف)' });
 
@@ -368,10 +368,10 @@ app.post('/api/posts', requireAuth, upload.single('image'), async (req, res) => 
   const symbols = extractSymbols(content);
 
   db.exec('PRAGMA foreign_keys = OFF');
-  db.prepare(`INSERT INTO posts (id,user_id,content,image,stock_symbols,post_type,target_price,stop_loss,direction,timeframe)
-    VALUES (?,?,?,?,?,?,?,?,?,?)`).run(id, userId, content.trim(), image, symbols,
+  db.prepare(`INSERT INTO posts (id,user_id,content,image,stock_symbols,post_type,target_price,stop_loss,direction,timeframe,chart_symbol,chart_exchange)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, userId, content.trim(), image, symbols,
     post_type || 'opinion', parseFloat(target_price)||0, parseFloat(stop_loss)||0,
-    direction||'', timeframe||'');
+    direction||'', timeframe||'', chart_symbol||'', chart_exchange||'TADAWUL');
   db.exec('PRAGMA foreign_keys = ON');
 
   db.prepare('UPDATE users SET posts_count = posts_count + 1 WHERE id = ?').run(userId);
@@ -1517,6 +1517,10 @@ db.exec(`
     PRIMARY KEY (room_id, user_id)
   );
 `);
+
+// إضافة عمود chart_symbol للمنشورات
+try { db.exec(`ALTER TABLE posts ADD COLUMN chart_symbol TEXT DEFAULT ''`); } catch(e) {}
+try { db.exec(`ALTER TABLE posts ADD COLUMN chart_exchange TEXT DEFAULT 'TADAWUL'`); } catch(e) {}
 
 // إضافة عمود permanently_closed إذا ما كان موجوداً (migration آمن)
 try { db.exec(`ALTER TABLE voice_rooms ADD COLUMN permanently_closed INTEGER DEFAULT 0`); } catch(e) {}

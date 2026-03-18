@@ -612,6 +612,9 @@ body {
 }
 .new-posts-btn button:hover { background: var(--primary2); transform: translateY(-1px); }
 
+.post-chart-wrap { margin: 10px 0; border-radius: var(--radius2); overflow: hidden; }
+.post-chart-mini { border-radius: var(--radius2); overflow: hidden; }
+
 /* ── Single Post Page ── */
 .single-post-page { max-width: 100%; }
 .single-post-back {
@@ -1217,6 +1220,26 @@ function renderComposeArea() {
           <option value="month">شهري</option>
           <option value="quarter">ربع سنوي</option>
         </select>
+        <!-- حقل الشارت -->
+        <div style="margin-top:10px;padding:12px;background:var(--bg3);border-radius:var(--radius2);border:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:8px">📊 إضافة شارت (اختياري)</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="chart-exchange" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:inherit;font-size:13px">
+              <option value="TADAWUL">تداول 🇸🇦</option>
+              <option value="BIST">بورصة إسطنبول 🇹🇷</option>
+              <option value="DFM">دبي 🇦🇪</option>
+              <option value="NASDAQ">ناسداك 🇺🇸</option>
+              <option value="NYSE">نيويورك 🇺🇸</option>
+              <option value="LSE">لندن 🇬🇧</option>
+              <option value="CRYPTO">كريبتو ₿</option>
+            </select>
+            <input id="chart-symbol" style="padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:inherit;font-size:13px;flex:1;min-width:120px" placeholder="رمز السهم — مثال: 2222" oninput="previewChart(this.value)">
+            <button class="btn btn-ghost btn-sm" onclick="clearChart()">✕ حذف</button>
+          </div>
+          <div id="chart-preview-mini" style="margin-top:8px;display:none">
+            <div style="font-size:12px;color:var(--green);margin-bottom:4px">✅ سيظهر شارت <span id="chart-preview-label"></span></div>
+          </div>
+        </div>
       </div>
       <div class="compose-footer">
         <div class="compose-actions">
@@ -1266,6 +1289,25 @@ function previewImage(input) {
       <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="clearImage()">حذف الصورة</button>`;
   }
 }
+function previewChart(symbol) {
+  const preview = document.getElementById('chart-preview-mini');
+  const label = document.getElementById('chart-preview-label');
+  if (symbol && symbol.trim()) {
+    const exchange = document.getElementById('chart-exchange')?.value || 'TADAWUL';
+    preview.style.display = 'block';
+    label.textContent = `${exchange}:${symbol.trim().toUpperCase()}`;
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
+function clearChart() {
+  const sym = document.getElementById('chart-symbol');
+  if (sym) sym.value = '';
+  const preview = document.getElementById('chart-preview-mini');
+  if (preview) preview.style.display = 'none';
+}
+
 function clearImage() {
   document.getElementById('post-image').value = '';
   document.getElementById('image-preview').innerHTML = '';
@@ -1294,6 +1336,8 @@ async function submitPost() {
   if (document.getElementById('target-price')) formData.append('target_price', document.getElementById('target-price').value || 0);
   if (document.getElementById('stop-loss')) formData.append('stop_loss', document.getElementById('stop-loss').value || 0);
   if (document.getElementById('timeframe-select')) formData.append('timeframe', document.getElementById('timeframe-select').value);
+  if (document.getElementById('chart-symbol')) formData.append('chart_symbol', document.getElementById('chart-symbol').value.trim().toUpperCase());
+  if (document.getElementById('chart-exchange')) formData.append('chart_exchange', document.getElementById('chart-exchange').value);
 
   const btn = event.target;
   btn.disabled = true;
@@ -1310,6 +1354,7 @@ async function submitPost() {
     if (!data.success) { toast('فشل النشر: ' + JSON.stringify(data), 'error'); return; }
     document.getElementById('compose-text').value = '';
     clearImage();
+    clearChart();
     document.getElementById('char-count').textContent = '0 / 2000';
     selectedDirection = '';
     document.querySelectorAll('.dir-btn').forEach(b => b.classList.remove('active'));
@@ -1447,6 +1492,19 @@ function createPostCard(p, standalone = false) {
     <div class="post-content">${contentHtml}</div>
     ${targetsHtml}
     ${p.image ? `<img src="${p.image}" class="post-image" onclick="event.stopPropagation();openImage('${p.image}')" alt="تحليل">` : ''}
+    ${p.chart_symbol ? `
+      <div class="post-chart-wrap" id="chart-wrap-${p.id}" onclick="event.stopPropagation()">
+        <div class="post-chart-mini" id="chart-mini-${p.id}">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg3);border-radius:var(--radius2) var(--radius2) 0 0;border:1px solid var(--border);border-bottom:none">
+            <span style="font-size:13px;font-weight:700;color:var(--primary)">📊 ${p.chart_exchange||'TADAWUL'}:${p.chart_symbol}</span>
+            <button class="btn btn-ghost btn-sm" onclick="expandChart('${p.id}','${p.chart_symbol}','${p.chart_exchange||'TADAWUL'}')">⛶ توسيع</button>
+          </div>
+          <div style="height:220px;border:1px solid var(--border);border-radius:0 0 var(--radius2) var(--radius2);overflow:hidden">
+            <iframe src="https://www.tradingview.com/widgetembed/?symbol=${p.chart_exchange||'TADAWUL'}%3A${p.chart_symbol}&interval=D&theme=light&style=1&locale=ar&toolbar_bg=%23f1f3f6&hide_top_toolbar=1&hide_legend=1&save_image=0&studies=[]&utm_source=brzan.com"
+              style="width:100%;height:100%;border:none" loading="lazy" allowtransparency="true" scrolling="no"></iframe>
+          </div>
+        </div>
+      </div>` : ''}
     <div class="post-actions" onclick="event.stopPropagation()">
       <button class="action-btn upvote ${upActive}" id="up-${p.id}" onclick="event.stopPropagation();event.preventDefault();vote('${p.id}','up');return false;">
         👍 <span id="upvotes-${p.id}">${p.upvotes}</span>
@@ -1760,6 +1818,27 @@ async function adminHardDeletePostFeed(postId) {
 function sharePost(postId) {
   const url = `${window.location.origin}/post/${postId}`;
   navigator.clipboard?.writeText(url).then(() => toast('تم نسخ الرابط 📋', 'success'));
+}
+
+function expandChart(postId, symbol, exchange) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `
+    <div style="width:100%;max-width:900px;background:var(--bg2);border-radius:var(--radius);overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg3);border-bottom:1px solid var(--border)">
+        <span style="font-size:15px;font-weight:700;color:var(--primary)">📊 ${exchange}:${symbol}</span>
+        <div style="display:flex;gap:8px">
+          <a href="https://www.tradingview.com/chart/?symbol=${exchange}:${symbol}" target="_blank" class="btn btn-ghost btn-sm">فتح في TradingView ↗</a>
+          <button class="btn btn-ghost btn-sm" onclick="this.closest('div[style*=fixed]').remove()">✕ إغلاق</button>
+        </div>
+      </div>
+      <div style="height:500px">
+        <iframe src="https://www.tradingview.com/widgetembed/?symbol=${exchange}%3A${symbol}&interval=D&theme=light&style=1&locale=ar&toolbar_bg=%23f1f3f6&hide_top_toolbar=0&hide_legend=0&save_image=1&studies=[]&utm_source=brzan.com"
+          style="width:100%;height:100%;border:none" allowtransparency="true" scrolling="no"></iframe>
+      </div>
+    </div>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
 }
 
 function openImage(src) {
