@@ -344,6 +344,18 @@ app.post('/api/posts', requireAuth, upload.single('image'), async (req, res) => 
   if (!content || content.trim().length < 3) return res.json({ error: 'المحتوى قصير جداً' });
   if (content.length > 2000) return res.json({ error: 'المحتوى طويل جداً (الحد 2000 حرف)' });
 
+  // تحقق إضافي من المستخدم
+  const userId = req.session.userId;
+  if (!userId) {
+    if (req.file) try { fs.unlinkSync(req.file.path); } catch(e) {}
+    return res.status(401).json({ error: 'انتهت جلستك، سجّل دخولك مجدداً' });
+  }
+  const userExists = db.prepare('SELECT id FROM users WHERE id=?').get(userId);
+  if (!userExists) {
+    if (req.file) try { fs.unlinkSync(req.file.path); } catch(e) {}
+    return res.status(401).json({ error: 'المستخدم غير موجود' });
+  }
+
   const id = uuidv4();
   let image = req.file ? '/uploads/' + req.file.filename : '';
 
@@ -355,12 +367,14 @@ app.post('/api/posts', requireAuth, upload.single('image'), async (req, res) => 
 
   const symbols = extractSymbols(content);
 
+  db.exec('PRAGMA foreign_keys = OFF');
   db.prepare(`INSERT INTO posts (id,user_id,content,image,stock_symbols,post_type,target_price,stop_loss,direction,timeframe)
-    VALUES (?,?,?,?,?,?,?,?,?,?)`).run(id, req.session.userId, content.trim(), image, symbols,
+    VALUES (?,?,?,?,?,?,?,?,?,?)`).run(id, userId, content.trim(), image, symbols,
     post_type || 'opinion', parseFloat(target_price)||0, parseFloat(stop_loss)||0,
     direction||'', timeframe||'');
+  db.exec('PRAGMA foreign_keys = ON');
 
-  db.prepare('UPDATE users SET posts_count = posts_count + 1 WHERE id = ?').run(req.session.userId);
+  db.prepare('UPDATE users SET posts_count = posts_count + 1 WHERE id = ?').run(userId);
 
   const post = db.prepare('SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified FROM posts p JOIN users u ON p.user_id = u.id WHERE p.id = ?').get(id);
   res.json({ success: true, post: { ...post, time_ago: 'الآن', level_name: getLevelName(post.level) } });
