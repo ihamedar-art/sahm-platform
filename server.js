@@ -197,9 +197,160 @@ function getUser(id) {
   return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
 }
 
+// ── جدول ترجمة الرموز (اسم عربي/إنجليزي → رمز رسمي) ────────────────────────
+const SYMBOL_ALIASES = {
+  // ════ السوق السعودي — البنوك ════
+  'الراجحي':'1120','راجحي':'1120','rajhi':'1120','alrajhi':'1120',
+  'الاهلي':'1180','الأهلي':'1180','أهلي':'1180','اهلي':'1180','anb':'1180',
+  'سامبا':'1090','samba':'1090',
+  'الرياض':'1010','بنك الرياض':'1010',
+  'البلاد':'1140','بنك البلاد':'1140','albilad':'1140',
+  'الانماء':'1150','إنماء':'1150','انماء':'1150','alinma':'1150','inma':'1150',
+  'الجزيرة':'1020','بنك الجزيرة':'1020','aljazira':'1020',
+  'الفرنسي':'1060','بنك الفرنسي':'1060','sab':'1060',
+  'العربي':'1030','البنك العربي':'1030','anb bank':'1030',
+  // ════ النفط والطاقة ════
+  'ارامكو':'2222','أرامكو':'2222','aramco':'2222','saudi aramco':'2222',
+  'سابك':'2010','sabic':'2010',
+  'كيان':'2350','kayan':'2350',
+  'يانسب':'2290','yansab':'2290',
+  'المتقدمة':'2330','advanced petrochem':'2330',
+  'رابغ':'2380','بترورابغ':'2380','petro rabigh':'2380',
+  'الخليج للبتروكيماويات':'2030',
+  'صحارى':'2260','sahara':'2260',
+  'ابن رشد':'2170','ibn rushd':'2170',
+  'وفرة':'2086','wafrah':'2086',
+  'سدافكو':'6010','sadafco':'6010',
+  'سافكو':'2210','safco':'2210',
+  // ════ الاتصالات والتقنية ════
+  'الاتصالات السعودية':'7030','سعودي تليكوم':'7030','saudi telecom':'7030',
+  'stc':'7030',
+  'موبايلي':'7020','etisalat':'7020','etihad etisalat':'7020',
+  'زين السعودية':'7040','zain':'7040',
+  // ════ التأمين ════
+  'التعاونية':'8010','الشركة التعاونية':'8010','cooperative':'8010',
+  'ملاذ':'8020','malath':'8020',
+  'بوبا':'8120','bupa':'8120','بوبا العربية':'8120',
+  'سايكو':'8210','saico':'8210',
+  'الاتحاد التجاري':'8060','united cooperative':'8060',
+  'الدرع العربي':'8100','arab shield':'8100',
+  'المتوسط والخليج':'8030','medgulf':'8030','ميدغلف':'8030',
+  'الوطنية للتأمين':'8040','wataniya':'8040',
+  'سلامة':'8050','salama':'8050',
+  // ════ العقارات ════
+  'دار الاركان':'4300','الاركان':'4300','dar alarkan':'4300',
+  'جبل عمر':'4250','jabal omar':'4250',
+  'المملكة القابضة':'4280','kingdom holding':'4280',
+  'التعمير':'4090','tameer':'4090',
+  'الحكير':'4011','alhokair':'4011',
+  'مكة للإنشاء':'4100',
+  'اعيان':'4150','ayan':'4150',
+  // ════ التجزئة والغذاء ════
+  'العثيم':'4003','othaim':'4003','أوثيم':'4003',
+  'بنده':'4009','panda':'4009','هايبر بنده':'4009',
+  'جرير':'4190','الجرير':'4190','jarir':'4190',
+  'المراعي':'2270','مراعي':'2270','almarai':'2270',
+  'حلواني':'6002','حلواني اخوان':'6002','halwani':'6002',
+  'الجوف':'6070','al jouf':'6070',
+  'تبوك الزراعية':'6060','tabuk agri':'6060',
+  'نادك':'2370','nadec':'2370',
+  'امريكانا':'6013','americana':'6013',
+  // ════ الكهرباء والمياه ════
+  'السعودية للكهرباء':'5110','كهرباء':'5110','sec':'5110',
+  'المياه الوطنية':'5120','nwc':'5120',
+  // ════ أخرى ════
+  'اكوا باور':'4200','أكوا باور':'4200','acwa power':'4200',
+  'نسما':'1830','nesma':'1830',
+  'روتانا':'4070','rotana':'4070',
+
+  // ════════════════════════════════════════════════
+  // السوق الأمريكي — أسماء عربية وإنجليزية شائعة
+  // ════════════════════════════════════════════════
+  'تسلا':'TSLA','tesla':'TSLA',
+  'ابل':'AAPL','آبل':'AAPL','أبل':'AAPL','apple':'AAPL',
+  'مايكروسوفت':'MSFT','microsoft':'MSFT',
+  'امازون':'AMZN','أمازون':'AMZN','amazon':'AMZN',
+  'جوجل':'GOOGL','google':'GOOGL','الفابيت':'GOOGL','alphabet':'GOOGL',
+  'ميتا':'META','meta':'META','فيسبوك':'META','facebook':'META',
+  'انفيديا':'NVDA','نفيديا':'NVDA','nvidia':'NVDA',
+  'نتفلكس':'NFLX','netflix':'NFLX',
+  'اوبر':'UBER','uber':'UBER',
+  'سبوتيفاي':'SPOT','spotify':'SPOT',
+  'سناب':'SNAP','snapchat':'SNAP','سناب شات':'SNAP',
+  'باي بال':'PYPL','paypal':'PYPL',
+  'سيلزفورس':'CRM','salesforce':'CRM',
+  'اوراكل':'ORCL','oracle':'ORCL',
+  'انتل':'INTC','intel':'INTC',
+  'amd':'AMD','ايه ام دي':'AMD',
+  'كوالكوم':'QCOM','qualcomm':'QCOM',
+  'سيسكو':'CSCO','cisco':'CSCO',
+  'ibm':'IBM',
+  'ديل':'DELL','dell':'DELL',
+  'بوينج':'BA','boeing':'BA',
+  'جي بي مورغان':'JPM','jpmorgan':'JPM','jp morgan':'JPM',
+  'بنك اوف امريكا':'BAC','bank of america':'BAC',
+  'ويلز فارجو':'WFC','wells fargo':'WFC',
+  'جولدمان ساكس':'GS','goldman sachs':'GS','جولدمان':'GS',
+  'مورغان ستانلي':'MS','morgan stanley':'MS',
+  'فيزا':'V','visa':'V',
+  'ماستركارد':'MA','mastercard':'MA',
+  'امريكان اكسبريس':'AXP','american express':'AXP',
+  'جونسون':'JNJ','johnson':'JNJ','جونسون اند جونسون':'JNJ',
+  'فايزر':'PFE','pfizer':'PFE',
+  'مودرنا':'MRNA','moderna':'MRNA',
+  'يونايتد هيلث':'UNH','united health':'UNH',
+  'كوكاكولا':'KO','coca cola':'KO','كوكا كولا':'KO',
+  'بيبسي':'PEP','pepsi':'PEP','بيبسيكو':'PEP',
+  'ماكدونالدز':'MCD','mcdonalds':'MCD','ماكدونالد':'MCD',
+  'ستاربكس':'SBUX','starbucks':'SBUX',
+  'نايكي':'NKE','nike':'NKE',
+  'والمارت':'WMT','walmart':'WMT',
+  'كوستكو':'COST','costco':'COST',
+  'تارجت':'TGT','target':'TGT',
+  'هوم ديبو':'HD','home depot':'HD',
+  'اكسون':'XOM','exxon':'XOM','اكسون موبيل':'XOM',
+  'شيفرون':'CVX','chevron':'CVX',
+  'شيل':'SHEL','shell':'SHEL',
+  'كاتربيلر':'CAT','caterpillar':'CAT',
+  'جنرال موتورز':'GM','general motors':'GM',
+  'فورد':'F','ford':'F',
+  'تويوتا':'TM','toyota':'TM',
+  'علي بابا':'BABA','alibaba':'BABA',
+  'كوين بيس':'COIN','coinbase':'COIN',
+  'روبلوكس':'RBLX','roblox':'RBLX',
+  'دزني':'DIS','disney':'DIS','ديزني':'DIS',
+  'ايربنب':'ABNB','airbnb':'ABNB',
+  'بالانتير':'PLTR','palantir':'PLTR',
+  'زووم':'ZM','zoom':'ZM',
+  'شوبيفاي':'SHOP','shopify':'SHOP',
+  'روبن هود':'HOOD','robinhood':'HOOD',
+  'ريدت':'RDDT','reddit':'RDDT',
+  'بنتيريست':'PINS','pinterest':'PINS',
+  'سنوفليك':'SNOW','snowflake':'SNOW',
+  'داتادوج':'DDOG','datadog':'DDOG',
+  'كراودسترايك':'CRWD','crowdstrike':'CRWD',
+  'بالو التو':'PANW','palo alto':'PANW',
+  'سيرفيس ناو':'NOW','servicenow':'NOW',
+  'ادوبي':'ADBE','adobe':'ADBE',
+  'بيركشاير':'BRK.B','berkshire':'BRK.B',
+  'مونجو دي بي':'MDB','mongodb':'MDB',
+};
+
+// دالة تحويل أي اسم/رمز → الرمز الرسمي
+function normalizeSymbol(raw) {
+  const stripped = raw.startsWith('$') ? raw.slice(1) : raw;
+  const lower = stripped.toLowerCase();
+  if (SYMBOL_ALIASES[stripped]) return '$' + SYMBOL_ALIASES[stripped];
+  if (SYMBOL_ALIASES[lower])    return '$' + SYMBOL_ALIASES[lower];
+  return raw; // إذا مو موجود في الجدول — اتركه كما هو
+}
+
 function extractSymbols(text) {
   const matches = text.match(/\$[A-Za-z0-9\u0600-\u06FF]{1,10}/g);
-  return matches ? [...new Set(matches)].join(',') : '';
+  if (!matches) return '';
+  // حوّل كل رمز للرمز الرسمي قبل الحفظ
+  const normalized = matches.map(s => normalizeSymbol(s));
+  return [...new Set(normalized)].join(',');
 }
 
 function getLevelName(level) {
@@ -804,8 +955,10 @@ app.get('/api/stocks/popular', (req, res) => {
         row.stock_symbols.split(',').forEach(sym => {
           sym = sym.trim();
           if (!sym) return;
-          if (!symbolMap[sym]) symbolMap[sym] = 0;
-          symbolMap[sym] += row.post_count;
+          // حوّل أي اسم بديل → الرمز الرسمي قبل العد
+          const canonical = normalizeSymbol(sym);
+          if (!symbolMap[canonical]) symbolMap[canonical] = 0;
+          symbolMap[canonical] += row.post_count;
         });
       });
 
@@ -824,7 +977,7 @@ app.get('/api/stocks/popular', (req, res) => {
 
       return res.json({ stocks, period: trending.length > 0 ? '24h' : '7d' });
     }
-  } catch(e) {}
+  } catch(e) { console.error('popular stocks error:', e); }
 
   res.json({ stocks: POPULAR_STOCKS, period: 'all' });
 });
