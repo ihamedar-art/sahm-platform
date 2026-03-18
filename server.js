@@ -138,10 +138,11 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB قبل الضغط
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB قبل الضغط
   fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|gif|webp/;
-    cb(null, allowed.test(path.extname(file.originalname).toLowerCase()));
+    const allowed = /jpeg|jpg|png|gif|webp|heic|heif/;
+    const mimeAllowed = /image\/(jpeg|jpg|png|gif|webp|heic|heif)/;
+    cb(null, allowed.test(path.extname(file.originalname).toLowerCase()) || mimeAllowed.test(file.mimetype));
   }
 });
 
@@ -149,18 +150,27 @@ const upload = multer({
 async function compressImage(filePath) {
   try {
     const ext = path.extname(filePath).toLowerCase();
-    const tempPath = filePath + '.tmp';
-    await sharp(filePath)
-      .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 80 })
+    const tempPath = filePath + '.tmp.jpg';
+
+    let pipeline = sharp(filePath, { failOnError: false });
+
+    // GIF — خذ أول frame فقط
+    if (ext === '.gif') pipeline = pipeline.gif({ pages: 1 });
+
+    await pipeline
+      .rotate() // تصحيح EXIF rotation تلقائياً
+      .resize(1400, 1400, { fit: 'inside', withoutEnlargement: true })
+      .flatten({ background: { r: 255, g: 255, b: 255 } }) // PNG شفاف → أبيض
+      .jpeg({ quality: 82, mozjpeg: true })
       .toFile(tempPath);
+
     fs.unlinkSync(filePath);
-    // احفظ بامتداد .jpg دائماً
     const newPath = filePath.replace(/\.[^.]+$/, '.jpg');
     fs.renameSync(tempPath, newPath);
     return newPath;
   } catch(e) {
     console.error('compress error:', e.message);
+    // لو فشل الضغط أرجع الملف الأصلي بدون ضغط
     return filePath;
   }
 }
