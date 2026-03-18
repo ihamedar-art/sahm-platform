@@ -414,19 +414,21 @@ body {
 /* ── Profile ── */
 .profile-header {
   background: var(--bg2); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 24px; margin-bottom: 20px;
+  border-radius: var(--radius); overflow: hidden; margin-bottom: 20px;
 }
 .profile-cover {
-  height: 120px; border-radius: var(--radius2);
+  height: 130px;
   background: linear-gradient(135deg, #1B3A6E, #2563C4, #7C3AED);
-  margin-bottom: -50px;
 }
-.profile-avatar-wrap { padding-top: 0; display: flex; align-items: flex-end; justify-content: space-between; }
-.profile-avatar { width: 90px; height: 90px; font-size: 32px; border: 4px solid var(--bg2); }
-.profile-name { font-size: 20px; font-weight: 700; margin-top: 12px; }
-.profile-handle { color: var(--text3); font-size: 14px; }
-.profile-bio { color: var(--text2); font-size: 14px; margin: 10px 0; line-height: 1.6; }
-.profile-stats { display: flex; gap: 24px; margin-top: 14px; }
+.profile-avatar-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  margin-top: -50px; padding: 0 24px 20px;
+}
+.profile-avatar { width: 96px; height: 96px; font-size: 34px; border: 4px solid var(--bg2); }
+.profile-name { font-size: 20px; font-weight: 700; margin-top: 12px; text-align: center; }
+.profile-handle { color: var(--text3); font-size: 14px; text-align: center; }
+.profile-bio { color: var(--text2); font-size: 14px; margin: 10px 0; line-height: 1.6; text-align: center; }
+.profile-stats { display: flex; gap: 28px; margin-top: 16px; justify-content: center; }
 .stat-item { text-align: center; }
 .stat-num { font-size: 18px; font-weight: 700; color: var(--text); }
 .stat-label { font-size: 12px; color: var(--text3); }
@@ -1910,23 +1912,25 @@ async function loadProfile(username) {
       <div class="profile-cover"></div>
       <div class="profile-avatar-wrap">
         <div class="avatar profile-avatar">${u.avatar ? `<img src="${u.avatar}">` : u.display_name[0]}</div>
-        ${isMe
-          ? `<button class="btn btn-ghost btn-sm" onclick="showEditProfile()">✏️ تعديل الملف</button>`
-          : currentUser
-            ? `<button class="btn ${isFollowing ? 'btn-ghost' : 'btn-primary'} btn-sm" id="follow-btn-${u.id}" onclick="toggleFollow('${u.id}','${u.username}')">
-                ${isFollowing ? '✓ متابَع' : '+ متابعة'}
-               </button>`
-            : `<button class="btn btn-primary btn-sm" onclick="showLoginModal()">+ متابعة</button>`
-        }
-      </div>
-      <div class="profile-name">${u.display_name} ${u.is_verified ? '<span class="verified-badge">✓</span>' : ''}</div>
-      <div class="profile-handle">@${u.username} · <span style="color:var(--primary)">${u.level_name}</span></div>
-      ${u.bio ? `<div class="profile-bio">${u.bio}</div>` : ''}
-      <div class="profile-stats">
-        <div class="stat-item"><div class="stat-num">${u.posts_count}</div><div class="stat-label">منشور</div></div>
-        <div class="stat-item"><div class="stat-num">${u.followers_count}</div><div class="stat-label">متابع</div></div>
-        <div class="stat-item"><div class="stat-num">${u.following_count}</div><div class="stat-label">يتابع</div></div>
-        <div class="stat-item"><div class="stat-num" style="color:var(--gold)">${u.reputation}</div><div class="stat-label">نقطة سمعة</div></div>
+        <div class="profile-name">${u.display_name} ${u.is_verified ? '<span class="verified-badge">✓</span>' : ''}</div>
+        <div class="profile-handle">@${u.username} · <span style="color:var(--primary)">${u.level_name}</span></div>
+        ${u.bio ? `<div class="profile-bio">${u.bio}</div>` : ''}
+        <div class="profile-stats">
+          <div class="stat-item"><div class="stat-num">${u.posts_count}</div><div class="stat-label">منشور</div></div>
+          <div class="stat-item"><div class="stat-num">${u.followers_count}</div><div class="stat-label">متابع</div></div>
+          <div class="stat-item"><div class="stat-num">${u.following_count}</div><div class="stat-label">يتابع</div></div>
+          <div class="stat-item"><div class="stat-num" style="color:var(--gold)">${u.reputation}</div><div class="stat-label">نقطة سمعة</div></div>
+        </div>
+        <div style="margin-top:14px">
+          ${isMe
+            ? `<button class="btn btn-ghost btn-sm" onclick="showEditProfile()">✏️ تعديل الملف</button>`
+            : currentUser
+              ? `<button class="btn ${isFollowing ? 'btn-ghost' : 'btn-primary'} btn-sm" id="follow-btn-${u.id}" onclick="toggleFollow('${u.id}','${u.username}')">
+                  ${isFollowing ? '✓ متابَع' : '+ متابعة'}
+                 </button>`
+              : `<button class="btn btn-primary btn-sm" onclick="showLoginModal()">+ متابعة</button>`
+          }
+        </div>
       </div>
     </div>
     <h3 style="margin-bottom:16px">منشورات @${u.username}</h3>
