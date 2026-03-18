@@ -334,6 +334,63 @@ const SYMBOL_ALIASES = {
   'ادوبي':'ADBE','adobe':'ADBE',
   'بيركشاير':'BRK.B','berkshire':'BRK.B',
   'مونجو دي بي':'MDB','mongodb':'MDB',
+
+  // ════════════════════════════════════════════════
+  // السلع
+  // ════════════════════════════════════════════════
+  'نفط':'OIL','النفط':'OIL','خام برنت':'BRENT','برنت':'BRENT','brent':'BRENT',
+  'خام تكساس':'WTI','wti':'WTI','نفط امريكي':'WTI',
+  'ذهب':'GOLD','الذهب':'GOLD','gold':'GOLD',
+  'فضة':'SILVER','الفضة':'SILVER','silver':'SILVER',
+  'نحاس':'COPPER','النحاس':'COPPER','copper':'COPPER',
+  'بلاتين':'PLATINUM','platinum':'PLATINUM',
+  'غاز طبيعي':'NATGAS','الغاز الطبيعي':'NATGAS','natural gas':'NATGAS','غاز':'NATGAS',
+  'قمح':'WHEAT','القمح':'WHEAT','wheat':'WHEAT',
+  'قهوة':'COFFEE','القهوة':'COFFEE','coffee':'COFFEE',
+  'سكر':'SUGAR','السكر':'SUGAR','sugar':'SUGAR',
+  'ألمنيوم':'ALU','الألمنيوم':'ALU','aluminum':'ALU',
+
+  // ════════════════════════════════════════════════
+  // المؤشرات
+  // ════════════════════════════════════════════════
+  'تاسي':'TASI','tasi':'TASI','السوق السعودي':'TASI','تداول':'TASI',
+  'اس اند بي':'SPX','s&p':'SPX','sp500':'SPX','اس بي 500':'SPX',
+  'ناسداك':'NDX','nasdaq':'NDX',
+  'داو جونز':'DJI','dow jones':'DJI','داو':'DJI',
+  'راسل':'RUT','russell':'RUT',
+  'فوتسي':'FTSE','ftse':'FTSE',
+  'نيكاي':'N225','nikkei':'N225',
+  'داكس':'DAX','dax':'DAX',
+  'فيكس':'VIX','vix':'VIX','مؤشر الخوف':'VIX',
+
+  // ════════════════════════════════════════════════
+  // العملات الأجنبية (فوركس)
+  // ════════════════════════════════════════════════
+  'دولار':'USDSAR','الدولار':'USDSAR','usd':'USDSAR',
+  'يورو':'EURUSD','اليورو':'EURUSD','euro':'EURUSD',
+  'جنيه':'GBPUSD','الجنيه الاسترليني':'GBPUSD','sterling':'GBPUSD',
+  'ين':'USDJPY','الين الياباني':'USDJPY','yen':'USDJPY',
+  'فرنك':'USDCHF','الفرنك السويسري':'USDCHF','franc':'USDCHF',
+  'دولار كندي':'USDCAD','كندي':'USDCAD',
+  'دولار استرالي':'AUDUSD','استرالي':'AUDUSD',
+
+  // ════════════════════════════════════════════════
+  // العملات الرقمية
+  // ════════════════════════════════════════════════
+  'بتكوين':'BTC','بيتكوين':'BTC','bitcoin':'BTC','btc':'BTC',
+  'ايثيريوم':'ETH','اثيريوم':'ETH','ethereum':'ETH','eth':'ETH',
+  'ريبل':'XRP','xrp':'XRP',
+  'بي ان بي':'BNB','bnb':'BNB','بينانس':'BNB',
+  'سولانا':'SOL','solana':'SOL','sol':'SOL',
+  'دوج':'DOGE','دوج كوين':'DOGE','dogecoin':'DOGE','doge':'DOGE',
+  'كاردانو':'ADA','cardano':'ADA','ada':'ADA',
+  'افالانش':'AVAX','avalanche':'AVAX','avax':'AVAX',
+  'بوليجون':'MATIC','polygon':'MATIC','matic':'MATIC',
+  'شيبا':'SHIB','شيبا اينو':'SHIB','shiba':'SHIB','shib':'SHIB',
+  'لايتكوين':'LTC','litecoin':'LTC','ltc':'LTC',
+  'يوني سواب':'UNI','uniswap':'UNI','uni':'UNI',
+  'تيثر':'USDT','usdt':'USDT',
+  'يو اس دي سي':'USDC','usdc':'USDC',
 };
 
 // دالة تحويل أي اسم/رمز → الرمز الرسمي
