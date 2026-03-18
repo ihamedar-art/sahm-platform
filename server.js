@@ -405,7 +405,7 @@ function normalizeSymbol(raw) {
 function extractSymbols(text) {
   const matches = text.match(/\$[A-Za-z0-9\u0600-\u06FF]{1,10}/g);
   if (!matches) return '';
-  // حوّل كل رمز للرمز الرسمي قبل الحفظ
+  // حوّل كل رمز للرمز الرسمي قبل الحفظ وافصل بفاصلة دائماً
   const normalized = matches.map(s => normalizeSymbol(s));
   return [...new Set(normalized)].join(',');
 }
@@ -1031,13 +1031,13 @@ app.get('/api/stocks/popular', (req, res) => {
     if (rows.length > 0) {
       const symbolMap = {};
       rows.forEach(row => {
-        row.stock_symbols.split(',').forEach(sym => {
+        // نفصل بالفاصلة والمسافة معاً لتغطية كل الحالات
+        row.stock_symbols.split(/[,\s]+/).forEach(sym => {
           sym = sym.trim();
-          if (!sym) return;
-          // حوّل أي اسم بديل → الرمز الرسمي
+          if (!sym || sym === '$') return;
           const canonical = normalizeSymbol(sym);
           if (!symbolMap[canonical]) symbolMap[canonical] = 0;
-          symbolMap[canonical] += 1; // كل منشور = +1 بالضبط
+          symbolMap[canonical] += 1;
         });
       });
 
