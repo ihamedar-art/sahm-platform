@@ -289,17 +289,18 @@ app.get('/api/me', (req, res) => {
 // ── بيانات الأسهم من Yahoo Finance ───────────────────────────────────────────
 const https = require('https');
 
-function fetchYahooData(symbol) {
+function fetchYahooData(symbol, interval = '1d') {
   return new Promise((resolve, reject) => {
-    // تداول السعودي يحتاج .SR في النهاية
     const yahooSymbol = symbol.match(/^\d+$/) ? `${symbol}.SR` : symbol;
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?interval=1d&range=3mo`;
-    const options = {
-      headers: {
-        'User-Agent': 'Mozilla/5.0',
-        'Accept': 'application/json'
-      }
+    // تحديد الـ range بناءً على الفريم
+    const rangeMap = {
+      '1m':  '1d',   '5m':  '5d',  '15m': '5d',
+      '30m': '1mo',  '1h':  '1mo', '4h':  '3mo',
+      '1d':  '6mo',  '1wk': '2y',  '1mo': '5y'
     };
+    const range = rangeMap[interval] || '6mo';
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?interval=${interval}&range=${range}`;
+    const options = { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } };
     https.get(url, options, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
@@ -313,7 +314,8 @@ function fetchYahooData(symbol) {
 
 app.get('/api/stock-chart/:symbol', async (req, res) => {
   try {
-    const data = await fetchYahooData(req.params.symbol);
+    const interval = req.query.interval || '1d';
+    const data = await fetchYahooData(req.params.symbol, interval);
     const chart = data?.chart?.result?.[0];
     if (!chart) return res.json({ error: 'السهم غير موجود' });
 
