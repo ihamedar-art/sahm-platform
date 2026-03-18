@@ -1236,6 +1236,7 @@ function renderComposeArea() {
             <input id="chart-symbol" style="padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:inherit;font-size:13px;flex:1;min-width:120px" placeholder="رمز السهم — مثال: 2222" oninput="previewChart(this.value)">
             <button class="btn btn-ghost btn-sm" onclick="clearChart()">✕ حذف</button>
           </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:6px">💡 تداول السعودي: أرقام فقط (مثال: 2222) — كريبتو: BTCUSDT</div>
           <div id="chart-preview-mini" style="margin-top:8px;display:none">
             <div style="font-size:12px;color:var(--green);margin-bottom:4px">✅ سيظهر شارت <span id="chart-preview-label"></span></div>
           </div>
@@ -1493,15 +1494,16 @@ function createPostCard(p, standalone = false) {
     ${targetsHtml}
     ${p.image ? `<img src="${p.image}" class="post-image" onclick="event.stopPropagation();openImage('${p.image}')" alt="تحليل">` : ''}
     ${p.chart_symbol ? `
-      <div class="post-chart-wrap" id="chart-wrap-${p.id}" onclick="event.stopPropagation()">
-        <div class="post-chart-mini" id="chart-mini-${p.id}">
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg3);border-radius:var(--radius2) var(--radius2) 0 0;border:1px solid var(--border);border-bottom:none">
-            <span style="font-size:13px;font-weight:700;color:var(--primary)">📊 ${p.chart_exchange||'TADAWUL'}:${p.chart_symbol}</span>
-            <button class="btn btn-ghost btn-sm" onclick="expandChart('${p.id}','${p.chart_symbol}','${p.chart_exchange||'TADAWUL'}')">⛶ توسيع</button>
-          </div>
-          <div style="height:220px;border:1px solid var(--border);border-radius:0 0 var(--radius2) var(--radius2);overflow:hidden">
-            <iframe src="https://www.tradingview.com/widgetembed/?symbol=${p.chart_exchange||'TADAWUL'}%3A${p.chart_symbol}&interval=D&theme=light&style=1&locale=ar&toolbar_bg=%23f1f3f6&hide_top_toolbar=1&hide_legend=1&save_image=0&studies=[]&utm_source=brzan.com"
-              style="width:100%;height:100%;border:none" loading="lazy" allowtransparency="true" scrolling="no"></iframe>
+      <div class="post-chart-wrap" onclick="event.stopPropagation()">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg3);border-radius:var(--radius2) var(--radius2) 0 0;border:1px solid var(--border);border-bottom:none">
+          <span style="font-size:13px;font-weight:700;color:var(--primary)">📊 ${p.chart_exchange||'TADAWUL'}:${p.chart_symbol}</span>
+          <button class="btn btn-ghost btn-sm" onclick="expandChart('${p.id}','${p.chart_symbol}','${p.chart_exchange||'TADAWUL'}')">⛶ فتح الشارت</button>
+        </div>
+        <div style="height:180px;border:1px solid var(--border);border-radius:0 0 var(--radius2) var(--radius2);overflow:hidden;background:var(--bg3);display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="expandChart('${p.id}','${p.chart_symbol}','${p.chart_exchange||'TADAWUL'}')">
+          <div style="text-align:center">
+            <div style="font-size:36px;margin-bottom:8px">📈</div>
+            <div style="font-size:14px;font-weight:700;color:var(--text)">${p.chart_exchange||'TADAWUL'}:${p.chart_symbol}</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:4px">اضغط لفتح الشارت التفاعلي</div>
           </div>
         </div>
       </div>` : ''}
@@ -1823,18 +1825,19 @@ function sharePost(postId) {
 function expandChart(postId, symbol, exchange) {
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px';
+  const fullSymbol = `${exchange}:${symbol}`;
+  const iframeSrc = `https://www.tradingview.com/widgetembed/?symbol=${exchange}%3A${symbol}&interval=D&theme=light&style=1&locale=ar&toolbar_bg=%23f1f3f6&hide_top_toolbar=0&hide_legend=0&save_image=1&utm_source=brzan.com`;
   overlay.innerHTML = `
     <div style="width:100%;max-width:900px;background:var(--bg2);border-radius:var(--radius);overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg3);border-bottom:1px solid var(--border)">
-        <span style="font-size:15px;font-weight:700;color:var(--primary)">📊 ${exchange}:${symbol}</span>
+        <span style="font-size:15px;font-weight:700;color:var(--primary)">📊 ${fullSymbol}</span>
         <div style="display:flex;gap:8px">
-          <a href="https://www.tradingview.com/chart/?symbol=${exchange}:${symbol}" target="_blank" class="btn btn-ghost btn-sm">فتح في TradingView ↗</a>
-          <button class="btn btn-ghost btn-sm" onclick="this.closest('div[style*=fixed]').remove()">✕ إغلاق</button>
+          <a href="https://www.tradingview.com/chart/?symbol=${fullSymbol}" target="_blank" class="btn btn-ghost btn-sm">فتح في TradingView ↗</a>
+          <button class="btn btn-ghost btn-sm" onclick="this.closest('[style*=fixed]').remove()">✕ إغلاق</button>
         </div>
       </div>
       <div style="height:500px">
-        <iframe src="https://www.tradingview.com/widgetembed/?symbol=${exchange}%3A${symbol}&interval=D&theme=light&style=1&locale=ar&toolbar_bg=%23f1f3f6&hide_top_toolbar=0&hide_legend=0&save_image=1&studies=[]&utm_source=brzan.com"
-          style="width:100%;height:100%;border:none" allowtransparency="true" scrolling="no"></iframe>
+        <iframe src="${iframeSrc}" style="width:100%;height:100%;border:none" allowtransparency="true" scrolling="no"></iframe>
       </div>
     </div>`;
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
