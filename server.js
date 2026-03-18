@@ -755,9 +755,9 @@ app.get('/api/posts', (req, res) => {
       const v = db.prepare("SELECT vote_type FROM votes WHERE user_id=? AND target_id=? AND target_type='post'").get(userId, p.id);
       myVote = v ? v.vote_type : null;
     }
-    // هل المنشور ضمن ساعة؟ نحسبها على السيرفر مباشرة
-    const ageCheck = db.prepare(`SELECT CASE WHEN created_at > datetime('now', '-60 minutes') THEN 1 ELSE 0 END as is_new FROM posts WHERE id=?`).get(p.id);
-    const can_direct_delete = ageCheck ? ageCheck.is_new === 1 : false;
+    // هل المنشور ضمن ساعة؟ نحسبها من created_at مباشرة
+    const createdAt = new Date(p.created_at + (p.created_at.includes('Z') ? '' : 'Z'));
+    const can_direct_delete = (Date.now() - createdAt.getTime()) < 60 * 60 * 1000;
     return { ...p, time_ago: formatTime(p.created_at), level_name: getLevelName(p.level), my_vote: myVote, is_pinned: pinned || p.is_pinned, can_direct_delete };
   };
 
@@ -2175,9 +2175,7 @@ try { db.exec(`
     status TEXT DEFAULT 'pending',
     reviewed_by TEXT DEFAULT NULL,
     reviewed_at DATETIME DEFAULT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (post_id) REFERENCES posts(id),
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `); } catch(e) {}
 
