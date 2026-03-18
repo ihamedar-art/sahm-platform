@@ -286,6 +286,12 @@ body {
   color: #fff; font-size: 14px; font-weight: 700;
   box-shadow: 0 2px 8px rgba(217,119,6,.4);
 }
+.analyst-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700;
+  background: rgba(29,78,216,.1); color: var(--primary);
+  border: 1px solid rgba(29,78,216,.2);
+}
 .level-badge {
   font-size: 11px; padding: 2px 7px; border-radius: 10px;
   background: var(--bg3); color: var(--text2); border: 1px solid var(--border2);
@@ -1530,6 +1536,7 @@ function createPostCard(p, standalone = false) {
         <div class="post-author">
           <span class="author-name" onclick="event.stopPropagation();navigate('profile','${p.username}')">${p.display_name}</span>
           ${p.is_verified ? '<span class="verified-badge" title="موثّق">✓</span>' : ''}
+          ${p.is_analyst ? '<span class="analyst-badge">📊 محلل فني</span>' : ''}
           <span class="author-handle">@${p.username}</span>
         </div>
         <div class="post-time">${p.time_ago}</div>
@@ -1925,7 +1932,7 @@ async function loadProfile(username) {
       <div class="profile-avatar-wrap">
         <div class="avatar profile-avatar">${u.avatar ? `<img src="${u.avatar}">` : u.display_name[0]}</div>
         <div class="profile-name">${u.display_name} ${u.is_verified ? '<span class="verified-badge-lg" title="موثّق">✓</span>' : ''}</div>
-        <div class="profile-handle">@${u.username}</div>
+        <div class="profile-handle">@${u.username} ${u.is_analyst ? '<span class="analyst-badge">📊 محلل فني</span>' : ''}</div>
         ${u.bio ? `<div class="profile-bio">${u.bio}</div>` : ''}
         <div class="profile-stats">
           <div class="stat-item"><div class="stat-num">${u.posts_count}</div><div class="stat-label">منشور</div></div>
@@ -3977,6 +3984,7 @@ async function renderAdminUsers(el, page = 0, search = '') {
                 <button class="pact-btn" onclick="adminVerify('${u.id}')" title="${u.is_verified?'إلغاء توثيق':'توثيق'}">${u.is_verified?'☑️':'☆'}</button>
                 <button class="pact-btn" onclick="adminSuspend('${u.id}')" title="${u.is_suspended?'تفعيل':'إيقاف'}">${u.is_suspended?'✅':'🚫'}</button>
                 ${isSuperAdmin ? `<button class="pact-btn" onclick="adminChangePassword('${u.id}','${u.display_name}')" title="تغيير كلمة المرور">🔑</button>` : ''}
+                ${isSuperAdmin ? `<button class="pact-btn" onclick="adminMakeAnalyst('${u.id}')" title="${u.is_analyst?'سحب محلل فني':'منح محلل فني'}">${u.is_analyst?'📊✓':'📊'}</button>` : ''}
                 ${isSuperAdmin ? `<button class="pact-btn" onclick="adminMakeAdmin('${u.id}')" title="${u.is_admin?'سحب أدمن':'إعطاء أدمن'}">${u.is_admin?'⬇️':'👑'}</button>` : ''}
                 ${isSuperAdmin ? `<button class="pact-btn danger" onclick="adminDeleteUser('${u.id}','${u.display_name}')">🗑️</button>` : ''}
               ` : '<span style="font-size:11px;color:var(--text3)">محمي</span>'}
@@ -4005,6 +4013,15 @@ async function adminSuspend(id) {
   toast(d.is_suspended?'🚫 تم إيقاف العضو':'✅ تم تفعيل العضو','success');
   renderAdminUsers(document.getElementById('admin-tab-content'),adminUserPage,adminUserSearch);
 }
+async function adminMakeAnalyst(id) {
+  if (!confirm('تغيير شارة المحلل الفني لهذا العضو؟')) return;
+  const r = await fetch(`/api/admin/users/${id}/make-analyst`, {method:'POST'});
+  const d = await r.json();
+  if (d.error) return toast(d.error, 'error');
+  toast(d.is_analyst ? '📊 تم منح شارة محلل فني' : 'تم سحب شارة المحلل', 'success');
+  renderAdminUsers(document.getElementById('admin-tab-content'), adminUserPage, adminUserSearch);
+}
+
 async function adminMakeAdmin(id) {
   if (!confirm('تغيير صلاحية الأدمن لهذا العضو؟')) return;
   const r = await fetch(`/api/admin/users/${id}/make-admin`,{method:'POST'});
