@@ -4586,6 +4586,16 @@ function openChartDrawer() {
             <option value="US">أمريكي</option>
           </select>
           <input id="cd-symbol" placeholder="رمز السهم — مثال: 2222" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border);font-family:inherit;font-size:13px;background:var(--bg2);width:150px" onkeydown="if(event.key==='Enter')loadChartData()">
+          <select id="cd-interval" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);font-family:inherit;font-size:13px;background:var(--bg2)">
+            <option value="5m">5 دقائق</option>
+            <option value="15m">15 دقيقة</option>
+            <option value="30m">30 دقيقة</option>
+            <option value="1h">ساعة</option>
+            <option value="4h">4 ساعات</option>
+            <option value="1d" selected>يومي</option>
+            <option value="1wk">أسبوعي</option>
+            <option value="1mo">شهري</option>
+          </select>
           <button class="btn btn-primary btn-sm" onclick="loadChartData()">📥 تحميل</button>
           <button class="btn btn-ghost btn-sm" onclick="closeChartDrawer()">✕</button>
         </div>
@@ -4652,17 +4662,24 @@ function initChartCanvas() {
 async function loadChartData() {
   const symbolInput = document.getElementById('cd-symbol')?.value.trim();
   const exchange = document.getElementById('cd-exchange')?.value;
+  const interval = document.getElementById('cd-interval')?.value || '1d';
   if (!symbolInput) { toast('أدخل رمز السهم', 'error'); return; }
   let yahooSymbol = symbolInput;
   if (exchange === 'SR') yahooSymbol = `${symbolInput}.SR`;
+
+  // تحديد الـ range بناءً على الفريم
+  const rangeMap = { '5m':'1d', '15m':'5d', '30m':'5d', '1h':'1mo', '4h':'3mo', '1d':'3mo', '1wk':'1y', '1mo':'5y' };
+  const range = rangeMap[interval] || '3mo';
+
   document.getElementById('cd-status').textContent = '⏳ جاري التحميل...';
   try {
-    const r = await fetch(`/api/stock-chart/${encodeURIComponent(yahooSymbol)}`);
+    const r = await fetch(`/api/stock-chart/${encodeURIComponent(yahooSymbol)}?interval=${interval}&range=${range}`);
     const d = await r.json();
     if (d.error) { toast(d.error, 'error'); document.getElementById('cd-status').textContent = '❌ ' + d.error; return; }
     chartCandles = d.candles;
     chartDrawings = [];
-    document.getElementById('cd-status').textContent = `✅ ${d.name || yahooSymbol} — ${d.candles.length} شمعة`;
+    const intervalLabel = { '5m':'5د', '15m':'15د', '30m':'30د', '1h':'1س', '4h':'4س', '1d':'يومي', '1wk':'أسبوعي', '1mo':'شهري' }[interval] || interval;
+    document.getElementById('cd-status').textContent = `✅ ${d.name || yahooSymbol} | ${intervalLabel} — ${d.candles.length} شمعة`;
     drawChart();
   } catch(e) {
     toast('خطأ في التحميل', 'error');
@@ -4736,6 +4753,16 @@ function drawChart() {
       ctx.fillText(`${d.getDate()}/${d.getMonth()+1}`, cx(i), H - 8);
     }
   });
+
+  // عنوان الفريم على الشارت
+  const intervalEl = document.getElementById('cd-interval');
+  const intervalLabel = intervalEl ? { '5m':'5د', '15m':'15د', '30m':'30د', '1h':'1س', '4h':'4س', '1d':'يومي', '1wk':'أسبوعي', '1mo':'شهري' }[intervalEl.value] || '' : '';
+  if (intervalLabel) {
+    ctx.fillStyle = 'rgba(29,78,216,0.8)';
+    ctx.fillRect(PAD.left + 8, PAD.top + 4, 52, 20);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center';
+    ctx.fillText(intervalLabel, PAD.left + 34, PAD.top + 16);
+  }
 
   // رسومات
   chartDrawings.forEach(d => renderDrawing(ctx, d, pMin, pMax, W, H, PAD));
