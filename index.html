@@ -2183,14 +2183,38 @@ async function loadStockPage(symbol) {
   const stats = await statsRes.json();
   const priceData = await priceRes.json();
 
-  const total = stats.bullish + stats.bearish || 1;
-  const bullishPct = Math.round((stats.bullish / total) * 100);
-  const bearishPct = 100 - bullishPct;
+  const hasSentiment = stats.bullish > 0 || stats.bearish > 0;
+  const sentimentTotal = stats.bullish + stats.bearish || 1;
+  const bullishPct = hasSentiment ? Math.round((stats.bullish / sentimentTotal) * 100) : 0;
+  const bearishPct = hasSentiment ? 100 - bullishPct : 0;
 
   const stockInfo = [
     {symbol:'$2222',name:'أرامكو'},{symbol:'$1120',name:'الراجحي'},{symbol:'$1010',name:'الرياض'},
-    {symbol:'$2010',name:'سابك'},{symbol:'$7010',name:'STC'}
+    {symbol:'$2010',name:'سابك'},{symbol:'$7030',name:'STC'},{symbol:'$7020',name:'موبايلي'},
+    {symbol:'$1140',name:'البلاد'},{symbol:'$1150',name:'الانماء'},{symbol:'$2270',name:'المراعي'},
+    {symbol:'$4190',name:'جرير'},{symbol:'$4200',name:'أكوا باور'},{symbol:'$2380',name:'رابغ'},
   ].find(s => s.symbol === symbol);
+
+  const sentimentBlock = !hasSentiment ? `
+    <div style="background:var(--bg3);border-radius:var(--radius2);padding:12px 16px;text-align:center;color:var(--text3);font-size:13px">
+      📊 لا توجد تحليلات اتجاه بعد لهذا السهم
+    </div>` : `
+    <div style="margin-top:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:12px;color:var(--green);font-weight:700;width:32px">${bullishPct}%</span>
+        <div style="flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden">
+          <div style="width:${bullishPct}%;height:100%;background:var(--green);border-radius:4px;transition:width .5s"></div>
+        </div>
+        <span style="font-size:12px;color:var(--green)">📈 صاعد (${stats.bullish})</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:12px;color:var(--red);font-weight:700;width:32px">${bearishPct}%</span>
+        <div style="flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden">
+          <div style="width:${bearishPct}%;height:100%;background:var(--red);border-radius:4px;transition:width .5s"></div>
+        </div>
+        <span style="font-size:12px;color:var(--red)">📉 هابط (${stats.bearish})</span>
+      </div>
+    </div>`;
 
   // بطاقة السعر
   const priceCard = priceData.error ? '' : `
@@ -2231,21 +2255,12 @@ async function loadStockPage(symbol) {
     <div class="stock-header">
       <div class="stock-symbol">${symbol}</div>
       ${stockInfo ? `<div class="stock-name">${stockInfo.name}</div>` : (priceData.name ? `<div class="stock-name">${priceData.name}</div>` : '')}
-      <div style="margin-top:14px;display:flex;gap:16px;flex-wrap:wrap">
+      <div style="margin-top:12px;display:flex;gap:16px;flex-wrap:wrap">
         <span style="color:var(--text2);font-size:14px">📊 ${stats.total_posts} منشور</span>
-        <span style="color:var(--green);font-size:14px">📈 ${stats.bullish} صاعد</span>
-        <span style="color:var(--red);font-size:14px">📉 ${stats.bearish} هابط</span>
+        ${hasSentiment ? `<span style="color:var(--green);font-size:14px">📈 ${stats.bullish} صاعد</span>
+        <span style="color:var(--red);font-size:14px">📉 ${stats.bearish} هابط</span>` : ''}
       </div>
-      <div class="stock-sentiment" style="margin-top:16px">
-        <div class="sentiment-bar">
-          <div class="sentiment-label"><span style="color:var(--green)">📈 صاعد</span><span>${bullishPct}%</span></div>
-          <div class="sentiment-track"><div class="sentiment-fill bullish" style="width:${bullishPct}%"></div></div>
-        </div>
-        <div class="sentiment-bar">
-          <div class="sentiment-label"><span style="color:var(--red)">📉 هابط</span><span>${bearishPct}%</span></div>
-          <div class="sentiment-track"><div class="sentiment-fill bearish" style="width:${bearishPct}%"></div></div>
-        </div>
-      </div>
+      ${sentimentBlock}
     </div>
     ${priceCard}
     <h3 style="margin-bottom:16px">منشورات ${symbol}</h3>
