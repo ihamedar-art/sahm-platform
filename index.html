@@ -1431,10 +1431,10 @@ function createPostCard(p, standalone = false) {
     ${targetsHtml}
     ${p.image ? `<img src="${p.image}" class="post-image" onclick="event.stopPropagation();openImage('${p.image}')" alt="تحليل">` : ''}
     <div class="post-actions" onclick="event.stopPropagation()">
-      <button class="action-btn upvote ${upActive}" id="up-${p.id}" onclick="event.stopPropagation();vote('${p.id}','up')">
+      <button class="action-btn upvote ${upActive}" id="up-${p.id}" onclick="event.stopPropagation();event.preventDefault();vote('${p.id}','up');return false;">
         👍 <span id="upvotes-${p.id}">${p.upvotes}</span>
       </button>
-      <button class="action-btn downvote ${downActive}" id="down-${p.id}" onclick="event.stopPropagation();vote('${p.id}','down')">
+      <button class="action-btn downvote ${downActive}" id="down-${p.id}" onclick="event.stopPropagation();event.preventDefault();vote('${p.id}','down');return false;">
         👎 <span id="downvotes-${p.id}">${p.downvotes}</span>
       </button>
       <button class="action-btn comment-btn" onclick="event.stopPropagation();toggleComments('${p.id}')">
@@ -1462,13 +1462,27 @@ async function vote(postId, type) {
   const res = await fetch('/api/vote', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ target_id:postId, target_type:'post', vote_type:type }) });
   const data = await res.json();
   if (data.error) { toast(data.error, 'error'); return; }
-  document.getElementById(`upvotes-${postId}`).textContent = data.upvotes ?? document.getElementById(`upvotes-${postId}`).textContent;
-  document.getElementById(`downvotes-${postId}`).textContent = data.downvotes ?? document.getElementById(`downvotes-${postId}`).textContent;
+
+  const upEl = document.getElementById(`upvotes-${postId}`);
+  const downEl = document.getElementById(`downvotes-${postId}`);
   const upBtn = document.getElementById(`up-${postId}`);
   const downBtn = document.getElementById(`down-${postId}`);
-  if (data.action === 'removed') { upBtn.classList.remove('active'); downBtn.classList.remove('active'); }
-  else if (type === 'up') { upBtn.classList.add('active'); downBtn.classList.remove('active'); }
-  else { downBtn.classList.add('active'); upBtn.classList.remove('active'); }
+
+  if (upEl && data.upvotes !== undefined) upEl.textContent = data.upvotes;
+  if (downEl && data.downvotes !== undefined) downEl.textContent = data.downvotes;
+
+  if (upBtn && downBtn) {
+    if (data.action === 'removed') {
+      upBtn.classList.remove('active');
+      downBtn.classList.remove('active');
+    } else if (type === 'up') {
+      upBtn.classList.add('active');
+      downBtn.classList.remove('active');
+    } else {
+      downBtn.classList.add('active');
+      upBtn.classList.remove('active');
+    }
+  }
 }
 
 const commentsCache = {};
