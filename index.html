@@ -2717,10 +2717,24 @@ function resolveSearchQuery(q) {
 async function executeSearch(q) {
   document.getElementById('search-results').classList.remove('show');
   document.getElementById('search-input').value = '';
+
+  // تحقق أولاً من قاعدة البيانات — هل هو مستخدم؟
+  if (!q.startsWith('$') && !/^\d+$/.test(q)) {
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      // لو وجد مستخدم بنفس الاسم تماماً → بروفايل
+      const exactUser = data.users?.find(u =>
+        u.username.toLowerCase() === q.toLowerCase() ||
+        u.display_name.toLowerCase() === q.toLowerCase()
+      );
+      if (exactUser) { navigate('profile', exactUser.username); return; }
+    } catch(e) {}
+  }
+
   const resolved = resolveSearchQuery(q);
   if (resolved.type === 'stock') {
-    const sym = '$' + resolved.symbol.replace('$','');
-    navigate('stock', sym);
+    navigate('stock', '$' + resolved.symbol.replace('$',''));
   } else if (resolved.type === 'profile') {
     navigate('profile', resolved.username);
   } else {
@@ -2732,41 +2746,18 @@ async function doSearch(q) {
   const el = document.getElementById('search-results');
   const resolved = resolveSearchQuery(q);
 
-  // لو سهم معروف → اقتراح مباشر بدون API
-  if (resolved.type === 'stock') {
-    // جدول أسماء مختصر للعرض
-    const STOCK_NAMES = {
-      '2222':'أرامكو','1120':'الراجحي','1010':'الرياض','2010':'سابك',
-      '7030':'STC','7020':'موبايلي','7040':'زين','1140':'البلاد',
-      '1150':'الانماء','1180':'الأهلي','2270':'المراعي','4190':'جرير',
-      '4300':'دار الاركان','4250':'جبل عمر','5110':'كهرباء',
-      'TSLA':'تسلا','AAPL':'آبل','MSFT':'مايكروسوفت','AMZN':'أمازون',
-      'GOOGL':'جوجل','META':'ميتا','NVDA':'انفيديا','NFLX':'نتفلكس',
-      'GOLD':'ذهب','OIL':'نفط','BTC':'بيتكوين','ETH':'إيثيريوم',
-      'TASI':'تاسي','NDX':'ناسداك','SPX':'S&P 500',
-    };
-    const sym = resolved.symbol.replace('$','');
-    const name = STOCK_NAMES[sym] || sym;
-    el.innerHTML = `
-      <div class="search-result-item" onclick="executeSearch('${q.replace(/'/g,"\\'")}')">
-        <span style="font-size:18px">📈</span>
-        <div>
-          <div style="font-size:13px;font-weight:700;color:var(--primary)">$${sym}</div>
-          <div style="font-size:11px;color:var(--text3)">${name}</div>
-        </div>
-      </div>`;
-    el.classList.add('show');
-    return;
-  }
+  // دائماً نجلب المستخدمين أولاً
+  let users = [];
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    users = data.users || [];
+  } catch(e) {}
 
-  // بحث عام → API
-  const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-  const data = await res.json();
+  // لو وجد مستخدمين → اعرضهم أولاً
   let html = '';
-
-  if (data.users?.length > 0) {
-    html += `<div style="padding:8px 16px;font-size:11px;color:var(--text3);font-weight:700;letter-spacing:.5px">المستخدمون</div>`;
-    html += data.users.map(u => `
+  if (users.length > 0) {
+    html += users.map(u => `
       <div class="search-result-item" onclick="navigate('profile','${u.username}');document.getElementById('search-results').classList.remove('show')">
         <div class="avatar" style="width:30px;height:30px;font-size:11px">${u.avatar?`<img src="${u.avatar}">`:u.display_name[0]}</div>
         <div>
@@ -2776,15 +2767,40 @@ async function doSearch(q) {
       </div>`).join('');
   }
 
-  // زر بحث عام في النتائج
-  html += `
-    <div class="search-result-item" style="border-top:1px solid var(--border);margin-top:4px" onclick="executeSearch('${q.replace(/'/g,"\\'")}')">
-      <span style="font-size:16px">🔍</span>
-      <div style="font-size:13px;color:var(--text2)">البحث عن "<strong>${q}</strong>"</div>
-    </div>`;
+  // لو سهم معروف → أضف اقتراح السهم
+  if (resolved.type === 'stock') {
+    const STOCK_NAMES = {
+      '2222':'أرامكو','1120':'الراجحي','1010':'الرياض','2010':'سابك',
+      '7030':'STC','7020':'موبايلي','7040':'زين','1140':'البلاد',
+      '1150':'الانماء','1180':'الأهلي','2270':'المراعي','4190':'جرير',
+      '4300':'دار الاركان','4250':'جبل عمر','5110':'كهرباء',
+      'TSLA':'تسلا','AAPL':'آبل','MSFT':'مايكروسوفت','AMZN':'أمازون',
+      'GOOGL':'جوجل','GOOG':'جوجل','META':'ميتا','NVDA':'انفيديا','NFLX':'نتفلكس',
+      'GOLD':'ذهب','OIL':'نفط','BTC':'بيتكوين','ETH':'إيثيريوم',
+      'TASI':'تاسي','NDX':'ناسداك','SPX':'S&P 500',
+    };
+    const sym = resolved.symbol.replace('$','');
+    const name = STOCK_NAMES[sym] || sym;
+    html += `
+      <div class="search-result-item" onclick="executeSearch('${q.replace(/'/g,"\\'")}')">
+        <span style="font-size:18px">📈</span>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--primary)">$${sym}</div>
+          <div style="font-size:11px;color:var(--text3)">${name}</div>
+        </div>
+      </div>`;
+  }
 
-  el.innerHTML = html;
-  el.classList.add('show');
+  // زر بحث عام دائماً في الأسفل
+  if (resolved.type === 'general' || users.length === 0) {
+    html += `
+      <div class="search-result-item" style="border-top:1px solid var(--border)" onclick="executeSearch('${q.replace(/'/g,"\\'")}')">
+        <span style="font-size:16px">🔍</span>
+        <div style="font-size:13px;color:var(--text2)">البحث عن "<strong>${q}</strong>"</div>
+      </div>`;
+  }
+
+  if (html) { el.innerHTML = html; el.classList.add('show'); }
 }
 
 // ══════════════════════════════════════════════════════════════════
