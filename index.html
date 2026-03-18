@@ -4570,7 +4570,9 @@ async function renderAdminDeleteRequests(el, status = 'pending') {
   } catch(e) {
     el.innerHTML = `<div style="color:var(--red);padding:20px">❌ خطأ في التحميل: ${e.message}</div>`;
   }
-}(reqId, action) {
+}
+
+async function handleDeleteRequest(reqId, action) {
   const labels = { approve: 'قبول الحذف النهائي', reject: 'رفض الطلب وإعادة المنشور', 'keep-restricted': 'إبقاء المنشور مقيداً' };
   if (!confirm(`${labels[action]}؟`)) return;
   const res = await fetch(`/api/admin/delete-requests/${reqId}/${action}`, { method: 'POST' });
