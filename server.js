@@ -430,7 +430,7 @@ app.post('/api/posts', requireAuth, upload.single('image'), async (req, res) => 
 
   db.prepare('UPDATE users SET posts_count = posts_count + 1 WHERE id = ?').run(userId);
 
-  const post = db.prepare('SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified FROM posts p JOIN users u ON p.user_id = u.id WHERE p.id = ?').get(id);
+  const post = db.prepare('SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified, u.is_analyst FROM posts p JOIN users u ON p.user_id = u.id WHERE p.id = ?').get(id);
   res.json({ success: true, post: { ...post, time_ago: 'الآن', level_name: getLevelName(post.level) } });
 });
 
@@ -1230,6 +1230,18 @@ app.post('/api/admin/users/:id/verify', requireAdmin, (req, res) => {
   res.json({ success: true, is_verified: v });
 });
 
+// منح/سحب شارة محلل فني (سوبر أدمن فقط)
+app.post('/api/admin/users/:id/make-analyst', requireSuperAdmin, (req, res) => {
+  const admin = getAdminUser(req);
+  const user = db.prepare('SELECT id,username,display_name,is_analyst,is_super_admin FROM users WHERE id=?').get(req.params.id);
+  if (!user) return res.json({ error: 'غير موجود' });
+  if (user.is_super_admin) return res.json({ error: 'لا يمكن تعديل السوبر أدمن' });
+  const v = user.is_analyst ? 0 : 1;
+  db.prepare('UPDATE users SET is_analyst=? WHERE id=?').run(v, req.params.id);
+  logAdminAction(admin.id, admin.display_name, v?'منح شارة محلل فني':'سحب شارة محلل فني', 'user', user.id, user.display_name);
+  res.json({ success: true, is_analyst: v });
+});
+
 // إيقاف/تفعيل عضو
 app.post('/api/admin/users/:id/suspend', requireAdmin, (req, res) => {
   const admin = getAdminUser(req);
@@ -1571,6 +1583,9 @@ db.exec(`
     PRIMARY KEY (room_id, user_id)
   );
 `);
+
+// إضافة عمود is_analyst
+try { db.exec(`ALTER TABLE users ADD COLUMN is_analyst INTEGER DEFAULT 0`); } catch(e) {}
 
 // إضافة عمود chart_symbol للمنشورات
 try { db.exec(`ALTER TABLE posts ADD COLUMN chart_symbol TEXT DEFAULT ''`); } catch(e) {}
