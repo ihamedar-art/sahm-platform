@@ -1548,9 +1548,9 @@ function createPostCard(p, standalone = false) {
   const isAdmin = currentUser && currentUser.isAdmin;
   const isSuperAdminUser = currentUser && currentUser.isSuperAdmin;
 
-  // حساب عمر المنشور — خلال ساعة: حذف مباشر، بعدها: طلب حذف
-  const postAgeMinutes = p.created_at ? (Date.now() - new Date(p.created_at).getTime()) / 60000 : 999;
-  const canDirectDelete = postAgeMinutes < 60;
+  // نعتمد على السيرفر لتحديد إمكانية الحذف المباشر (تجنب فروق التوقيت)
+  // can_direct_delete يأتي من السيرفر — بعد ساعة يصير false
+  const canDirectDelete = p.can_direct_delete === true || p.can_direct_delete === 1;
   const upActive = p.my_vote === 'up' ? 'active' : '';
   const downActive = p.my_vote === 'down' ? 'active' : '';
 

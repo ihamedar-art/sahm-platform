@@ -755,7 +755,10 @@ app.get('/api/posts', (req, res) => {
       const v = db.prepare("SELECT vote_type FROM votes WHERE user_id=? AND target_id=? AND target_type='post'").get(userId, p.id);
       myVote = v ? v.vote_type : null;
     }
-    return { ...p, time_ago: formatTime(p.created_at), level_name: getLevelName(p.level), my_vote: myVote, is_pinned: pinned || p.is_pinned };
+    // هل المنشور ضمن ساعة؟ نحسبها على السيرفر مباشرة
+    const ageCheck = db.prepare(`SELECT CASE WHEN created_at > datetime('now', '-60 minutes') THEN 1 ELSE 0 END as is_new FROM posts WHERE id=?`).get(p.id);
+    const can_direct_delete = ageCheck ? ageCheck.is_new === 1 : false;
+    return { ...p, time_ago: formatTime(p.created_at), level_name: getLevelName(p.level), my_vote: myVote, is_pinned: pinned || p.is_pinned, can_direct_delete };
   };
 
   const enrichedPinned = pinnedPosts.map(p => enrich(p, true));
@@ -2186,9 +2189,9 @@ app.post('/api/posts/:id/delete-request', requireAuth, (req, res) => {
   if (!post) return res.json({ error: 'المنشور غير موجود' });
   if (post.user_id !== req.session.userId) return res.json({ error: 'غير مصرح' });
 
-  // تحقق مضى أكثر من ساعة
-  const ageMinutes = (Date.now() - new Date(post.created_at).getTime()) / 60000;
-  if (ageMinutes < 60) return res.json({ error: 'لا يزال بإمكانك حذف المنشور مباشرة خلال الساعة الأولى' });
+  // تحقق مضى أكثر من ساعة — نستخدم SQL للمقارنة عشان نتجنب فروق التوقيت
+  const timeCheck = db.prepare(`SELECT CASE WHEN created_at <= datetime('now', '-60 minutes') THEN 1 ELSE 0 END as is_old FROM posts WHERE id=?`).get(req.params.id);
+  if (!timeCheck || !timeCheck.is_old) return res.json({ error: 'لا يزال بإمكانك حذف المنشور مباشرة خلال الساعة الأولى' });
 
   // تحقق ما فيه طلب سابق
   const existing = db.prepare('SELECT id FROM delete_requests WHERE post_id=? AND status=?').get(req.params.id, 'pending');
