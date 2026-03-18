@@ -4491,8 +4491,19 @@ async function adminAddNews(){
 
 // ── طلبات الحذف (سوبر أدمن فقط) ─────────────────────────────────
 async function renderAdminDeleteRequests(el, status = 'pending') {
-  const r = await fetch(`/api/admin/delete-requests?status=${status}`);
-  const d = await r.json();
+  try {
+    const r = await fetch(`/api/admin/delete-requests?status=${status}`);
+    const d = await r.json();
+
+    if (d.error) {
+      el.innerHTML = `<div style="color:var(--red);padding:20px">❌ خطأ: ${d.error}</div>`;
+      return;
+    }
+
+    if (!d.requests) {
+      el.innerHTML = `<div style="color:var(--red);padding:20px">❌ البيانات غير متوفرة — تحقق من السيرفر</div>`;
+      return;
+    }
 
   const tabs = [
     ['pending',  '⏳ قيد المراجعة'],
@@ -4556,9 +4567,10 @@ async function renderAdminDeleteRequests(el, status = 'pending') {
               </div>`}
           </div>`).join('')}
     </div>`;
-}
-
-async function handleDeleteRequest(reqId, action) {
+  } catch(e) {
+    el.innerHTML = `<div style="color:var(--red);padding:20px">❌ خطأ في التحميل: ${e.message}</div>`;
+  }
+}(reqId, action) {
   const labels = { approve: 'قبول الحذف النهائي', reject: 'رفض الطلب وإعادة المنشور', 'keep-restricted': 'إبقاء المنشور مقيداً' };
   if (!confirm(`${labels[action]}؟`)) return;
   const res = await fetch(`/api/admin/delete-requests/${reqId}/${action}`, { method: 'POST' });
