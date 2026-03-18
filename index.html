@@ -1550,7 +1550,7 @@ function createPostCard(p, standalone = false) {
 
   // نعتمد على السيرفر لتحديد إمكانية الحذف المباشر (تجنب فروق التوقيت)
   // can_direct_delete يأتي من السيرفر — بعد ساعة يصير false
-  const canDirectDelete = p.can_direct_delete === true || p.can_direct_delete === 1;
+  const canDirectDelete = p.can_direct_delete == true || p.can_direct_delete == 1;
   const upActive = p.my_vote === 'up' ? 'active' : '';
   const downActive = p.my_vote === 'down' ? 'active' : '';
 

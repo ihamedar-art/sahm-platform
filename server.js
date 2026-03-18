@@ -721,26 +721,30 @@ app.get('/api/posts', (req, res) => {
   }
 
   if (symbol) {
-    posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
+    posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified,
+      (strftime('%s','now') - strftime('%s', p.created_at)) < 3600 as can_direct_delete
       FROM posts p JOIN users u ON p.user_id = u.id
       WHERE (p.stock_symbols LIKE ?) AND ${visibilityClause}
       ORDER BY p.created_at DESC LIMIT ? OFFSET ?`
     ).all(`%${symbol}%`, limit, offset);
   } else if (user_id) {
-    posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
+    posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified,
+      (strftime('%s','now') - strftime('%s', p.created_at)) < 3600 as can_direct_delete
       FROM posts p JOIN users u ON p.user_id = u.id
       WHERE p.user_id = ? AND ${visibilityClause}
       ORDER BY p.created_at DESC LIMIT ? OFFSET ?`
     ).all(user_id, limit, offset);
   } else if (feed === 'following' && userId) {
-    posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
+    posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified,
+      (strftime('%s','now') - strftime('%s', p.created_at)) < 3600 as can_direct_delete
       FROM posts p JOIN users u ON p.user_id = u.id
       WHERE p.user_id IN (SELECT following_id FROM follows WHERE follower_id = ?)
       AND ${visibilityClause}
       ORDER BY p.created_at DESC LIMIT ? OFFSET ?`
     ).all(userId, limit, offset);
   } else {
-    posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
+    posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified,
+      (strftime('%s','now') - strftime('%s', p.created_at)) < 3600 as can_direct_delete
       FROM posts p JOIN users u ON p.user_id = u.id
       WHERE (p.is_pinned = 0 OR p.is_pinned IS NULL)
       AND ${visibilityClause}
@@ -755,10 +759,7 @@ app.get('/api/posts', (req, res) => {
       const v = db.prepare("SELECT vote_type FROM votes WHERE user_id=? AND target_id=? AND target_type='post'").get(userId, p.id);
       myVote = v ? v.vote_type : null;
     }
-    // هل المنشور ضمن ساعة؟ نحسبها من created_at مباشرة
-    const createdAt = new Date(p.created_at + (p.created_at.includes('Z') ? '' : 'Z'));
-    const can_direct_delete = (Date.now() - createdAt.getTime()) < 60 * 60 * 1000;
-    return { ...p, time_ago: formatTime(p.created_at), level_name: getLevelName(p.level), my_vote: myVote, is_pinned: pinned || p.is_pinned, can_direct_delete };
+    return { ...p, time_ago: formatTime(p.created_at), level_name: getLevelName(p.level), my_vote: myVote, is_pinned: pinned || p.is_pinned, can_direct_delete: p.can_direct_delete == 1 };
   };
 
   const enrichedPinned = pinnedPosts.map(p => enrich(p, true));
