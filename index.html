@@ -2258,15 +2258,15 @@ async function loadStockPage(symbol) {
     </div>` : ''}
     <div id="stock-posts"></div>`;
 
-  const postsRes = await fetch(`/api/posts?symbol=${symbol}`);
+  const postsRes = await fetch(`/api/posts?symbol=${encodeURIComponent(symbol)}`);
   const postsData = await postsRes.json();
   const sp = document.getElementById('stock-posts');
-  if (postsData.posts.length === 0) {
+  if (!postsData.posts || postsData.posts.length === 0) {
     sp.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div>
       <div class="empty-title">لا توجد منشورات بعد لهذا السهم</div>
       <p>كن أول من ينشر تحليلاً عن ${symbol}</p></div>`;
   } else {
-    postsData.posts.forEach(p => sp.insertAdjacentHTML('beforeend', createPostCard(p)));
+    sp.innerHTML = postsData.posts.map(p => renderPost(p)).join('');
   }
 }
 
@@ -2715,7 +2715,8 @@ async function executeSearch(q) {
   document.getElementById('search-input').value = '';
   const resolved = resolveSearchQuery(q);
   if (resolved.type === 'stock') {
-    navigate('stock', '$' + resolved.symbol.replace('$',''));
+    const sym = '$' + resolved.symbol.replace('$','');
+    navigate('stock', sym);
   } else if (resolved.type === 'profile') {
     navigate('profile', resolved.username);
   } else {
@@ -2729,12 +2730,25 @@ async function doSearch(q) {
 
   // لو سهم معروف → اقتراح مباشر بدون API
   if (resolved.type === 'stock') {
+    // جدول أسماء مختصر للعرض
+    const STOCK_NAMES = {
+      '2222':'أرامكو','1120':'الراجحي','1010':'الرياض','2010':'سابك',
+      '7030':'STC','7020':'موبايلي','7040':'زين','1140':'البلاد',
+      '1150':'الانماء','1180':'الأهلي','2270':'المراعي','4190':'جرير',
+      '4300':'دار الاركان','4250':'جبل عمر','5110':'كهرباء',
+      'TSLA':'تسلا','AAPL':'آبل','MSFT':'مايكروسوفت','AMZN':'أمازون',
+      'GOOGL':'جوجل','META':'ميتا','NVDA':'انفيديا','NFLX':'نتفلكس',
+      'GOLD':'ذهب','OIL':'نفط','BTC':'بيتكوين','ETH':'إيثيريوم',
+      'TASI':'تاسي','NDX':'ناسداك','SPX':'S&P 500',
+    };
+    const sym = resolved.symbol.replace('$','');
+    const name = STOCK_NAMES[sym] || sym;
     el.innerHTML = `
       <div class="search-result-item" onclick="executeSearch('${q.replace(/'/g,"\\'")}')">
         <span style="font-size:18px">📈</span>
         <div>
-          <div style="font-size:13px;font-weight:700;color:var(--primary)">$${resolved.symbol}</div>
-          <div style="font-size:11px;color:var(--text3)">الذهاب لتاق السهم</div>
+          <div style="font-size:13px;font-weight:700;color:var(--primary)">$${sym}</div>
+          <div style="font-size:11px;color:var(--text3)">${name}</div>
         </div>
       </div>`;
     el.classList.add('show');
