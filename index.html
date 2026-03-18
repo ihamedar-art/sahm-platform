@@ -1038,10 +1038,15 @@ let notifCount = 0;
 // INIT
 // ══════════════════════════════════════════════════════════════════
 async function init() {
-  // تحقق إذا في رابط إعادة تعيين كلمة المرور
+  // تعيين الحالة الأولى في التاريخ
   const urlParams = new URLSearchParams(window.location.search);
   const resetToken = urlParams.get('token');
   if (resetToken) { showResetPasswordPage(resetToken); return; }
+
+  // استعادة الصفحة من الـ URL لو موجودة
+  const initPage = urlParams.get('page') || 'home';
+  const initParam = urlParams.get('param') || '';
+  history.replaceState({ page: initPage, param: initParam }, '', window.location.href);
 
   await checkAuth();
   loadPopularStocks();
@@ -1171,12 +1176,18 @@ async function togglePin(postId, currentlyPinned) {
 // ══════════════════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════════════════
-function navigate(page, param = '') {
+function navigate(page, param = '', pushHistory = true) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   currentPage = page;
   const nav = document.getElementById('nav-' + page);
   if (nav) nav.classList.add('active');
+
+  // تحديث الـ URL بدون إعادة تحميل الصفحة
+  if (pushHistory) {
+    const url = param ? `?page=${page}&param=${encodeURIComponent(param)}` : `?page=${page}`;
+    history.pushState({ page, param }, '', page === 'home' ? '/' : url);
+  }
 
   if (page === 'home') {
     document.getElementById('page-home').classList.add('active');
@@ -1189,13 +1200,11 @@ function navigate(page, param = '') {
     loadFullLeaderboard();
   } else if (page === 'rooms') {
     document.getElementById('page-rooms').classList.add('active');
-    // إعادة إظهار السايدبار
     document.querySelector('.sidebar')?.style.setProperty('display','');
     document.querySelector('.right-panel')?.style.setProperty('display','');
     loadRoomsPage();
   } else if (page === 'room') {
     document.getElementById('page-room').classList.add('active');
-    // إخفاء السايدبار والبانل اليمين داخل الروم
     document.querySelector('.sidebar')?.style.setProperty('display','none');
     document.querySelector('.right-panel')?.style.setProperty('display','none');
     document.querySelector('.feed')?.style.setProperty('max-width','100%');
@@ -1223,6 +1232,16 @@ function navigate(page, param = '') {
     loadStockPage(param);
   }
 }
+
+// التعامل مع زر الباك/فورورد في المتصفح
+window.addEventListener('popstate', (e) => {
+  const state = e.state;
+  if (state && state.page) {
+    navigate(state.page, state.param || '', false);
+  } else {
+    navigate('home', '', false);
+  }
+});
 
 // ══════════════════════════════════════════════════════════════════
 // AUTH UI
