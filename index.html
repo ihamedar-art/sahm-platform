@@ -1301,12 +1301,13 @@ async function submitPost() {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000); // 60 ثانية timeout
+    const timeout = setTimeout(() => controller.abort(), 120000); // 120 ثانية timeout
     const res = await fetch('/api/posts', { method:'POST', body:formData, signal: controller.signal });
     clearTimeout(timeout);
     const data = await res.json();
     btn.disabled = false; btn.textContent = 'نشر ✨';
     if (data.error) { toast(data.error, 'error'); return; }
+    if (!data.success) { toast('فشل النشر: ' + JSON.stringify(data), 'error'); return; }
     document.getElementById('compose-text').value = '';
     clearImage();
     document.getElementById('char-count').textContent = '0 / 2000';
