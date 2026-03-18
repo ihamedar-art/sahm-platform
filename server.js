@@ -187,6 +187,34 @@ app.use(session({
   cookie: { maxAge: 90 * 24 * 60 * 60 * 1000, httpOnly: true, sameSite: 'lax' }
 }));
 
+// ── Rate Limiter عام — 100 طلب/دقيقة لكل IP ──────────────────────────────────
+const ipRequestMap = new Map();
+app.use((req, res, next) => {
+  // استثنِ الملفات الثابتة
+  if (req.path.startsWith('/uploads') || !req.path.startsWith('/api')) return next();
+  const ip = req.ip || req.connection.remoteAddress;
+  const now = Date.now();
+  const windowMs = 60 * 1000; // دقيقة واحدة
+  const maxRequests = 100;
+  if (!ipRequestMap.has(ip)) ipRequestMap.set(ip, []);
+  const requests = ipRequestMap.get(ip).filter(t => now - t < windowMs);
+  requests.push(now);
+  ipRequestMap.set(ip, requests);
+  if (requests.length > maxRequests) {
+    return res.status(429).json({ error: 'طلبات كثيرة جداً، انتظر دقيقة وحاول مجدداً' });
+  }
+  next();
+});
+// تنظيف الـ Map كل 5 دقائق لتوفير الذاكرة
+setInterval(() => {
+  const now = Date.now();
+  ipRequestMap.forEach((v, k) => {
+    const fresh = v.filter(t => now - t < 60000);
+    if (fresh.length === 0) ipRequestMap.delete(k);
+    else ipRequestMap.set(k, fresh);
+  });
+}, 5 * 60 * 1000);
+
 // ── Helper Functions ─────────────────────────────────────────────────────────
 function requireAuth(req, res, next) {
   if (!req.session.userId) return res.status(401).json({ error: 'يجب تسجيل الدخول' });
@@ -644,19 +672,50 @@ app.delete('/api/admin/market-events/:id', requireAdmin, (req, res) => {
 // ── Posts ────────────────────────────────────────────────────────────────────
 app.post('/api/posts', requireAuth, upload.single('image'), async (req, res) => {
   const { content, post_type, target_price, stop_loss, direction, timeframe, chart_symbol, chart_exchange } = req.body;
-  if (!content || content.trim().length < 3) return res.json({ error: 'المحتوى قصير جداً' });
+  if (!content || content.trim().length < 10) return res.json({ error: 'المنشور قصير جداً (10 أحرف على الأقل)' });
   if (content.length > 2000) return res.json({ error: 'المحتوى طويل جداً (الحد 2000 حرف)' });
 
-  // تحقق إضافي من المستخدم
   const userId = req.session.userId;
   if (!userId) {
     if (req.file) try { fs.unlinkSync(req.file.path); } catch(e) {}
     return res.status(401).json({ error: 'انتهت جلستك، سجّل دخولك مجدداً' });
   }
-  const userExists = db.prepare('SELECT id FROM users WHERE id=?').get(userId);
-  if (!userExists) {
+
+  const user = db.prepare('SELECT id, is_super_admin FROM users WHERE id=?').get(userId);
+  if (!user) {
     if (req.file) try { fs.unlinkSync(req.file.path); } catch(e) {}
     return res.status(401).json({ error: 'المستخدم غير موجود' });
+  }
+
+  // ── حماية السبام (السوبر أدمن معفى) ──────────────────────────────
+  if (!user.is_super_admin) {
+    // ١. 30 ثانية بين كل منشور
+    const lastPost = db.prepare(`
+      SELECT created_at FROM posts
+      WHERE user_id = ? AND (is_soft_deleted = 0 OR is_soft_deleted IS NULL)
+      ORDER BY created_at DESC LIMIT 1
+    `).get(userId);
+    if (lastPost) {
+      const secsSinceLast = (Date.now() - new Date(lastPost.created_at + 'Z').getTime()) / 1000;
+      if (secsSinceLast < 30) {
+        if (req.file) try { fs.unlinkSync(req.file.path); } catch(e) {}
+        const wait = Math.ceil(30 - secsSinceLast);
+        return res.json({ error: `انتظر ${wait} ثانية قبل النشر مجدداً` });
+      }
+    }
+
+    // ٢. منع تكرار نفس النص خلال ساعة
+    const trimmed = content.trim();
+    const duplicate = db.prepare(`
+      SELECT id FROM posts
+      WHERE user_id = ? AND content = ?
+      AND created_at >= datetime('now', '-1 hour')
+      AND (is_soft_deleted = 0 OR is_soft_deleted IS NULL)
+    `).get(userId, trimmed);
+    if (duplicate) {
+      if (req.file) try { fs.unlinkSync(req.file.path); } catch(e) {}
+      return res.json({ error: 'نشرت هذا المحتوى مؤخراً، انتظر ساعة قبل تكراره' });
+    }
   }
 
   const id = uuidv4();
