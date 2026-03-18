@@ -982,29 +982,25 @@ app.get('/api/notifications/count', requireAuth, (req, res) => {
 // ── Stocks ───────────────────────────────────────────────────────────────────
 app.get('/api/stocks/popular', (req, res) => {
   try {
-    // الأسهم الأكثر نقاشاً خلال آخر 24 ساعة
+    // جلب المنشورات الفعلية غير المحذوفة مع رموزها
     const trending = db.prepare(`
-      SELECT stock_symbols, COUNT(*) as post_count
+      SELECT stock_symbols
       FROM posts
       WHERE stock_symbols != '' AND stock_symbols IS NOT NULL
       AND (is_soft_deleted = 0 OR is_soft_deleted IS NULL)
       AND created_at >= datetime('now', '-24 hours')
-      GROUP BY stock_symbols
-      ORDER BY post_count DESC
-      LIMIT 8
     `).all();
 
     // لو ما فيه نشاط في آخر 24 ساعة، نوسع لـ 7 أيام
     const rows = trending.length > 0 ? trending : db.prepare(`
-      SELECT stock_symbols, COUNT(*) as post_count
+      SELECT stock_symbols
       FROM posts
       WHERE stock_symbols != '' AND stock_symbols IS NOT NULL
       AND (is_soft_deleted = 0 OR is_soft_deleted IS NULL)
       AND created_at >= datetime('now', '-7 days')
-      GROUP BY stock_symbols
-      ORDER BY post_count DESC
-      LIMIT 8
     `).all();
+
+    const period = trending.length > 0 ? '24h' : '7d';
 
     if (rows.length > 0) {
       const symbolMap = {};
@@ -1012,10 +1008,10 @@ app.get('/api/stocks/popular', (req, res) => {
         row.stock_symbols.split(',').forEach(sym => {
           sym = sym.trim();
           if (!sym) return;
-          // حوّل أي اسم بديل → الرمز الرسمي قبل العد
+          // حوّل أي اسم بديل → الرمز الرسمي
           const canonical = normalizeSymbol(sym);
           if (!symbolMap[canonical]) symbolMap[canonical] = 0;
-          symbolMap[canonical] += row.post_count;
+          symbolMap[canonical] += 1; // كل منشور = +1 بالضبط
         });
       });
 
@@ -1032,7 +1028,7 @@ app.get('/api/stocks/popular', (req, res) => {
           };
         });
 
-      return res.json({ stocks, period: trending.length > 0 ? '24h' : '7d' });
+      return res.json({ stocks, period });
     }
   } catch(e) { console.error('popular stocks error:', e); }
 
