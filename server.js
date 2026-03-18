@@ -462,18 +462,20 @@ app.post('/api/vote', requireAuth, (req, res) => {
       db.prepare('DELETE FROM votes WHERE user_id=? AND target_id=? AND target_type=?').run(userId, target_id, target_type);
       if (target_type === 'post') {
         const col = vote_type === 'up' ? 'upvotes' : 'downvotes';
-        db.prepare(`UPDATE posts SET ${col} = ${col} - 1 WHERE id = ?`).run(target_id);
+        db.prepare(`UPDATE posts SET ${col} = MAX(0, ${col} - 1) WHERE id = ?`).run(target_id);
       }
-      return res.json({ success: true, action: 'removed' });
+      const updatedPost = target_type === 'post' ? db.prepare('SELECT upvotes, downvotes FROM posts WHERE id=?').get(target_id) : null;
+      return res.json({ success: true, action: 'removed', ...updatedPost });
     } else {
       // تغيير التصويت
       db.prepare('UPDATE votes SET vote_type=? WHERE user_id=? AND target_id=? AND target_type=?').run(vote_type, userId, target_id, target_type);
       if (target_type === 'post') {
         const add = vote_type === 'up' ? 'upvotes' : 'downvotes';
         const sub = vote_type === 'up' ? 'downvotes' : 'upvotes';
-        db.prepare(`UPDATE posts SET ${add} = ${add} + 1, ${sub} = ${sub} - 1 WHERE id = ?`).run(target_id);
+        db.prepare(`UPDATE posts SET ${add} = ${add} + 1, ${sub} = MAX(0, ${sub} - 1) WHERE id = ?`).run(target_id);
       }
-      return res.json({ success: true, action: 'changed' });
+      const updatedPost = target_type === 'post' ? db.prepare('SELECT upvotes, downvotes FROM posts WHERE id=?').get(target_id) : null;
+      return res.json({ success: true, action: 'changed', ...updatedPost });
     }
   }
 
