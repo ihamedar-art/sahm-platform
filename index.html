@@ -249,6 +249,7 @@ body {
 }
 .post-card:hover { border-color: var(--border2); box-shadow: 0 4px 20px rgba(29,78,216,.1); }
 .post-card.pinned-post { border-color: var(--gold); border-right: 3px solid var(--gold); background: linear-gradient(to left, rgba(217,119,6,.03), var(--bg2)); }
+.post-card.restricted-post { border-color: var(--red); border-right: 3px solid var(--red); background: linear-gradient(to left, rgba(220,38,38,.03), var(--bg2)); opacity: .85; }
 .pin-badge { font-size: 12px; font-weight: 700; color: var(--gold); margin-bottom: 10px; display: flex; align-items: center; gap: 5px; }
 .pinned-comment { background: rgba(217,119,6,.05); border-right: 3px solid var(--gold); border-radius: var(--radius2); padding: 10px; margin-bottom: 8px; }
 @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
@@ -1550,8 +1551,23 @@ function createPostCard(p, standalone = false) {
   const downActive = p.my_vote === 'down' ? 'active' : '';
 
   const cardClick = standalone ? '' : `onclick="handlePostClick(event,'${p.id}')"`;
-  return `<div class="post-card${p.is_pinned ? ' pinned-post' : ''}" id="post-${p.id}" style="${standalone ? '' : 'cursor:pointer'}" ${cardClick}>
+
+  // منشور مقيد — يظهر placeholder بدل المحتوى (للأدمن يظهر كامل)
+  if (p.is_soft_deleted && !currentUser?.isAdmin && !currentUser?.isSuperAdmin) {
+    return `<div class="post-card" id="post-${p.id}">
+      <div style="display:flex;align-items:center;gap:12px;padding:8px;background:var(--bg3);border-radius:var(--radius2)">
+        <span style="font-size:22px">🔒</span>
+        <div>
+          <div style="font-weight:600;font-size:14px;color:var(--text2)">هذا المنشور مقيد لحين المراجعة</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">سيتم مراجعته من قِبل الإدارة قريباً</div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  return `<div class="post-card${p.is_pinned ? ' pinned-post' : ''}${p.is_soft_deleted ? ' restricted-post' : ''}" id="post-${p.id}" style="${standalone ? '' : 'cursor:pointer'}" ${cardClick}>
     ${p.is_pinned ? `<div class="pin-badge">📌 منشور مثبت</div>` : ''}
+    ${p.is_soft_deleted ? `<div class="pin-badge" style="color:var(--red)">🔒 منشور مقيد — مرئي للإدارة فقط</div>` : ''}
     <div class="post-header">
       <div class="avatar" onclick="event.stopPropagation();navigate('profile','${p.username}')">${avatarHtml}</div>
       <div class="post-meta">
@@ -1567,7 +1583,7 @@ function createPostCard(p, standalone = false) {
         ${isSuperAdminUser ? `<div class="post-menu" onclick="event.stopPropagation();togglePin('${p.id}',${p.is_pinned?1:0})" title="${p.is_pinned?'إلغاء التثبيت':'تثبيت'}">${p.is_pinned?'📌':'📍'}</div>` : ''}
         ${isAdmin ? `<div class="post-menu" onclick="event.stopPropagation();adminSoftDeletePostFeed('${p.id}')" title="حذف مؤقت">🚫</div>` : ''}
         ${isSuperAdminUser ? `<div class="post-menu" style="color:var(--red)" onclick="event.stopPropagation();adminHardDeletePostFeed('${p.id}')" title="حذف نهائي">🗑️</div>` : ''}
-        ${(isOwner && !isAdmin) ? `<div class="post-menu" onclick="event.stopPropagation();deletePost('${p.id}')">🗑️</div>` : ''}
+        ${(isOwner && !isAdmin) ? `<div class="post-menu" title="تقييد المنشور" onclick="event.stopPropagation();deletePost('${p.id}')">🔒</div>` : ''}
       </div>
     </div>
     ${analysisBadge}
@@ -1849,12 +1865,23 @@ function handlePostClick(event, postId) {
 }
 
 async function deletePost(postId) {
-  if (!confirm('هل أنت متأكد من حذف المنشور؟')) return;
+  if (!confirm('سيتم تقييد هذا المنشور لحين مراجعته من قِبل الإدارة.\nهل تريد المتابعة؟')) return;
   const res = await fetch(`/api/posts/${postId}`, { method:'DELETE' });
   const data = await res.json();
   if (data.success) {
-    document.getElementById(`post-${postId}`)?.remove();
-    toast('تم حذف المنشور', 'info');
+    // استبدل بطاقة المنشور برسالة التقييد بدل الإزالة
+    const card = document.getElementById(`post-${postId}`);
+    if (card) {
+      card.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;padding:8px;background:var(--bg3);border-radius:var(--radius2)">
+          <span style="font-size:22px">🔒</span>
+          <div>
+            <div style="font-weight:600;font-size:14px;color:var(--text2)">هذا المنشور مقيد لحين المراجعة</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:2px">سيتم مراجعته من قِبل الإدارة قريباً</div>
+          </div>
+        </div>`;
+    }
+    toast('🔒 تم تقييد المنشور لحين المراجعة', 'info');
   } else {
     toast(data.error || 'حدث خطأ', 'error');
   }
@@ -2489,10 +2516,7 @@ async function loadTrendingStocks() {
       onclick="navigate('stock','${s.symbol}')" id="trending-item-${s.symbol.replace('$','')}">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:12px;color:var(--text3);width:16px">${i+1}</span>
-        <div>
-          <div style="font-weight:600;font-size:13px;color:var(--primary)">${s.symbol}</div>
-          <div style="font-size:12px;color:var(--text3)">${s.name}</div>
-        </div>
+        <div style="font-weight:600;font-size:13px;color:var(--primary)">${s.symbol}</div>
       </div>
       <div id="trending-price-${s.symbol.replace('$','')}" style="text-align:left">
         <div style="width:40px;height:8px;background:var(--bg3);border-radius:4px;animation:pulse 1s infinite"></div>
@@ -2511,7 +2535,15 @@ async function loadTrendingStocks() {
   prices.forEach((p, i) => {
     const sym = data.stocks[i]?.symbol.replace('$','');
     const el = document.getElementById(`trending-price-${sym}`);
-    if (!el || !p || p.error) return;
+    if (!el) return;
+    if (!p || p.error) {
+      // لا يوجد سعر — نعرض شارة "نشط"
+      el.innerHTML = `<div style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;background:rgba(5,150,105,.08);border:1px solid rgba(5,150,105,.2)">
+        <span style="width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 1.5s infinite"></span>
+        <span style="font-size:11px;font-weight:600;color:var(--green)">نشط</span>
+      </div>`;
+      return;
+    }
     const color = p.isUp ? 'var(--green)' : 'var(--red)';
     const arrow = p.isUp ? '▲' : '▼';
     el.innerHTML = `

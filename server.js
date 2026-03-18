@@ -700,6 +700,16 @@ app.get('/api/posts', (req, res) => {
   const limit = 20;
   const offset = (parseInt(page) || 0) * limit;
   const userId = req.session.userId;
+
+  // تحقق هل المستخدم أدمن
+  const sessionUser = userId ? db.prepare('SELECT is_admin,is_super_admin FROM users WHERE id=?').get(userId) : null;
+  const isAdminSession = sessionUser && (sessionUser.is_admin || sessionUser.is_super_admin);
+
+  // شرط الظهور: المنشورات العادية دائماً، المقيدة للأدمن فقط
+  const visibilityClause = isAdminSession
+    ? '1=1'
+    : '(p.is_soft_deleted=0 OR p.is_soft_deleted IS NULL)';
+
   let posts;
   let pinnedPosts = [];
 
@@ -713,27 +723,27 @@ app.get('/api/posts', (req, res) => {
   if (symbol) {
     posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
       FROM posts p JOIN users u ON p.user_id = u.id
-      WHERE (p.stock_symbols LIKE ?) AND (p.is_soft_deleted=0 OR p.is_soft_deleted IS NULL)
+      WHERE (p.stock_symbols LIKE ?) AND ${visibilityClause}
       ORDER BY p.created_at DESC LIMIT ? OFFSET ?`
     ).all(`%${symbol}%`, limit, offset);
   } else if (user_id) {
     posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
       FROM posts p JOIN users u ON p.user_id = u.id
-      WHERE p.user_id = ? AND (p.is_soft_deleted=0 OR p.is_soft_deleted IS NULL)
+      WHERE p.user_id = ? AND ${visibilityClause}
       ORDER BY p.created_at DESC LIMIT ? OFFSET ?`
     ).all(user_id, limit, offset);
   } else if (feed === 'following' && userId) {
     posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
       FROM posts p JOIN users u ON p.user_id = u.id
       WHERE p.user_id IN (SELECT following_id FROM follows WHERE follower_id = ?)
-      AND (p.is_soft_deleted=0 OR p.is_soft_deleted IS NULL)
+      AND ${visibilityClause}
       ORDER BY p.created_at DESC LIMIT ? OFFSET ?`
     ).all(userId, limit, offset);
   } else {
     posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified
       FROM posts p JOIN users u ON p.user_id = u.id
       WHERE (p.is_pinned = 0 OR p.is_pinned IS NULL)
-      AND (p.is_soft_deleted=0 OR p.is_soft_deleted IS NULL)
+      AND ${visibilityClause}
       ORDER BY p.created_at DESC
       LIMIT ? OFFSET ?`
     ).all(limit, offset);
@@ -764,16 +774,9 @@ app.delete('/api/posts/:id', requireAuth, (req, res) => {
   const user = db.prepare('SELECT is_admin,is_super_admin FROM users WHERE id=?').get(req.session.userId);
   const isAdmin = user && (user.is_admin || user.is_super_admin);
   if (post.user_id !== req.session.userId && !isAdmin) return res.json({ error: 'غير مصرح' });
-  db.pragma('foreign_keys = OFF');
-  try {
-    db.prepare("DELETE FROM votes WHERE target_id IN (SELECT id FROM comments WHERE post_id=?) AND target_type='comment'").run(req.params.id);
-    db.prepare('DELETE FROM comments WHERE post_id=?').run(req.params.id);
-    db.prepare("DELETE FROM votes WHERE target_id=? AND target_type='post'").run(req.params.id);
-    db.prepare('DELETE FROM posts WHERE id=?').run(req.params.id);
-    db.prepare('UPDATE users SET posts_count = MAX(0, posts_count - 1) WHERE id=?').run(post.user_id);
-  } finally {
-    db.pragma('foreign_keys = ON');
-  }
+  // تقييد المنشور بدل الحذف النهائي — يظهر "مقيد لحين المراجعة" للمستخدمين
+  db.prepare('UPDATE posts SET is_soft_deleted=1, soft_deleted_at=?, soft_deleted_by=? WHERE id=?')
+    .run(new Date().toISOString(), req.session.userId, req.params.id);
   res.json({ success: true });
 });
 
