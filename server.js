@@ -485,7 +485,7 @@ app.get('/api/posts', (req, res) => {
       FROM posts p JOIN users u ON p.user_id = u.id
       WHERE (p.is_pinned = 0 OR p.is_pinned IS NULL)
       AND (p.is_soft_deleted=0 OR p.is_soft_deleted IS NULL)
-      ORDER BY (p.upvotes * 2 - p.downvotes + p.comments_count) DESC, p.created_at DESC
+      ORDER BY p.created_at DESC
       LIMIT ? OFFSET ?`
     ).all(limit, offset);
   }
