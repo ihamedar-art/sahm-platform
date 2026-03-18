@@ -976,6 +976,11 @@ body {
       <div id="stock-content"></div>
     </div>
 
+    <!-- Search Results Page -->
+    <div class="page" id="page-search">
+      <div id="search-page-content"></div>
+    </div>
+
     <!-- Single Post Page -->
     <div class="page" id="page-post">
       <div id="post-page-content"></div>
@@ -1234,6 +1239,9 @@ function navigate(page, param = '', pushHistory = true) {
   } else if (page === 'stock') {
     document.getElementById('page-stock').classList.add('active');
     loadStockPage(param);
+  } else if (page === 'search') {
+    document.getElementById('page-search').classList.add('active');
+    loadSearchPage(param);
   }
 }
 
@@ -2126,9 +2134,43 @@ async function submitStockPost(symbol) {
   if (sp) sp.insertAdjacentHTML('afterbegin', createPostCard(d.post));
 }
 
-async function loadStockPage(symbol) {
-  const el = document.getElementById('stock-content');
+async function loadSearchPage(q) {
+  const el = document.getElementById('search-page-content');
+  el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3)">🔍 جاري البحث...</div>`;
   window.scrollTo({ top: 0, behavior: 'instant' });
+  const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+  const data = await res.json();
+  let html = `
+    <div style="margin-bottom:20px">
+      <div style="font-size:18px;font-weight:700">نتائج البحث عن "<span style="color:var(--primary)">${q}</span>"</div>
+    </div>`;
+  if (data.users?.length > 0) {
+    html += `<div style="font-size:13px;font-weight:700;color:var(--text3);margin-bottom:10px">👥 المستخدمون</div>`;
+    html += data.users.map(u => `
+      <div onclick="navigate('profile','${u.username}')" style="background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;gap:12px">
+        <div class="avatar" style="width:44px;height:44px;font-size:16px">${u.avatar?`<img src="${u.avatar}">`:u.display_name[0]}</div>
+        <div>
+          <div style="font-weight:600;font-size:15px">${u.display_name}</div>
+          <div style="font-size:13px;color:var(--text3)">@${u.username} · ${u.level_name}</div>
+        </div>
+      </div>`).join('');
+  }
+  if (data.posts?.length > 0) {
+    html += `<div style="font-size:13px;font-weight:700;color:var(--text3);margin:16px 0 10px">📝 المنشورات</div>`;
+    html += data.posts.map(p => renderPost(p)).join('');
+  }
+  if (!data.users?.length && !data.posts?.length) {
+    html += `
+      <div style="text-align:center;padding:60px 20px;color:var(--text3)">
+        <div style="font-size:40px;margin-bottom:12px">🔍</div>
+        <div style="font-size:16px;font-weight:600;margin-bottom:6px">لا توجد نتائج</div>
+        <div style="font-size:14px">لم نجد نتائج لـ "${q}"</div>
+      </div>`;
+  }
+  el.innerHTML = html;
+}
+
+async function loadStockPage(symbol) {
 
   // جلب البيانات بالتوازي
   const [statsRes, priceRes] = await Promise.all([
@@ -2605,31 +2647,124 @@ document.getElementById('search-input').addEventListener('input', function() {
   searchTimer = setTimeout(() => doSearch(q), 300);
 });
 
+document.getElementById('search-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    clearTimeout(searchTimer);
+    const q = this.value.trim();
+    if (q) executeSearch(q);
+  }
+});
+
 document.addEventListener('click', (e) => {
   if (!e.target.closest('.navbar-search')) document.getElementById('search-results').classList.remove('show');
 });
 
+// جدول ترجمة مبسط للبحث (اسم → رمز)
+const SEARCH_ALIASES = {
+  'ارامكو':'2222','أرامكو':'2222','aramco':'2222',
+  'الراجحي':'1120','راجحي':'1120','rajhi':'1120',
+  'سابك':'2010','sabic':'2010',
+  'الرياض':'1010','الاهلي':'1180','الأهلي':'1180',
+  'البلاد':'1140','الانماء':'1150','إنماء':'1150',
+  'الجزيرة':'1020','موبايلي':'7020','الاتصالات السعودية':'7030','stc':'7030',
+  'زين':'7040','المراعي':'2270','مراعي':'2270',
+  'جرير':'4190','الجرير':'4190','دار الاركان':'4300',
+  'جبل عمر':'4250','كهرباء':'5110',
+  'تسلا':'TSLA','tesla':'TSLA',
+  'ابل':'AAPL','آبل':'AAPL','apple':'AAPL',
+  'مايكروسوفت':'MSFT','microsoft':'MSFT',
+  'امازون':'AMZN','amazon':'AMZN',
+  'جوجل':'GOOGL','google':'GOOGL',
+  'ميتا':'META','فيسبوك':'META',
+  'انفيديا':'NVDA','nvidia':'NVDA',
+  'نتفلكس':'NFLX','netflix':'NFLX',
+  'ذهب':'GOLD','الذهب':'GOLD','نفط':'OIL','النفط':'OIL',
+  'بتكوين':'BTC','بيتكوين':'BTC','bitcoin':'BTC',
+  'ايثيريوم':'ETH','ethereum':'ETH',
+  'تاسي':'TASI','ناسداك':'NDX','اس بي 500':'SPX',
+};
+
+function resolveSearchQuery(q) {
+  const clean = q.replace(/^\$/, '').trim();
+  const lower = clean.toLowerCase();
+
+  // ١. رمز رقمي أو إنجليزي مباشر (2222, TSLA, BTC...)
+  if (/^[A-Za-z0-9.]+$/.test(clean) && clean.length <= 10) {
+    return { type: 'stock', symbol: clean.toUpperCase() };
+  }
+
+  // ٢. بدأ بـ $ → رمز مباشر
+  if (q.startsWith('$')) {
+    const alias = SEARCH_ALIASES[clean] || SEARCH_ALIASES[lower];
+    return { type: 'stock', symbol: alias || clean.toUpperCase() };
+  }
+
+  // ٣. اسم عربي أو إنجليزي في جدول الترجمة → سهم
+  const alias = SEARCH_ALIASES[clean] || SEARCH_ALIASES[lower];
+  if (alias) return { type: 'stock', symbol: alias };
+
+  // ٤. بدأ بـ @ → بروفايل
+  if (q.startsWith('@')) return { type: 'profile', username: clean.slice(1) };
+
+  // ٥. غير محدد → بحث عام (مستخدمين + منشورات)
+  return { type: 'general', q: clean };
+}
+
+async function executeSearch(q) {
+  document.getElementById('search-results').classList.remove('show');
+  document.getElementById('search-input').value = '';
+  const resolved = resolveSearchQuery(q);
+  if (resolved.type === 'stock') {
+    navigate('stock', '$' + resolved.symbol.replace('$',''));
+  } else if (resolved.type === 'profile') {
+    navigate('profile', resolved.username);
+  } else {
+    navigate('search', resolved.q);
+  }
+}
+
 async function doSearch(q) {
+  const el = document.getElementById('search-results');
+  const resolved = resolveSearchQuery(q);
+
+  // لو سهم معروف → اقتراح مباشر بدون API
+  if (resolved.type === 'stock') {
+    el.innerHTML = `
+      <div class="search-result-item" onclick="executeSearch('${q.replace(/'/g,"\\'")}')">
+        <span style="font-size:18px">📈</span>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--primary)">$${resolved.symbol}</div>
+          <div style="font-size:11px;color:var(--text3)">الذهاب لتاق السهم</div>
+        </div>
+      </div>`;
+    el.classList.add('show');
+    return;
+  }
+
+  // بحث عام → API
   const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
   const data = await res.json();
-  const el = document.getElementById('search-results');
   let html = '';
-  if (data.users.length > 0) {
+
+  if (data.users?.length > 0) {
     html += `<div style="padding:8px 16px;font-size:11px;color:var(--text3);font-weight:700;letter-spacing:.5px">المستخدمون</div>`;
     html += data.users.map(u => `
       <div class="search-result-item" onclick="navigate('profile','${u.username}');document.getElementById('search-results').classList.remove('show')">
         <div class="avatar" style="width:30px;height:30px;font-size:11px">${u.avatar?`<img src="${u.avatar}">`:u.display_name[0]}</div>
-        <div><div style="font-size:13px;font-weight:600">${u.display_name}</div><div style="font-size:11px;color:var(--text3)">@${u.username} · ${u.level_name}</div></div>
+        <div>
+          <div style="font-size:13px;font-weight:600">${u.display_name}</div>
+          <div style="font-size:11px;color:var(--text3)">@${u.username} · ${u.level_name}</div>
+        </div>
       </div>`).join('');
   }
-  if (data.posts.length > 0) {
-    html += `<div style="padding:8px 16px;font-size:11px;color:var(--text3);font-weight:700;letter-spacing:.5px">المنشورات</div>`;
-    html += data.posts.slice(0,3).map(p => `
-      <div class="search-result-item" style="cursor:default">
-        <div style="font-size:13px;color:var(--text)">${p.content.slice(0,60)}${p.content.length>60?'...':''}</div>
-      </div>`).join('');
-  }
-  if (!html) html = `<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">لا نتائج لـ "${q}"</div>`;
+
+  // زر بحث عام في النتائج
+  html += `
+    <div class="search-result-item" style="border-top:1px solid var(--border);margin-top:4px" onclick="executeSearch('${q.replace(/'/g,"\\'")}')">
+      <span style="font-size:16px">🔍</span>
+      <div style="font-size:13px;color:var(--text2)">البحث عن "<strong>${q}</strong>"</div>
+    </div>`;
+
   el.innerHTML = html;
   el.classList.add('show');
 }
