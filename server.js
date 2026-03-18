@@ -606,9 +606,9 @@ app.post('/api/vote', requireAuth, (req, res) => {
     if (vote_type === 'up') {
       const post = db.prepare('SELECT user_id FROM posts WHERE id=?').get(target_id);
       if (post && post.user_id !== userId) {
-        db.prepare('UPDATE users SET reputation = reputation + 1 WHERE id = ?').run(post.user_id);
+        
         const u = getUser(post.user_id);
-        if (u) db.prepare('UPDATE users SET level = ? WHERE id = ?').run(calcLevel(u.reputation + 1), u.id);
+        
       }
     }
   }
@@ -1028,7 +1028,7 @@ app.post('/api/poll/vote', requireAuth, (req, res) => {
     const col = choice + '_count';
     db.prepare(`UPDATE daily_polls SET ${col}=${col}+1 WHERE id=?`).run(poll.id);
     db.prepare('INSERT INTO daily_poll_votes (user_id,poll_id,choice) VALUES (?,?,?)').run(req.session.userId, poll.id, choice);
-    db.prepare('UPDATE users SET reputation = reputation + 1 WHERE id=?').run(req.session.userId);
+    
   }
   const updated = db.prepare('SELECT * FROM daily_polls WHERE id=?').get(poll.id);
   const total = updated.bullish_count + updated.bearish_count + updated.neutral_count;
@@ -1082,7 +1082,7 @@ app.post('/api/custom-poll/:id/vote', requireAuth, (req, res) => {
   } else {
     db.prepare('UPDATE custom_poll_options SET votes_count=votes_count+1 WHERE id=?').run(option_id);
     db.prepare('INSERT INTO custom_poll_votes (user_id,poll_id,option_id) VALUES (?,?,?)').run(req.session.userId, poll.id, option_id);
-    db.prepare('UPDATE users SET reputation=reputation+1 WHERE id=?').run(req.session.userId);
+    
   }
   // إعادة جلب النتائج
   const options = db.prepare('SELECT * FROM custom_poll_options WHERE poll_id=? ORDER BY sort_order').all(poll.id);
