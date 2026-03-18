@@ -2157,14 +2157,6 @@ app.post('/api/rooms/:id/messages', requireAuth, (req, res) => {
   res.json({ success: true, message: { ...msg, time_ago: 'الآن' } });
 });
 
-
-
-app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
-
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
 // ── جدول طلبات الحذف ─────────────────────────────────────────────
 try { db.exec(`
   CREATE TABLE IF NOT EXISTS delete_requests (
@@ -2187,20 +2179,16 @@ app.post('/api/posts/:id/delete-request', requireAuth, (req, res) => {
   if (!post) return res.json({ error: 'المنشور غير موجود' });
   if (post.user_id !== req.session.userId) return res.json({ error: 'غير مصرح' });
 
-  // تحقق مضى أكثر من ساعة — نستخدم SQL للمقارنة عشان نتجنب فروق التوقيت
   const timeCheck = db.prepare(`SELECT CASE WHEN created_at <= datetime('now', '-60 minutes') THEN 1 ELSE 0 END as is_old FROM posts WHERE id=?`).get(req.params.id);
   if (!timeCheck || !timeCheck.is_old) return res.json({ error: 'لا يزال بإمكانك حذف المنشور مباشرة خلال الساعة الأولى' });
 
-  // تحقق ما فيه طلب سابق
   const existing = db.prepare('SELECT id FROM delete_requests WHERE post_id=? AND status=?').get(req.params.id, 'pending');
   if (existing) return res.json({ error: 'طلب الحذف مُرسل مسبقاً وقيد المراجعة' });
 
-  // أنشئ الطلب وقيّد المنشور
   const id = uuidv4();
   db.prepare('INSERT INTO delete_requests (id,post_id,user_id,reason) VALUES (?,?,?,?)').run(id, req.params.id, req.session.userId, reason.trim());
   db.prepare('UPDATE posts SET is_soft_deleted=1, soft_deleted_at=?, soft_deleted_by=? WHERE id=?').run(new Date().toISOString(), req.session.userId, req.params.id);
 
-  // إشعار السوبر أدمن
   try {
     const superAdmin = db.prepare('SELECT id FROM users WHERE is_super_admin=1 LIMIT 1').get();
     if (superAdmin) {
@@ -2212,7 +2200,6 @@ app.post('/api/posts/:id/delete-request', requireAuth, (req, res) => {
       );
     }
   } catch(e) {}
-
   res.json({ success: true });
 });
 
@@ -2240,8 +2227,6 @@ app.post('/api/admin/delete-requests/:id/approve', requireSuperAdmin, (req, res)
   if (!req2) return res.json({ error: 'الطلب غير موجود' });
   const post = db.prepare('SELECT * FROM posts WHERE id=?').get(req2.post_id);
   if (!post) return res.json({ error: 'المنشور غير موجود' });
-
-  // حذف نهائي
   db.pragma('foreign_keys = OFF');
   try {
     db.prepare("DELETE FROM votes WHERE target_id IN (SELECT id FROM comments WHERE post_id=?) AND target_type='comment'").run(post.id);
@@ -2250,17 +2235,12 @@ app.post('/api/admin/delete-requests/:id/approve', requireSuperAdmin, (req, res)
     db.prepare('DELETE FROM posts WHERE id=?').run(post.id);
     if (post.user_id) db.prepare('UPDATE users SET posts_count = MAX(0, posts_count - 1) WHERE id=?').run(post.user_id);
   } finally { db.pragma('foreign_keys = ON'); }
-
-  db.prepare('UPDATE delete_requests SET status=?, reviewed_by=?, reviewed_at=? WHERE id=?')
-    .run('approved', admin.id, new Date().toISOString(), req.params.id);
-
-  // إشعار العضو
+  db.prepare('UPDATE delete_requests SET status=?, reviewed_by=?, reviewed_at=? WHERE id=?').run('approved', admin.id, new Date().toISOString(), req.params.id);
   try {
     db.prepare('INSERT INTO notifications (id,user_id,from_user_id,type,message,link) VALUES (?,?,?,?,?,?)').run(
       uuidv4(), req2.user_id, admin.id, 'delete_approved', 'تمت الموافقة على طلب حذف منشورك ✅', ''
     );
   } catch(e) {}
-
   logAdminAction(admin.id, admin.display_name, 'قبول طلب حذف منشور', 'post', post.id, post.content.substring(0,50));
   res.json({ success: true });
 });
@@ -2270,39 +2250,36 @@ app.post('/api/admin/delete-requests/:id/reject', requireSuperAdmin, (req, res) 
   const admin = getAdminUser(req);
   const req2 = db.prepare('SELECT * FROM delete_requests WHERE id=?').get(req.params.id);
   if (!req2) return res.json({ error: 'الطلب غير موجود' });
-
   db.prepare('UPDATE posts SET is_soft_deleted=0, soft_deleted_at=NULL, soft_deleted_by=NULL WHERE id=?').run(req2.post_id);
-  db.prepare('UPDATE delete_requests SET status=?, reviewed_by=?, reviewed_at=? WHERE id=?')
-    .run('rejected', admin.id, new Date().toISOString(), req.params.id);
-
-  // إشعار العضو
+  db.prepare('UPDATE delete_requests SET status=?, reviewed_by=?, reviewed_at=? WHERE id=?').run('rejected', admin.id, new Date().toISOString(), req.params.id);
   try {
     db.prepare('INSERT INTO notifications (id,user_id,from_user_id,type,message,link) VALUES (?,?,?,?,?,?)').run(
       uuidv4(), req2.user_id, admin.id, 'delete_rejected', 'تم رفض طلب حذف منشورك — المنشور مُعاد للظهور', ''
     );
   } catch(e) {}
-
   logAdminAction(admin.id, admin.display_name, 'رفض طلب حذف منشور', 'post', req2.post_id, '');
   res.json({ success: true });
 });
 
-// ترك المنشور مقيداً (بدون حذف)
+// ترك المنشور مقيداً
 app.post('/api/admin/delete-requests/:id/keep-restricted', requireSuperAdmin, (req, res) => {
   const admin = getAdminUser(req);
   const req2 = db.prepare('SELECT * FROM delete_requests WHERE id=?').get(req.params.id);
   if (!req2) return res.json({ error: 'الطلب غير موجود' });
-
-  db.prepare('UPDATE delete_requests SET status=?, reviewed_by=?, reviewed_at=? WHERE id=?')
-    .run('restricted', admin.id, new Date().toISOString(), req.params.id);
-
+  db.prepare('UPDATE delete_requests SET status=?, reviewed_by=?, reviewed_at=? WHERE id=?').run('restricted', admin.id, new Date().toISOString(), req.params.id);
   try {
     db.prepare('INSERT INTO notifications (id,user_id,from_user_id,type,message,link) VALUES (?,?,?,?,?,?)').run(
       uuidv4(), req2.user_id, admin.id, 'delete_restricted', 'تقرر إبقاء منشورك مقيداً لحين المراجعة 🔒', ''
     );
   } catch(e) {}
-
   logAdminAction(admin.id, admin.display_name, 'إبقاء منشور مقيداً', 'post', req2.post_id, '');
   res.json({ success: true });
+});
+
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.listen(PORT, () => console.log(`✅ جلسة السوق تعمل على المنفذ ${PORT}`));
