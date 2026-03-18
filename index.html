@@ -2157,7 +2157,7 @@ async function loadSearchPage(q) {
   }
   if (data.posts?.length > 0) {
     html += `<div style="font-size:13px;font-weight:700;color:var(--text3);margin:16px 0 10px">📝 المنشورات</div>`;
-    html += data.posts.map(p => renderPost(p)).join('');
+    html += data.posts.map(p => createPostCard(p)).join('');
   }
   if (!data.users?.length && !data.posts?.length) {
     html += `
@@ -2171,6 +2171,9 @@ async function loadSearchPage(q) {
 }
 
 async function loadStockPage(symbol) {
+  const el = document.getElementById('stock-content');
+  el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3)">⏳ جاري التحميل...</div>`;
+  window.scrollTo({ top: 0, behavior: 'instant' });
 
   // جلب البيانات بالتوازي
   const [statsRes, priceRes] = await Promise.all([
@@ -2266,7 +2269,8 @@ async function loadStockPage(symbol) {
       <div class="empty-title">لا توجد منشورات بعد لهذا السهم</div>
       <p>كن أول من ينشر تحليلاً عن ${symbol}</p></div>`;
   } else {
-    sp.innerHTML = postsData.posts.map(p => renderPost(p)).join('');
+    sp.innerHTML = '';
+    postsData.posts.forEach(p => sp.insertAdjacentHTML('beforeend', createPostCard(p)));
   }
 }
 
