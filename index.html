@@ -1530,7 +1530,6 @@ function createPostCard(p, standalone = false) {
         <div class="post-author">
           <span class="author-name" onclick="event.stopPropagation();navigate('profile','${p.username}')">${p.display_name}</span>
           ${p.is_verified ? '<span class="verified-badge" title="موثّق">✓</span>' : ''}
-          <span class="level-badge">${p.level_name}</span>
           <span class="author-handle">@${p.username}</span>
         </div>
         <div class="post-time">${p.time_ago}</div>
@@ -1654,7 +1653,7 @@ async function loadComments(postId) {
         <div class="comment-meta">
           <span class="comment-author" onclick="navigate('profile','${r.username}')">${r.display_name}</span>
           ${r.is_verified ? '<span style="color:var(--primary);font-size:12px">✓</span>' : ''}
-          <span class="level-badge" style="font-size:10px">${r.level_name}</span>
+          
           <span class="comment-time">${r.time_ago}</span>
         </div>
         <div class="comment-text">${r.content.replace(/\n/g,'<br>')}</div>
@@ -1687,8 +1686,8 @@ async function loadComments(postId) {
       <div class="comment-body">
         <div class="comment-meta">
           <span class="comment-author" onclick="navigate('profile','${c.username}')">${c.display_name}</span>
-          ${c.is_verified ? '<span style="color:var(--primary);font-size:12px">✓</span>' : ''}
-          <span class="level-badge" style="font-size:10px">${c.level_name}</span>
+          ${c.is_verified ? '<span class="verified-badge" title="موثّق">✓</span>' : ''}
+          
           <span class="comment-time">${c.time_ago}</span>
         </div>
         <div class="comment-text">${c.content.replace(/\n/g,'<br>')}</div>
@@ -2248,8 +2247,8 @@ async function loadPostPageComments(postId) {
         <div style="flex:1">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
             <span style="font-weight:600;font-size:13px;cursor:pointer" onclick="navigate('profile','${c.username}')">${c.display_name}</span>
-            ${c.is_verified ? '<span style="color:var(--primary);font-size:12px">✓</span>' : ''}
-            <span class="level-badge" style="font-size:10px">${c.level_name}</span>
+            ${c.is_verified ? '<span class="verified-badge" title="موثّق">✓</span>' : ''}
+            
             <span style="font-size:11px;color:var(--text3)">${c.time_ago}</span>
           </div>
           <div style="font-size:14px;color:var(--text)">${c.content.replace(/\n/g,'<br>')}</div>
