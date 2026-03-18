@@ -2054,8 +2054,16 @@ async function submitStockPost(symbol) {
 
 async function loadStockPage(symbol) {
   const el = document.getElementById('stock-content');
-  const statsRes = await fetch(`/api/stocks/${symbol}/stats`);
+  window.scrollTo({ top: 0, behavior: 'instant' });
+
+  // جلب البيانات بالتوازي
+  const [statsRes, priceRes] = await Promise.all([
+    fetch(`/api/stocks/${symbol}/stats`),
+    fetch(`/api/stock-price/${encodeURIComponent(symbol.replace('$',''))}`)
+  ]);
   const stats = await statsRes.json();
+  const priceData = await priceRes.json();
+
   const total = stats.bullish + stats.bearish || 1;
   const bullishPct = Math.round((stats.bullish / total) * 100);
   const bearishPct = 100 - bullishPct;
@@ -2065,10 +2073,45 @@ async function loadStockPage(symbol) {
     {symbol:'$2010',name:'سابك'},{symbol:'$7010',name:'STC'}
   ].find(s => s.symbol === symbol);
 
+  // بطاقة السعر
+  const priceCard = priceData.error ? '' : `
+    <div style="background:var(--bg2);border:1.5px solid ${priceData.isUp ? 'var(--green)' : 'var(--red)'};border-radius:var(--radius);padding:16px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-size:13px;color:var(--text3);margin-bottom:4px">${priceData.name || symbol} — متأخر 15 دقيقة</div>
+          <div style="display:flex;align-items:baseline;gap:10px">
+            <span style="font-size:32px;font-weight:700;color:var(--text)">${priceData.price}</span>
+            <span style="font-size:14px;color:var(--text3)">${priceData.currency}</span>
+            <span style="font-size:16px;font-weight:700;color:${priceData.isUp ? 'var(--green)' : 'var(--red)'}">
+              ${priceData.isUp ? '▲' : '▼'} ${Math.abs(priceData.change)} (${Math.abs(priceData.changePct)}%)
+            </span>
+          </div>
+        </div>
+        <div style="display:flex;gap:20px;flex-wrap:wrap">
+          <div style="text-align:center">
+            <div style="font-size:11px;color:var(--text3)">أعلى اليوم</div>
+            <div style="font-size:14px;font-weight:600;color:var(--green)">${priceData.high || '-'}</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:11px;color:var(--text3)">أدنى اليوم</div>
+            <div style="font-size:14px;font-weight:600;color:var(--red)">${priceData.low || '-'}</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:11px;color:var(--text3)">الإغلاق السابق</div>
+            <div style="font-size:14px;font-weight:600">${priceData.prevClose || '-'}</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:11px;color:var(--text3)">الحجم</div>
+            <div style="font-size:14px;font-weight:600">${priceData.volume ? (priceData.volume/1000000).toFixed(1)+'M' : '-'}</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
   el.innerHTML = `
     <div class="stock-header">
       <div class="stock-symbol">${symbol}</div>
-      ${stockInfo ? `<div class="stock-name">${stockInfo.name}</div>` : ''}
+      ${stockInfo ? `<div class="stock-name">${stockInfo.name}</div>` : (priceData.name ? `<div class="stock-name">${priceData.name}</div>` : '')}
       <div style="margin-top:14px;display:flex;gap:16px;flex-wrap:wrap">
         <span style="color:var(--text2);font-size:14px">📊 ${stats.total_posts} منشور</span>
         <span style="color:var(--green);font-size:14px">📈 ${stats.bullish} صاعد</span>
@@ -2085,6 +2128,7 @@ async function loadStockPage(symbol) {
         </div>
       </div>
     </div>
+    ${priceCard}
     <h3 style="margin-bottom:16px">منشورات ${symbol}</h3>
     ${currentUser ? `
     <div class="compose-box" style="margin-bottom:20px" id="stock-compose">

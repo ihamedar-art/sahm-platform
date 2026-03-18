@@ -343,6 +343,45 @@ app.get('/api/stock-chart/:symbol', async (req, res) => {
 });
 
 
+// جلب سعر السهم الحالي (متأخر 15 دقيقة)
+app.get('/api/stock-price/:symbol', async (req, res) => {
+  try {
+    const symbol = req.params.symbol.replace('$', '');
+    const yahooSymbol = symbol.match(/^\d+$/) ? `${symbol}.SR` : symbol;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?interval=1d&range=5d`;
+    const options = { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } };
+    const data = await new Promise((resolve, reject) => {
+      https.get(url, options, (r) => {
+        let d = '';
+        r.on('data', chunk => d += chunk);
+        r.on('end', () => { try { resolve(JSON.parse(d)); } catch(e) { reject(e); } });
+      }).on('error', reject);
+    });
+    const result = data?.chart?.result?.[0];
+    if (!result) return res.json({ error: 'السهم غير موجود' });
+    const meta = result.meta;
+    const prevClose = meta.chartPreviousClose || meta.previousClose || 0;
+    const currentPrice = meta.regularMarketPrice || 0;
+    const change = currentPrice - prevClose;
+    const changePct = prevClose ? (change / prevClose) * 100 : 0;
+    res.json({
+      symbol: meta.symbol,
+      name: meta.longName || meta.shortName || symbol,
+      price: currentPrice?.toFixed(2),
+      change: change?.toFixed(2),
+      changePct: changePct?.toFixed(2),
+      prevClose: prevClose?.toFixed(2),
+      high: meta.regularMarketDayHigh?.toFixed(2),
+      low: meta.regularMarketDayLow?.toFixed(2),
+      volume: meta.regularMarketVolume,
+      currency: meta.currency || 'SAR',
+      isUp: change >= 0
+    });
+  } catch(e) {
+    res.json({ error: 'خطأ في جلب السعر' });
+  }
+});
+
 db.exec(`CREATE TABLE IF NOT EXISTS market_events (
   id TEXT PRIMARY KEY,
   event_date TEXT NOT NULL,
