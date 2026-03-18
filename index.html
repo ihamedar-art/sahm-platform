@@ -984,7 +984,7 @@ body {
   <!-- Right Panel -->
   <aside class="right-panel">
     <div class="panel-card">
-      <div class="panel-title">📊 أكثر الأسهم نقاشاً</div>
+      <div class="panel-title" id="trending-title">📊 أكثر الأسهم نقاشاً</div>
       <div id="trending-stocks"></div>
     </div>
     <div class="panel-card" style="padding:0;overflow:hidden">
@@ -2478,14 +2478,24 @@ function goToNews(postId) {
 async function loadTrendingStocks() {
   const res = await fetch('/api/stocks/popular');
   const data = await res.json();
-  document.getElementById('trending-stocks').innerHTML = data.stocks.slice(0,6).map((s,i) => `
+  const periodLabel = data.period === '24h' ? 'آخر 24 ساعة' : data.period === '7d' ? 'آخر 7 أيام' : '';
+  const titleEl = document.querySelector('.panel-title');
+
+  // تحديث عنوان البانل بالفترة الزمنية
+  const trendingTitle = document.getElementById('trending-title');
+  if (trendingTitle && periodLabel) trendingTitle.textContent = `📊 أكثر الأسهم نقاشاً · ${periodLabel}`;
+
+  document.getElementById('trending-stocks').innerHTML = data.stocks.slice(0,8).map((s,i) => `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer"
       onclick="navigate('stock','${s.symbol}')">
-      <div>
-        <div style="font-weight:600;font-size:13px;color:var(--primary)">${s.symbol}</div>
-        <div style="font-size:12px;color:var(--text3)">${s.name}</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:12px;color:var(--text3);width:16px">${i+1}</span>
+        <div>
+          <div style="font-weight:600;font-size:13px;color:var(--primary)">${s.symbol}</div>
+          <div style="font-size:12px;color:var(--text3)">${s.name}</div>
+        </div>
       </div>
-      <div style="font-size:12px;color:var(--text3)">${s.sector}</div>
+      <div style="font-size:11px;color:var(--text3)">${s.post_count ? s.post_count + ' منشور' : s.sector}</div>
     </div>`).join('');
 }
 

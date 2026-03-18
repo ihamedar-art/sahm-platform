@@ -772,7 +772,62 @@ app.get('/api/notifications/count', requireAuth, (req, res) => {
 });
 
 // ── Stocks ───────────────────────────────────────────────────────────────────
-app.get('/api/stocks/popular', (req, res) => res.json({ stocks: POPULAR_STOCKS }));
+app.get('/api/stocks/popular', (req, res) => {
+  try {
+    // الأسهم الأكثر نقاشاً خلال آخر 24 ساعة
+    const trending = db.prepare(`
+      SELECT stock_symbols, COUNT(*) as post_count
+      FROM posts
+      WHERE stock_symbols != '' AND stock_symbols IS NOT NULL
+      AND (is_soft_deleted = 0 OR is_soft_deleted IS NULL)
+      AND created_at >= datetime('now', '-24 hours')
+      GROUP BY stock_symbols
+      ORDER BY post_count DESC
+      LIMIT 8
+    `).all();
+
+    // لو ما فيه نشاط في آخر 24 ساعة، نوسع لـ 7 أيام
+    const rows = trending.length > 0 ? trending : db.prepare(`
+      SELECT stock_symbols, COUNT(*) as post_count
+      FROM posts
+      WHERE stock_symbols != '' AND stock_symbols IS NOT NULL
+      AND (is_soft_deleted = 0 OR is_soft_deleted IS NULL)
+      AND created_at >= datetime('now', '-7 days')
+      GROUP BY stock_symbols
+      ORDER BY post_count DESC
+      LIMIT 8
+    `).all();
+
+    if (rows.length > 0) {
+      const symbolMap = {};
+      rows.forEach(row => {
+        row.stock_symbols.split(',').forEach(sym => {
+          sym = sym.trim();
+          if (!sym) return;
+          if (!symbolMap[sym]) symbolMap[sym] = 0;
+          symbolMap[sym] += row.post_count;
+        });
+      });
+
+      const stocks = Object.entries(symbolMap)
+        .sort((a,b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([symbol, count]) => {
+          const known = POPULAR_STOCKS.find(s => s.symbol === symbol);
+          return {
+            symbol,
+            name: known?.name || symbol.replace('$',''),
+            sector: known?.sector || '',
+            post_count: count
+          };
+        });
+
+      return res.json({ stocks, period: trending.length > 0 ? '24h' : '7d' });
+    }
+  } catch(e) {}
+
+  res.json({ stocks: POPULAR_STOCKS, period: 'all' });
+});
 
 app.get('/api/stocks/:symbol/stats', (req, res) => {
   const symbol = req.params.symbol;
