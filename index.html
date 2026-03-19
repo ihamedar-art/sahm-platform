@@ -869,14 +869,13 @@ body {
 .msg-unread-dot { width:8px; height:8px; border-radius:50%; background:var(--primary); flex-shrink:0; }
 .msg-main { flex:1; display:flex; flex-direction:column; min-width:0; min-height:0; }
 .msg-header { padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; font-weight:600; flex-shrink:0; }
-.msg-body { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:12px; min-height:0; }
-.msg-row { display:flex; flex-direction:column; gap:2px; }
-.msg-row.mine { align-items:flex-start; }
-.msg-row.theirs { align-items:flex-end; }
-.msg-sender { font-size:11px; color:var(--text3); padding:0 4px; }
-.msg-text { font-size:14px; line-height:1.6; color:var(--text); background:var(--bg3); border-radius:12px; padding:8px 14px; max-width:70%; word-break:break-word; }
-.msg-row.mine .msg-text { background:var(--primary); color:#fff; }
-.msg-time-stamp { font-size:10px; color:var(--text3); padding:0 4px; }
+.msg-body { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:4px; min-height:0; }
+.msg-row { display:flex; flex-direction:column; gap:2px; margin-bottom:8px; }
+.msg-sender-name { font-size:11px; font-weight:600; color:var(--primary); padding:0 2px; }
+.msg-text { font-size:14px; line-height:1.6; color:var(--text); background:var(--bg3); border:1px solid var(--border); border-radius:12px; padding:8px 14px; display:inline-block; max-width:70%; word-break:break-word; }
+.msg-row.mine .msg-text { background:var(--primary); color:#fff; border-color:var(--primary); }
+.msg-row.mine .msg-sender-name { color:var(--text3); }
+.msg-time-stamp { font-size:10px; color:var(--text3); padding:0 2px; }
 .msg-input-area { padding:10px 12px; border-top:1px solid var(--border); display:flex; gap:8px; align-items:flex-end; flex-shrink:0; }
 .msg-input { flex:1; padding:8px 14px; background:var(--bg3); border:1.5px solid var(--border2); border-radius:20px; color:var(--text); font-family:inherit; font-size:14px; resize:none; outline:none; max-height:100px; line-height:1.6; }
 .msg-input:focus { border-color:var(--primary); }
@@ -5603,6 +5602,7 @@ function renderBubble(m) {
   const isMine = m.sender_id === currentUser?.id;
   return `
     <div class="msg-row ${isMine ? 'mine' : 'theirs'}">
+      <div class="msg-sender-name">${isMine ? 'أنت' : (m.display_name || '')}</div>
       <div class="msg-text">
         ${m.content ? m.content : ''}
         ${m.image ? `<img src="${m.image}" style="max-width:200px;border-radius:8px;display:block;margin-top:4px;cursor:pointer" onclick="openImage('${m.image}')">` : ''}
@@ -5682,9 +5682,10 @@ async function pollMessages(convId) {
     if (!d.messages) return;
     const body = document.getElementById('msg-body-' + convId);
     if (!body) return;
-    const current = body.querySelectorAll('.msg-bubble-wrap').length;
-    if (d.messages.length > current) {
-      const newMsgs = d.messages.slice(current);
+    // نتحقق من آخر رسالة موجودة ونضيف الجديدة فقط
+    const existing = body.querySelectorAll('.msg-row');
+    if (d.messages.length > existing.length) {
+      const newMsgs = d.messages.slice(existing.length);
       newMsgs.forEach(m => body.insertAdjacentHTML('beforeend', renderBubble(m)));
       scrollMsgBottom(convId);
       checkUnreadMessages();
