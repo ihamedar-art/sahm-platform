@@ -5487,7 +5487,10 @@ async function loadMessagesPage(convId = null) {
   el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3)">⏳ جاري التحميل...</div>`;
 
   const pendingUser = window._pendingMessageUser || null;
+  const pendingConvId = window._pendingConvId || null;
   window._pendingMessageUser = null;
+  window._pendingConvId = null;
+  const actualConvId = convId === 'new' ? pendingConvId : convId;
 
   let convs = [];
   try {
@@ -5504,7 +5507,7 @@ async function loadMessagesPage(convId = null) {
           <button class="btn btn-ghost btn-sm" onclick="openNewMessage()">✏️</button>
         </div>
         <div id="msg-conv-list">
-          ${pendingUser ? `
+          ${pendingUser && !actualConvId ? `
             <div class="msg-conv-item active" id="conv-item-new" data-other-id="${pendingUser.id}">
               <div class="avatar" style="width:38px;height:38px;font-size:14px;flex-shrink:0">
                 ${pendingUser.avatar ? `<img src="${pendingUser.avatar}">` : pendingUser.display_name[0]}
@@ -5517,7 +5520,7 @@ async function loadMessagesPage(convId = null) {
           ${convs.length === 0 && !pendingUser
             ? `<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">لا توجد محادثات بعد</div>`
             : convs.map(c => `
-              <div class="msg-conv-item ${convId===c.id?'active':''}" id="conv-item-${c.id}" data-other-id="${c.other_id}" onclick="openConversation('${c.id}')">
+              <div class="msg-conv-item ${actualConvId===c.id?'active':''}" id="conv-item-${c.id}" data-other-id="${c.other_id}" onclick="openConversation('${c.id}')">
                 <div class="avatar" style="width:38px;height:38px;font-size:14px;flex-shrink:0">
                   ${c.other_avatar?`<img src="${c.other_avatar}">`:c.other_name[0]}
                 </div>
@@ -5532,13 +5535,13 @@ async function loadMessagesPage(convId = null) {
       <div class="msg-main" id="msg-main">
         <div class="msg-empty">
           <span style="font-size:48px">💬</span>
-          <div style="font-weight:600">اختر محادثة أو ابدأ واحدة جديدة</div>
+          <div style="font-weight:600">${pendingUser ? `ابدأ محادثتك مع ${pendingUser.display_name}` : 'اختر محادثة أو ابدأ واحدة جديدة'}</div>
         </div>
       </div>
     </div>`;
 
-  if (convId) openConversation(convId);
-  else if (pendingUser) openNewConversation(pendingUser);
+  if (actualConvId) openConversation(actualConvId);
+  else if (pendingUser) openNewConversationUI(pendingUser);
 }
 
 async function openConversation(convId) {
@@ -5697,21 +5700,18 @@ async function startConversation(username) {
       toast('لا يمكن مراسلة هذا العضو — تأكد من المتابعة المتبادلة وأن رسائله مفتوحة', 'error');
       return;
     }
-    // سواء كان فيه محادثة سابقة أو لا — افتح صفحة الرسائل
-    // لو ما فيه محادثة بعد، نفتح الصفحة مع receiver_id عشان نقدر نبدأ
-    if (d.conversation_id) {
-      navigate('messages', d.conversation_id);
-    } else {
-      // ابدأ محادثة جديدة بإرسال رسالة فارغة للحصول على conversation_id
-      window._pendingMessageUser = d.other;
-      navigate('messages');
-    }
+    // خزّن بيانات العضو المستلم عشان نستخدمها في صفحة الرسائل
+    window._pendingMessageUser = d.other;
+    window._pendingConvId = d.conversation_id;
+    navigate('messages', d.conversation_id || 'new');
   } catch(e) {
-    toast('حدث خطأ', 'error');
+    toast('حدث خطأ في الاتصال', 'error');
+    console.error(e);
   }
 }
 
-function openNewConversation(user) {
+function openNewConversation(user) { openNewConversationUI(user); }
+function openNewConversationUI(user) {
   const main = document.getElementById('msg-main');
   if (!main) return;
   main.innerHTML = `
