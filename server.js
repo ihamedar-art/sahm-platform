@@ -2428,25 +2428,24 @@ app.get('/api/messages', requireAuth, (req, res) => {
   res.json({ conversations: convs.map(c => ({ ...c, time_ago: formatTime(c.last_message_at) })) });
 });
 
-// ── جلب رسائل محادثة ──────────────────────────────────────────────
-app.get('/api/messages/:convId', requireAuth, (req, res) => {
+// ── عدد الرسائل غير المقروءة — قبل /:convId ──────────────────────
+app.get('/api/messages/unread/count', requireAuth, (req, res) => {
   const userId = req.session.userId;
-  const conv = db.prepare('SELECT * FROM conversations WHERE id=?').get(req.params.convId);
-  if (!conv) return res.json({ error: 'المحادثة غير موجودة' });
-  if (conv.user1_id !== userId && conv.user2_id !== userId) return res.json({ error: 'غير مصرح' });
+  const row = db.prepare(`
+    SELECT SUM(CASE WHEN user1_id=? THEN unread_user1 ELSE unread_user2 END) as total
+    FROM conversations WHERE user1_id=? OR user2_id=?
+  `).get(userId, userId, userId);
+  res.json({ count: row.total || 0 });
+});
 
-  // علّم الرسائل كمقروءة
-  db.prepare('UPDATE messages SET is_read=1 WHERE conversation_id=? AND sender_id!=?').run(req.params.convId, userId);
-  if (conv.user1_id === userId) db.prepare('UPDATE conversations SET unread_user1=0 WHERE id=?').run(req.params.convId);
-  else db.prepare('UPDATE conversations SET unread_user2=0 WHERE id=?').run(req.params.convId);
-
-  const msgs = db.prepare(`
-    SELECT m.*, u.display_name, u.avatar
-    FROM messages m JOIN users u ON m.sender_id = u.id
-    WHERE m.conversation_id=?
-    ORDER BY m.created_at ASC LIMIT 100
-  `).all(req.params.convId);
-  res.json({ messages: msgs.map(m => ({ ...m, time_ago: formatTime(m.created_at) })) });
+// ── بدء محادثة جديدة (من البروفايل) — قبل /:convId ───────────────
+app.get('/api/messages/conversation/:username', requireAuth, (req, res) => {
+  const other = db.prepare('SELECT id,username,display_name,avatar,is_verified,messages_open FROM users WHERE username=?').get(req.params.username);
+  if (!other) return res.json({ error: 'المستخدم غير موجود' });
+  const userId = req.session.userId;
+  const [u1, u2] = [userId, other.id].sort();
+  const conv = db.prepare('SELECT * FROM conversations WHERE user1_id=? AND user2_id=?').get(u1, u2);
+  res.json({ conversation_id: conv?.id || null, other, can_message: canMessage(userId, other.id) });
 });
 
 // ── إرسال رسالة جديدة ─────────────────────────────────────────────
@@ -2464,14 +2463,12 @@ app.post('/api/messages/send', requireAuth, upload.single('image'), async (req, 
     return res.json({ error: 'لا يمكن إرسال رسالة لهذا المستخدم — تأكد من المتابعة المتبادلة وأن رسائله مفتوحة' });
   }
 
-  // معالجة الصورة
   let image = '';
   if (req.file) {
     const compressed = await compressImage(req.file.path);
     image = '/uploads/' + path.basename(compressed);
   }
 
-  // إيجاد أو إنشاء محادثة
   const [u1, u2] = [senderId, receiver_id].sort();
   let conv = db.prepare('SELECT * FROM conversations WHERE user1_id=? AND user2_id=?').get(u1, u2);
   if (!conv) {
@@ -2480,12 +2477,10 @@ app.post('/api/messages/send', requireAuth, upload.single('image'), async (req, 
     conv = db.prepare('SELECT * FROM conversations WHERE id=?').get(convId);
   }
 
-  // أضف الرسالة
   const msgId = uuidv4();
   const msgContent = content?.trim() || '';
   db.prepare('INSERT INTO messages (id,conversation_id,sender_id,content,image) VALUES (?,?,?,?,?)').run(msgId, conv.id, senderId, msgContent, image);
 
-  // حدّث المحادثة
   const preview = msgContent ? msgContent.substring(0,60) : '📷 صورة';
   if (conv.user1_id === senderId) {
     db.prepare('UPDATE conversations SET last_message=?, last_message_at=CURRENT_TIMESTAMP, unread_user2=unread_user2+1 WHERE id=?').run(preview, conv.id);
@@ -2493,7 +2488,6 @@ app.post('/api/messages/send', requireAuth, upload.single('image'), async (req, 
     db.prepare('UPDATE conversations SET last_message=?, last_message_at=CURRENT_TIMESTAMP, unread_user1=unread_user1+1 WHERE id=?').run(preview, conv.id);
   }
 
-  // إشعار للمستلم
   try {
     const sender = db.prepare('SELECT display_name FROM users WHERE id=?').get(senderId);
     db.prepare('INSERT INTO notifications (id,user_id,from_user_id,type,message,link) VALUES (?,?,?,?,?,?)').run(
@@ -2506,24 +2500,24 @@ app.post('/api/messages/send', requireAuth, upload.single('image'), async (req, 
   res.json({ success: true, message: { ...msg, time_ago: 'الآن' }, conversation_id: conv.id });
 });
 
-// ── عدد الرسائل غير المقروءة ──────────────────────────────────────
-app.get('/api/messages/unread/count', requireAuth, (req, res) => {
+// ── جلب رسائل محادثة — بعد كل الـ specific routes ────────────────
+app.get('/api/messages/:convId', requireAuth, (req, res) => {
   const userId = req.session.userId;
-  const row = db.prepare(`
-    SELECT SUM(CASE WHEN user1_id=? THEN unread_user1 ELSE unread_user2 END) as total
-    FROM conversations WHERE user1_id=? OR user2_id=?
-  `).get(userId, userId, userId);
-  res.json({ count: row.total || 0 });
-});
+  const conv = db.prepare('SELECT * FROM conversations WHERE id=?').get(req.params.convId);
+  if (!conv) return res.json({ error: 'المحادثة غير موجودة' });
+  if (conv.user1_id !== userId && conv.user2_id !== userId) return res.json({ error: 'غير مصرح' });
 
-// ── بدء محادثة جديدة (من البروفايل) ──────────────────────────────
-app.get('/api/messages/conversation/:username', requireAuth, (req, res) => {
-  const other = db.prepare('SELECT id,username,display_name,avatar,is_verified,messages_open FROM users WHERE username=?').get(req.params.username);
-  if (!other) return res.json({ error: 'المستخدم غير موجود' });
-  const userId = req.session.userId;
-  const [u1, u2] = [userId, other.id].sort();
-  const conv = db.prepare('SELECT * FROM conversations WHERE user1_id=? AND user2_id=?').get(u1, u2);
-  res.json({ conversation_id: conv?.id || null, other, can_message: canMessage(userId, other.id) });
+  db.prepare('UPDATE messages SET is_read=1 WHERE conversation_id=? AND sender_id!=?').run(req.params.convId, userId);
+  if (conv.user1_id === userId) db.prepare('UPDATE conversations SET unread_user1=0 WHERE id=?').run(req.params.convId);
+  else db.prepare('UPDATE conversations SET unread_user2=0 WHERE id=?').run(req.params.convId);
+
+  const msgs = db.prepare(`
+    SELECT m.*, u.display_name, u.avatar
+    FROM messages m JOIN users u ON m.sender_id = u.id
+    WHERE m.conversation_id=?
+    ORDER BY m.created_at ASC LIMIT 100
+  `).all(req.params.convId);
+  res.json({ messages: msgs.map(m => ({ ...m, time_ago: formatTime(m.created_at) })) });
 });
 
 app.listen(PORT, () => console.log(`✅ جلسة السوق تعمل على المنفذ ${PORT}`));
