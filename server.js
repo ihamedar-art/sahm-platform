@@ -2350,12 +2350,6 @@ app.post('/api/admin/delete-requests/:id/keep-restricted', requireSuperAdmin, (r
   res.json({ success: true });
 });
 
-app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
-
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
 // ══════════════════════════════════════════════════════════════════
 // نظام الرسائل الخاصة
 // ══════════════════════════════════════════════════════════════════
@@ -2519,5 +2513,8 @@ app.get('/api/messages/:convId', requireAuth, (req, res) => {
   `).all(req.params.convId);
   res.json({ messages: msgs.map(m => ({ ...m, time_ago: formatTime(m.created_at) })) });
 });
+
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 app.listen(PORT, () => console.log(`✅ جلسة السوق تعمل على المنفذ ${PORT}`));
