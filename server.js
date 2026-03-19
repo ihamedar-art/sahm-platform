@@ -7,6 +7,7 @@ const sharp = require('sharp');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const fs = require('fs');
+let helmet; try { helmet = require('helmet'); } catch(e) { helmet = null; }
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -179,6 +180,14 @@ async function compressImage(filePath) {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
+
+// ── Helmet — HTTP Security Headers ───────────────────────────────────────────
+if (helmet) {
+  app.use(helmet({
+    contentSecurityPolicy: false, // نعطله لأن الموقع يستخدم inline scripts
+    crossOriginEmbedderPolicy: false,
+  }));
+}
 app.use(session({
   secret: process.env.SESSION_SECRET || 'sahm-secret-2026-very-long-key-do-not-change',
   resave: true,
@@ -866,7 +875,11 @@ app.post('/api/posts/:id/restrict', requireSuperAdmin, (req, res) => {
 app.post('/api/vote', requireAuth, (req, res) => {
   const { target_id, target_type, vote_type } = req.body;
   const userId = req.session.userId;
-  const existing = db.prepare('SELECT * FROM votes WHERE user_id=? AND target_id=? AND target_type=?').get(userId, target_id, target_type);
+
+  // تحقق من القيم المسموحة فقط — يمنع SQL injection
+  if (!['up', 'down'].includes(vote_type)) return res.json({ error: 'قيمة تصويت غير صالحة' });
+  if (!['post', 'comment'].includes(target_type)) return res.json({ error: 'نوع هدف غير صالح' });
+  if (!target_id || typeof target_id !== 'string' || target_id.length > 100) return res.json({ error: 'معرّف غير صالح' });
 
   if (existing) {
     if (existing.vote_type === vote_type) {
@@ -1924,8 +1937,8 @@ app.get('/api/posts/:id', (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 const LIVEKIT_URL = process.env.LIVEKIT_URL || 'wss://brzan.com/livekit';
-const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || 'APILP3Ch9xmbJN3';
-const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || 'dfvXuYwpyLCLnG0ucawNNnSDDRdZBNQpDqszPcKgiwQ';
+const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
+const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET;
 
 const { AccessToken, RoomServiceClient } = require('livekit-server-sdk');
 const livekitService = new RoomServiceClient('http://localhost:7880', LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
@@ -2341,6 +2354,176 @@ app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html'))
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// ══════════════════════════════════════════════════════════════════
+// نظام الرسائل الخاصة
+// ══════════════════════════════════════════════════════════════════
+
+// جداول الرسائل
+try { db.exec(`
+  CREATE TABLE IF NOT EXISTS conversations (
+    id TEXT PRIMARY KEY,
+    user1_id TEXT NOT NULL,
+    user2_id TEXT NOT NULL,
+    last_message TEXT DEFAULT '',
+    last_message_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    unread_user1 INTEGER DEFAULT 0,
+    unread_user2 INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user1_id, user2_id)
+  );
+  CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    sender_id TEXT NOT NULL,
+    content TEXT,
+    image TEXT DEFAULT '',
+    is_read INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`); } catch(e) {}
+
+// إضافة عمود messages_open للمستخدمين
+try { db.exec(`ALTER TABLE users ADD COLUMN messages_open INTEGER DEFAULT 1`); } catch(e) {}
+
+// ── helper: هل يمكن للمستخدم إرسال رسالة لمستخدم آخر ──────────────
+function canMessage(senderId, receiverId) {
+  const receiver = db.prepare('SELECT messages_open FROM users WHERE id=?').get(receiverId);
+  if (!receiver) return false;
+  if (!receiver.messages_open) return false;
+  // تحقق من المتابعة المتبادلة
+  const follows = db.prepare(`
+    SELECT COUNT(*) as c FROM follows
+    WHERE (follower_id=? AND following_id=?) OR (follower_id=? AND following_id=?)
+  `).get(senderId, receiverId, receiverId, senderId);
+  return follows.c > 0;
+}
+
+// ── فتح/إغلاق الرسائل الخاصة ──────────────────────────────────────
+app.post('/api/messages/settings', requireAuth, (req, res) => {
+  const { open } = req.body;
+  db.prepare('UPDATE users SET messages_open=? WHERE id=?').run(open ? 1 : 0, req.session.userId);
+  res.json({ success: true, messages_open: open ? 1 : 0 });
+});
+
+// ── جلب قائمة المحادثات ───────────────────────────────────────────
+app.get('/api/messages', requireAuth, (req, res) => {
+  const userId = req.session.userId;
+  const convs = db.prepare(`
+    SELECT c.*,
+      CASE WHEN c.user1_id=? THEN u2.id ELSE u1.id END as other_id,
+      CASE WHEN c.user1_id=? THEN u2.display_name ELSE u1.display_name END as other_name,
+      CASE WHEN c.user1_id=? THEN u2.username ELSE u1.username END as other_username,
+      CASE WHEN c.user1_id=? THEN u2.avatar ELSE u1.avatar END as other_avatar,
+      CASE WHEN c.user1_id=? THEN u2.is_verified ELSE u1.is_verified END as other_verified,
+      CASE WHEN c.user1_id=? THEN c.unread_user1 ELSE c.unread_user2 END as my_unread
+    FROM conversations c
+    JOIN users u1 ON c.user1_id = u1.id
+    JOIN users u2 ON c.user2_id = u2.id
+    WHERE c.user1_id=? OR c.user2_id=?
+    ORDER BY c.last_message_at DESC
+    LIMIT 30
+  `).all(userId,userId,userId,userId,userId,userId,userId,userId);
+  res.json({ conversations: convs.map(c => ({ ...c, time_ago: formatTime(c.last_message_at) })) });
+});
+
+// ── جلب رسائل محادثة ──────────────────────────────────────────────
+app.get('/api/messages/:convId', requireAuth, (req, res) => {
+  const userId = req.session.userId;
+  const conv = db.prepare('SELECT * FROM conversations WHERE id=?').get(req.params.convId);
+  if (!conv) return res.json({ error: 'المحادثة غير موجودة' });
+  if (conv.user1_id !== userId && conv.user2_id !== userId) return res.json({ error: 'غير مصرح' });
+
+  // علّم الرسائل كمقروءة
+  db.prepare('UPDATE messages SET is_read=1 WHERE conversation_id=? AND sender_id!=?').run(req.params.convId, userId);
+  if (conv.user1_id === userId) db.prepare('UPDATE conversations SET unread_user1=0 WHERE id=?').run(req.params.convId);
+  else db.prepare('UPDATE conversations SET unread_user2=0 WHERE id=?').run(req.params.convId);
+
+  const msgs = db.prepare(`
+    SELECT m.*, u.display_name, u.avatar
+    FROM messages m JOIN users u ON m.sender_id = u.id
+    WHERE m.conversation_id=?
+    ORDER BY m.created_at ASC LIMIT 100
+  `).all(req.params.convId);
+  res.json({ messages: msgs.map(m => ({ ...m, time_ago: formatTime(m.created_at) })) });
+});
+
+// ── إرسال رسالة جديدة ─────────────────────────────────────────────
+app.post('/api/messages/send', requireAuth, upload.single('image'), async (req, res) => {
+  const { receiver_id, content } = req.body;
+  const senderId = req.session.userId;
+
+  if (!receiver_id) return res.json({ error: 'المستلم مطلوب' });
+  if (senderId === receiver_id) return res.json({ error: 'لا يمكن مراسلة نفسك' });
+  if (!content?.trim() && !req.file) return res.json({ error: 'الرسالة فارغة' });
+  if (content && content.length > 1000) return res.json({ error: 'الرسالة طويلة جداً' });
+
+  if (!canMessage(senderId, receiver_id)) {
+    if (req.file) try { fs.unlinkSync(req.file.path); } catch(e) {}
+    return res.json({ error: 'لا يمكن إرسال رسالة لهذا المستخدم — تأكد من المتابعة المتبادلة وأن رسائله مفتوحة' });
+  }
+
+  // معالجة الصورة
+  let image = '';
+  if (req.file) {
+    const compressed = await compressImage(req.file.path);
+    image = '/uploads/' + path.basename(compressed);
+  }
+
+  // إيجاد أو إنشاء محادثة
+  const [u1, u2] = [senderId, receiver_id].sort();
+  let conv = db.prepare('SELECT * FROM conversations WHERE user1_id=? AND user2_id=?').get(u1, u2);
+  if (!conv) {
+    const convId = uuidv4();
+    db.prepare('INSERT INTO conversations (id,user1_id,user2_id) VALUES (?,?,?)').run(convId, u1, u2);
+    conv = db.prepare('SELECT * FROM conversations WHERE id=?').get(convId);
+  }
+
+  // أضف الرسالة
+  const msgId = uuidv4();
+  const msgContent = content?.trim() || '';
+  db.prepare('INSERT INTO messages (id,conversation_id,sender_id,content,image) VALUES (?,?,?,?,?)').run(msgId, conv.id, senderId, msgContent, image);
+
+  // حدّث المحادثة
+  const preview = msgContent ? msgContent.substring(0,60) : '📷 صورة';
+  if (conv.user1_id === senderId) {
+    db.prepare('UPDATE conversations SET last_message=?, last_message_at=CURRENT_TIMESTAMP, unread_user2=unread_user2+1 WHERE id=?').run(preview, conv.id);
+  } else {
+    db.prepare('UPDATE conversations SET last_message=?, last_message_at=CURRENT_TIMESTAMP, unread_user1=unread_user1+1 WHERE id=?').run(preview, conv.id);
+  }
+
+  // إشعار للمستلم
+  try {
+    const sender = db.prepare('SELECT display_name FROM users WHERE id=?').get(senderId);
+    db.prepare('INSERT INTO notifications (id,user_id,from_user_id,type,message,link) VALUES (?,?,?,?,?,?)').run(
+      uuidv4(), receiver_id, senderId, 'message',
+      `${sender.display_name} أرسل لك رسالة خاصة 💬`, '/messages'
+    );
+  } catch(e) {}
+
+  const msg = db.prepare('SELECT m.*, u.display_name, u.avatar FROM messages m JOIN users u ON m.sender_id=u.id WHERE m.id=?').get(msgId);
+  res.json({ success: true, message: { ...msg, time_ago: 'الآن' }, conversation_id: conv.id });
+});
+
+// ── عدد الرسائل غير المقروءة ──────────────────────────────────────
+app.get('/api/messages/unread/count', requireAuth, (req, res) => {
+  const userId = req.session.userId;
+  const row = db.prepare(`
+    SELECT SUM(CASE WHEN user1_id=? THEN unread_user1 ELSE unread_user2 END) as total
+    FROM conversations WHERE user1_id=? OR user2_id=?
+  `).get(userId, userId, userId);
+  res.json({ count: row.total || 0 });
+});
+
+// ── بدء محادثة جديدة (من البروفايل) ──────────────────────────────
+app.get('/api/messages/conversation/:username', requireAuth, (req, res) => {
+  const other = db.prepare('SELECT id,username,display_name,avatar,is_verified,messages_open FROM users WHERE username=?').get(req.params.username);
+  if (!other) return res.json({ error: 'المستخدم غير موجود' });
+  const userId = req.session.userId;
+  const [u1, u2] = [userId, other.id].sort();
+  const conv = db.prepare('SELECT * FROM conversations WHERE user1_id=? AND user2_id=?').get(u1, u2);
+  res.json({ conversation_id: conv?.id || null, other, can_message: canMessage(userId, other.id) });
 });
 
 app.listen(PORT, () => console.log(`✅ جلسة السوق تعمل على المنفذ ${PORT}`));

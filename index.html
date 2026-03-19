@@ -858,6 +858,30 @@ body {
   padding: 10px 16px; border-top: 1px solid var(--border); background: var(--bg3); flex-shrink: 0;
 }
 
+/* ── Messages ── */
+.msg-layout { display:flex; height:calc(100vh - 120px); gap:0; background:var(--bg2); border:1.5px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.msg-sidebar { width:280px; flex-shrink:0; border-left:1px solid var(--border); overflow-y:auto; }
+.msg-sidebar-header { padding:16px; border-bottom:1px solid var(--border); font-weight:700; font-size:15px; display:flex; align-items:center; justify-content:space-between; }
+.msg-conv-item { padding:12px 16px; cursor:pointer; display:flex; align-items:center; gap:10px; transition:background .15s; border-bottom:1px solid var(--border); }
+.msg-conv-item:hover, .msg-conv-item.active { background:var(--bg3); }
+.msg-conv-name { font-weight:600; font-size:14px; }
+.msg-conv-preview { font-size:12px; color:var(--text3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px; }
+.msg-unread-dot { width:8px; height:8px; border-radius:50%; background:var(--primary); flex-shrink:0; }
+.msg-main { flex:1; display:flex; flex-direction:column; min-width:0; }
+.msg-header { padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; font-weight:600; }
+.msg-body { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px; }
+.msg-bubble-wrap { display:flex; align-items:flex-end; gap:8px; }
+.msg-bubble-wrap.mine { flex-direction:row-reverse; }
+.msg-bubble { max-width:65%; padding:10px 14px; border-radius:18px; font-size:14px; line-height:1.6; word-break:break-word; }
+.msg-bubble.theirs { background:var(--bg3); border:1px solid var(--border); border-bottom-right-radius:4px; color:var(--text); }
+.msg-bubble.mine { background:var(--primary); color:#fff; border-bottom-left-radius:4px; }
+.msg-bubble img { max-width:200px; border-radius:10px; display:block; margin-top:6px; cursor:pointer; }
+.msg-time { font-size:10px; color:var(--text3); margin-top:2px; }
+.msg-input-area { padding:12px 16px; border-top:1px solid var(--border); display:flex; gap:8px; align-items:flex-end; }
+.msg-input { flex:1; padding:10px 14px; background:var(--bg3); border:1.5px solid var(--border2); border-radius:22px; color:var(--text); font-family:inherit; font-size:14px; resize:none; outline:none; max-height:100px; line-height:1.6; }
+.msg-input:focus { border-color:var(--primary); }
+.msg-empty { flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:12px; color:var(--text3); }
+@media(max-width:680px) { .msg-sidebar { width:70px; } .msg-conv-name, .msg-conv-preview, .msg-unread-dot { display:none; } }
 </style>
 </head>
 <body>
@@ -900,6 +924,10 @@ body {
       </a>
       <a class="nav-item" id="nav-rooms" onclick="navigate('rooms')">
         <span class="nav-icon">🎙️</span> الرومات الصوتية
+      </a>
+      <a class="nav-item" id="nav-messages" onclick="navigate('messages')" style="position:relative">
+        <span class="nav-icon">💬</span> الرسائل
+        <span id="msg-badge" style="display:none;position:absolute;left:12px;top:8px;background:var(--red);color:#fff;font-size:10px;min-width:18px;height:18px;border-radius:9px;display:none;align-items:center;justify-content:center;font-weight:700;padding:0 4px"></span>
       </a>
       <a class="nav-item" id="nav-profile" onclick="navigate('profile')">
         <span class="nav-icon">👤</span> حسابي
@@ -979,6 +1007,11 @@ body {
     <!-- Search Results Page -->
     <div class="page" id="page-search">
       <div id="search-page-content"></div>
+    </div>
+
+    <!-- Messages Page -->
+    <div class="page" id="page-messages">
+      <div id="messages-page-content"></div>
     </div>
 
     <!-- Single Post Page -->
@@ -1242,6 +1275,9 @@ function navigate(page, param = '', pushHistory = true) {
   } else if (page === 'search') {
     document.getElementById('page-search').classList.add('active');
     loadSearchPage(param);
+  } else if (page === 'messages') {
+    document.getElementById('page-messages').classList.add('active');
+    loadMessagesPage(param);
   }
 }
 
@@ -2022,13 +2058,17 @@ async function loadProfile(username) {
           <div class="stat-item"><div class="stat-num">${u.followers_count}</div><div class="stat-label">متابع</div></div>
           <div class="stat-item"><div class="stat-num">${u.following_count}</div><div class="stat-label">يتابع</div></div>
         </div>
-        <div style="margin-top:14px">
+        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
           ${isMe
-            ? `<button class="btn btn-ghost btn-sm" onclick="showEditProfile()">✏️ تعديل الملف</button>`
+            ? `<button class="btn btn-ghost btn-sm" onclick="showEditProfile()">✏️ تعديل الملف</button>
+               <button class="btn btn-ghost btn-sm" onclick="showMessagesSettings()" id="msg-settings-btn">
+                 ${u.messages_open !== 0 ? '💬 الرسائل مفتوحة' : '🔒 الرسائل مغلقة'}
+               </button>`
             : currentUser
               ? `<button class="btn ${isFollowing ? 'btn-ghost' : 'btn-primary'} btn-sm" id="follow-btn-${u.id}" onclick="toggleFollow('${u.id}','${u.username}')">
                   ${isFollowing ? '✓ متابَع' : '+ متابعة'}
-                 </button>`
+                 </button>
+                 <button class="btn btn-ghost btn-sm" onclick="startConversation('${u.username}')">💬 راسلني</button>`
               : `<button class="btn btn-primary btn-sm" onclick="showLoginModal()">+ متابعة</button>`
           }
         </div>
@@ -5408,4 +5448,246 @@ async function submitDeleteRequest() {
 document.getElementById('delete-request-modal').addEventListener('click', function(e) {
   if (e.target === this) closeDeleteRequest();
 });
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// نظام الرسائل الخاصة
+// ══════════════════════════════════════════════════════════════════
+let activeConvId = null;
+let msgPollTimer = null;
+let msgLastCount = 0;
+
+// تحديث badge الرسائل كل 15 ثانية
+async function checkUnreadMessages() {
+  if (!currentUser) return;
+  try {
+    const r = await fetch('/api/messages/unread/count');
+    const d = await r.json();
+    const badge = document.getElementById('msg-badge');
+    if (badge) {
+      if (d.count > 0) {
+        badge.textContent = d.count > 99 ? '99+' : d.count;
+        badge.style.display = 'inline-flex';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  } catch(e) {}
+}
+setInterval(checkUnreadMessages, 15000);
+
+async function loadMessagesPage(convId = null) {
+  const el = document.getElementById('messages-page-content');
+  if (!currentUser) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">💬</div><div class="empty-title">سجّل دخولك للوصول للرسائل</div></div>`;
+    return;
+  }
+
+  el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3)">⏳ جاري التحميل...</div>`;
+
+  const r = await fetch('/api/messages');
+  const d = await r.json();
+  const convs = d.conversations || [];
+
+  el.innerHTML = `
+    <div class="msg-layout">
+      <div class="msg-sidebar" id="msg-sidebar">
+        <div class="msg-sidebar-header">
+          <span>💬 الرسائل</span>
+          <button class="btn btn-ghost btn-sm" onclick="openNewMessage()" title="محادثة جديدة">✏️</button>
+        </div>
+        <div id="msg-conv-list">
+          ${convs.length === 0 ? `<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">لا توجد محادثات بعد</div>` :
+            convs.map(c => `
+              <div class="msg-conv-item ${convId === c.id ? 'active' : ''}" id="conv-item-${c.id}" data-other-id="${c.other_id}" onclick="openConversation('${c.id}')">
+                <div class="avatar" style="width:38px;height:38px;font-size:14px;flex-shrink:0">
+                  ${c.other_avatar ? `<img src="${c.other_avatar}">` : c.other_name[0]}
+                </div>
+                <div style="flex:1;min-width:0">
+                  <div class="msg-conv-name">${c.other_name} ${c.other_verified ? '✓' : ''}</div>
+                  <div class="msg-conv-preview">${c.last_message || '...'}</div>
+                </div>
+                ${c.my_unread > 0 ? `<div class="msg-unread-dot"></div>` : ''}
+              </div>`).join('')}
+        </div>
+      </div>
+      <div class="msg-main" id="msg-main">
+        <div class="msg-empty">
+          <span style="font-size:48px">💬</span>
+          <div style="font-weight:600">اختر محادثة أو ابدأ واحدة جديدة</div>
+        </div>
+      </div>
+    </div>`;
+
+  if (convId) openConversation(convId);
+}
+
+async function openConversation(convId) {
+  activeConvId = convId;
+  clearInterval(msgPollTimer);
+
+  // تحديث active في القائمة
+  document.querySelectorAll('.msg-conv-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('conv-item-' + convId)?.classList.add('active');
+
+  const main = document.getElementById('msg-main');
+  if (!main) return;
+  main.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3)">⏳</div>`;
+
+  const r = await fetch(`/api/messages/${convId}`);
+  const d = await r.json();
+  if (d.error) { main.innerHTML = `<div style="padding:20px;color:var(--red)">${d.error}</div>`; return; }
+
+  // جلب بيانات المحادثة من القائمة
+  const convItem = document.getElementById('conv-item-' + convId);
+  const otherName = convItem?.querySelector('.msg-conv-name')?.textContent || '';
+
+  renderConversation(main, convId, d.messages, otherName);
+  checkUnreadMessages();
+
+  // polling كل 5 ثواني
+  msgPollTimer = setInterval(() => pollMessages(convId), 5000);
+}
+
+function renderConversation(main, convId, messages, otherName) {
+  main.innerHTML = `
+    <div class="msg-header">
+      <span style="font-size:20px">💬</span>
+      <span>${otherName}</span>
+    </div>
+    <div class="msg-body" id="msg-body-${convId}">
+      ${messages.length === 0 ? `<div style="text-align:center;color:var(--text3);font-size:13px;margin:auto">ابدأ المحادثة 👋</div>` :
+        messages.map(m => renderBubble(m)).join('')}
+    </div>
+    <div class="msg-input-area">
+      <label class="btn btn-ghost btn-sm" style="cursor:pointer;padding:8px 10px" title="إرسال صورة">
+        📷<input type="file" accept="image/*" style="display:none" onchange="sendMessageWithImage('${convId}',this)">
+      </label>
+      <textarea class="msg-input" id="msg-input-${convId}" placeholder="اكتب رسالة..." rows="1"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage('${convId}')}"
+        oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px'"></textarea>
+      <button class="btn btn-primary btn-sm" onclick="sendMessage('${convId}')">إرسال ➤</button>
+    </div>`;
+  scrollMsgBottom(convId);
+}
+
+function renderBubble(m) {
+  const isMine = m.sender_id === currentUser?.id;
+  return `
+    <div class="msg-bubble-wrap ${isMine ? 'mine' : ''}">
+      ${!isMine ? `<div class="avatar" style="width:28px;height:28px;font-size:10px;flex-shrink:0">${m.avatar ? `<img src="${m.avatar}">` : m.display_name[0]}</div>` : ''}
+      <div>
+        <div class="msg-bubble ${isMine ? 'mine' : 'theirs'}">
+          ${m.content ? m.content.replace(/\n/g,'<br>') : ''}
+          ${m.image ? `<img src="${m.image}" onclick="openImage('${m.image}')">` : ''}
+        </div>
+        <div class="msg-time" style="text-align:${isMine?'left':'right'}">${m.time_ago}</div>
+      </div>
+    </div>`;
+}
+
+function scrollMsgBottom(convId) {
+  const body = document.getElementById('msg-body-' + convId);
+  if (body) setTimeout(() => body.scrollTop = body.scrollHeight, 50);
+}
+
+async function sendMessage(convId) {
+  const input = document.getElementById('msg-input-' + convId);
+  const content = input?.value.trim();
+  if (!content) return;
+  input.value = '';
+  input.style.height = 'auto';
+
+  const convItem = document.getElementById('conv-item-' + convId);
+  const receiverId = convItem?.dataset.otherId;
+
+  const fd = new FormData();
+  if (receiverId) fd.append('receiver_id', receiverId);
+  fd.append('content', content);
+
+  const r = await fetch('/api/messages/send', { method:'POST', body: fd });
+  const d = await r.json();
+  if (d.success) {
+    const body = document.getElementById('msg-body-' + convId);
+    if (body) { body.insertAdjacentHTML('beforeend', renderBubble(d.message)); scrollMsgBottom(convId); }
+    // تحديث preview في القائمة
+    const preview = convItem?.querySelector('.msg-conv-preview');
+    if (preview) preview.textContent = content.substring(0,50);
+  } else { toast(d.error || 'خطأ', 'error'); }
+}
+
+async function sendMessageWithImage(convId, input) {
+  if (!input.files[0]) return;
+  const convItem = document.getElementById('conv-item-' + convId);
+  const receiverId = convItem?.dataset.otherId;
+  const fd = new FormData();
+  if (receiverId) fd.append('receiver_id', receiverId);
+  fd.append('image', input.files[0]);
+  const r = await fetch('/api/messages/send', { method:'POST', body: fd });
+  const d = await r.json();
+  if (d.success) {
+    const body = document.getElementById('msg-body-' + convId);
+    if (body) { body.insertAdjacentHTML('beforeend', renderBubble(d.message)); scrollMsgBottom(convId); }
+  } else { toast(d.error || 'خطأ', 'error'); }
+}
+
+function showMessagesSettings() {
+  const isOpen = currentUser?.messages_open !== 0;
+  const msg = isOpen
+    ? 'رسائلك الخاصة مفتوحة حالياً. هل تريد إغلاقها؟'
+    : 'رسائلك الخاصة مغلقة حالياً. هل تريد فتحها؟';
+  if (!confirm(msg)) return;
+  const newState = !isOpen;
+  toggleMessagesOpen(newState);
+  if (currentUser) currentUser.messages_open = newState ? 1 : 0;
+  const btn = document.getElementById('msg-settings-btn');
+  if (btn) btn.textContent = newState ? '💬 الرسائل مفتوحة' : '🔒 الرسائل مغلقة';
+}
+
+async function pollMessages(convId) {
+  if (convId !== activeConvId) return;
+  try {
+    const r = await fetch(`/api/messages/${convId}`);
+    const d = await r.json();
+    if (!d.messages) return;
+    const body = document.getElementById('msg-body-' + convId);
+    if (!body) return;
+    const current = body.querySelectorAll('.msg-bubble-wrap').length;
+    if (d.messages.length > current) {
+      const newMsgs = d.messages.slice(current);
+      newMsgs.forEach(m => body.insertAdjacentHTML('beforeend', renderBubble(m)));
+      scrollMsgBottom(convId);
+      checkUnreadMessages();
+    }
+  } catch(e) {}
+}
+
+// فتح محادثة جديدة من البروفايل أو زر ✏️
+async function startConversation(username) {
+  if (!currentUser) { showLoginModal(); return; }
+  const r = await fetch(`/api/messages/conversation/${username}`);
+  const d = await r.json();
+  if (d.error) { toast(d.error, 'error'); return; }
+  if (!d.can_message) {
+    toast('لا يمكن مراسلة هذا العضو — تأكد من المتابعة المتبادلة وأن رسائله مفتوحة', 'error');
+    return;
+  }
+  navigate('messages', d.conversation_id);
+}
+
+function openNewMessage() {
+  const username = prompt('أدخل اسم المستخدم (@username):');
+  if (username) startConversation(username.replace('@','').trim());
+}
+
+// إعداد الرسائل في صفحة البروفايل
+async function toggleMessagesOpen(open) {
+  const r = await fetch('/api/messages/settings', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ open })
+  });
+  const d = await r.json();
+  if (d.success) toast(open ? '✅ الرسائل الخاصة مفتوحة' : '🔒 الرسائل الخاصة مغلقة', 'success');
+}
 </script>
