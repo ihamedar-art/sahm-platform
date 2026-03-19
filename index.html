@@ -1225,6 +1225,8 @@ function navigate(page, param = '', pushHistory = true) {
   // أعد الـ right panel عند الخروج من الرسائل
   if (page !== 'messages') {
     document.querySelector('.right-panel')?.style.removeProperty('display');
+    // أوقف polling الرسائل عند مغادرة الصفحة
+    if (msgPollTimer) { clearInterval(msgPollTimer); msgPollTimer = null; activeConvId = null; }
   }
 
   // تحديث الـ URL بدون إعادة تحميل الصفحة
@@ -1505,37 +1507,7 @@ async function submitPost() {
   }
 }
 
-async function renderFeed(reset = true) {
-  if (reset) { feedPage = 0; document.getElementById('posts-feed').innerHTML = ''; }
-  if (isLoading) return;
-  isLoading = true;
-
-  let url = `/api/posts?page=${feedPage}`;
-  if (currentTab === 'following') url += '&feed=following';
-  else if (currentTab === 'analysis') url += '&feed=discover';
-
-  const res = await fetch(url);
-  const data = await res.json();
-  const feed = document.getElementById('posts-feed');
-
-  let posts = data.posts;
-  if (currentTab === 'analysis') posts = posts.filter(p => p.post_type === 'analysis');
-
-  if (posts.length === 0 && feedPage === 0) {
-    feed.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div>
-      <div class="empty-title">لا توجد منشورات بعد</div>
-      <p>${currentTab === 'following' ? 'تابع بعض المحللين لترى منشوراتهم هنا' : 'افتح الجلسة وكن أول من ينشر!'}</p></div>`;
-  } else {
-    posts.forEach(p => feed.insertAdjacentHTML('beforeend', createPostCard(p)));
-  }
-
-  const lm = document.getElementById('load-more-container');
-  if (posts.length === 20) {
-    lm.innerHTML = `<button class="btn btn-ghost" style="width:100%;margin:16px 0" onclick="loadMore()">تحميل المزيد</button>`;
-  } else { lm.innerHTML = ''; }
-
-  isLoading = false;
-}
+// renderFeed معرّفة لاحقاً في الكود (السطر ~3874)
 
 function loadMore() {
   feedPage++;
@@ -2359,23 +2331,7 @@ async function loadExplorePage() {
 // ══════════════════════════════════════════════════════════════════
 // LEADERBOARD
 // ══════════════════════════════════════════════════════════════════
-async function loadLeaderboardPanel() {
-  const res = await fetch('/api/leaderboard');
-  const data = await res.json();
-  const el = document.getElementById('leaderboard-panel');
-  el.innerHTML = data.users.slice(0,5).map((u,i) => `
-    <div class="leaderboard-item">
-      <div class="rank-num ${i===0?'gold':''}">${['🥇','🥈','🥉'][i]||i+1}</div>
-      <div class="avatar" style="width:32px;height:32px;font-size:12px;cursor:pointer" onclick="navigate('profile','${u.username}')">
-        ${u.avatar ? `<img src="${u.avatar}">` : u.display_name[0]}
-      </div>
-      <div class="leaderboard-info">
-        <div class="leaderboard-name" onclick="navigate('profile','${u.username}')">${u.display_name} ${u.is_verified?'✓':''}</div>
-        <div class="leaderboard-rep">${u.level_name}</div>
-      </div>
-      <div class="rep-score">${u.reputation}★</div>
-    </div>`).join('');
-}
+// loadLeaderboardPanel معرّفة لاحقاً في الكود مع DEMO fallback
 
 async function loadFullLeaderboard() {
   const res = await fetch('/api/leaderboard');
@@ -3897,8 +3853,7 @@ async function renderFeed(reset=true) {
   isLoading=false;
 }
 
-// Patch leaderboard panel
-const origLB = loadLeaderboardPanel;
+// loadLeaderboardPanel مع DEMO fallback
 async function loadLeaderboardPanel() {
   try {
     const r=await fetch('/api/leaderboard');
