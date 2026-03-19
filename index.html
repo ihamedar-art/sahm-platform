@@ -5486,32 +5486,46 @@ async function loadMessagesPage(convId = null) {
 
   el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3)">⏳ جاري التحميل...</div>`;
 
+  const pendingUser = window._pendingMessageUser || null;
+  window._pendingMessageUser = null;
+
+  let convs = [];
   try {
     const r = await fetch('/api/messages');
-    if (!r.ok) throw new Error('فشل التحميل');
     const d = await r.json();
-    if (d.error) throw new Error(d.error);
-    const convs = d.conversations || [];
+    convs = d.conversations || [];
+  } catch(e) {}
 
   el.innerHTML = `
     <div class="msg-layout">
       <div class="msg-sidebar" id="msg-sidebar">
         <div class="msg-sidebar-header">
           <span>💬 الرسائل</span>
-          <button class="btn btn-ghost btn-sm" onclick="openNewMessage()" title="محادثة جديدة">✏️</button>
+          <button class="btn btn-ghost btn-sm" onclick="openNewMessage()">✏️</button>
         </div>
         <div id="msg-conv-list">
-          ${convs.length === 0 ? `<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">لا توجد محادثات بعد</div>` :
-            convs.map(c => `
-              <div class="msg-conv-item ${convId === c.id ? 'active' : ''}" id="conv-item-${c.id}" data-other-id="${c.other_id}" onclick="openConversation('${c.id}')">
+          ${pendingUser ? `
+            <div class="msg-conv-item active" id="conv-item-new" data-other-id="${pendingUser.id}">
+              <div class="avatar" style="width:38px;height:38px;font-size:14px;flex-shrink:0">
+                ${pendingUser.avatar ? `<img src="${pendingUser.avatar}">` : pendingUser.display_name[0]}
+              </div>
+              <div style="flex:1;min-width:0">
+                <div class="msg-conv-name">${pendingUser.display_name}</div>
+                <div class="msg-conv-preview">محادثة جديدة</div>
+              </div>
+            </div>` : ''}
+          ${convs.length === 0 && !pendingUser
+            ? `<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">لا توجد محادثات بعد</div>`
+            : convs.map(c => `
+              <div class="msg-conv-item ${convId===c.id?'active':''}" id="conv-item-${c.id}" data-other-id="${c.other_id}" onclick="openConversation('${c.id}')">
                 <div class="avatar" style="width:38px;height:38px;font-size:14px;flex-shrink:0">
-                  ${c.other_avatar ? `<img src="${c.other_avatar}">` : c.other_name[0]}
+                  ${c.other_avatar?`<img src="${c.other_avatar}">`:c.other_name[0]}
                 </div>
                 <div style="flex:1;min-width:0">
-                  <div class="msg-conv-name">${c.other_name} ${c.other_verified ? '✓' : ''}</div>
-                  <div class="msg-conv-preview">${c.last_message || '...'}</div>
+                  <div class="msg-conv-name">${c.other_name}${c.other_verified?' ✓':''}</div>
+                  <div class="msg-conv-preview">${c.last_message||'...'}</div>
                 </div>
-                ${c.my_unread > 0 ? `<div class="msg-unread-dot"></div>` : ''}
+                ${c.my_unread>0?`<div class="msg-unread-dot"></div>`:''}
               </div>`).join('')}
         </div>
       </div>
@@ -5524,14 +5538,7 @@ async function loadMessagesPage(convId = null) {
     </div>`;
 
   if (convId) openConversation(convId);
-  } catch(e) {
-    el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3)">
-      <div style="font-size:40px;margin-bottom:12px">💬</div>
-      <div style="font-weight:600;color:var(--text)">لا توجد محادثات بعد</div>
-      <div style="font-size:13px;margin-top:8px">اضغط على "راسلني" في بروفايل أي عضو لبدء محادثة</div>
-      <button class="btn btn-primary" style="margin-top:16px" onclick="openNewMessage()">✏️ محادثة جديدة</button>
-    </div>`;
-  }
+  else if (pendingUser) openNewConversation(pendingUser);
 }
 
 async function openConversation(convId) {
@@ -5628,6 +5635,11 @@ async function sendMessage(convId) {
   } else { toast(d.error || 'خطأ', 'error'); }
 }
 
+function openNewMessage() {
+  const username = prompt('أدخل اسم المستخدم:');
+  if (username) startConversation(username.replace('@','').trim());
+}
+
 async function sendMessageWithImage(convId, input) {
   if (!input.files[0]) return;
   const convItem = document.getElementById('conv-item-' + convId);
@@ -5677,19 +5689,76 @@ async function pollMessages(convId) {
 // فتح محادثة جديدة من البروفايل أو زر ✏️
 async function startConversation(username) {
   if (!currentUser) { showLoginModal(); return; }
-  const r = await fetch(`/api/messages/conversation/${username}`);
-  const d = await r.json();
-  if (d.error) { toast(d.error, 'error'); return; }
-  if (!d.can_message) {
-    toast('لا يمكن مراسلة هذا العضو — تأكد من المتابعة المتبادلة وأن رسائله مفتوحة', 'error');
-    return;
+  try {
+    const r = await fetch(`/api/messages/conversation/${username}`);
+    const d = await r.json();
+    if (d.error) { toast(d.error, 'error'); return; }
+    if (!d.can_message) {
+      toast('لا يمكن مراسلة هذا العضو — تأكد من المتابعة المتبادلة وأن رسائله مفتوحة', 'error');
+      return;
+    }
+    // سواء كان فيه محادثة سابقة أو لا — افتح صفحة الرسائل
+    // لو ما فيه محادثة بعد، نفتح الصفحة مع receiver_id عشان نقدر نبدأ
+    if (d.conversation_id) {
+      navigate('messages', d.conversation_id);
+    } else {
+      // ابدأ محادثة جديدة بإرسال رسالة فارغة للحصول على conversation_id
+      window._pendingMessageUser = d.other;
+      navigate('messages');
+    }
+  } catch(e) {
+    toast('حدث خطأ', 'error');
   }
-  navigate('messages', d.conversation_id);
 }
 
-function openNewMessage() {
-  const username = prompt('أدخل اسم المستخدم (@username):');
-  if (username) startConversation(username.replace('@','').trim());
+function openNewConversation(user) {
+  const main = document.getElementById('msg-main');
+  if (!main) return;
+  main.innerHTML = `
+    <div class="msg-header">
+      <div class="avatar" style="width:32px;height:32px;font-size:12px">
+        ${user.avatar ? `<img src="${user.avatar}">` : user.display_name[0]}
+      </div>
+      <span>${user.display_name}</span>
+    </div>
+    <div class="msg-body" id="msg-body-new" style="justify-content:center;align-items:center">
+      <div style="text-align:center;color:var(--text3)">
+        <div style="font-size:32px;margin-bottom:8px">👋</div>
+        <div>ابدأ المحادثة مع ${user.display_name}</div>
+      </div>
+    </div>
+    <div class="msg-input-area">
+      <label class="btn btn-ghost btn-sm" style="cursor:pointer;padding:8px 10px">
+        📷<input type="file" accept="image/*" style="display:none" onchange="sendNewMessage('${user.id}',null,this)">
+      </label>
+      <textarea class="msg-input" id="msg-input-new" placeholder="اكتب رسالة..." rows="1"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendNewMessage('${user.id}',null)}"
+        oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px'"></textarea>
+      <button class="btn btn-primary btn-sm" onclick="sendNewMessage('${user.id}',null)">إرسال ➤</button>
+    </div>`;
+}
+
+async function sendNewMessage(receiverId, convId, imageInput = null) {
+  const input = convId
+    ? document.getElementById('msg-input-' + convId)
+    : document.getElementById('msg-input-new');
+  const content = input?.value.trim();
+  if (!content && !imageInput?.files[0]) return;
+  if (input) { input.value = ''; input.style.height = 'auto'; }
+
+  const fd = new FormData();
+  fd.append('receiver_id', receiverId);
+  if (content) fd.append('content', content);
+  if (imageInput?.files[0]) fd.append('image', imageInput.files[0]);
+
+  const r = await fetch('/api/messages/send', { method:'POST', body: fd });
+  const d = await r.json();
+  if (d.success) {
+    // بعد أول رسالة انتقل للمحادثة الحقيقية
+    navigate('messages', d.conversation_id);
+  } else {
+    toast(d.error || 'خطأ في الإرسال', 'error');
+  }
 }
 
 // إعداد الرسائل في صفحة البروفايل
