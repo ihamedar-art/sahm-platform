@@ -224,9 +224,6 @@ body {
   display:flex; max-width:1280px; margin:0 auto;
   width:100%; padding:20px 16px; gap:20px; flex:1;
   align-items:flex-start;
-  /* كل عمود يسكرول بشكل مستقل */
-  height:calc(100vh - var(--header-h));
-  overflow:hidden;
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -234,11 +231,10 @@ body {
    ══════════════════════════════════════════════════════════ */
 .sidebar {
   width:220px; flex-shrink:0;
-  height:100%;
-  overflow-y:auto;
-  overflow-x:hidden;
+  position:sticky; top:calc(var(--header-h) + 16px);
+  max-height:calc(100vh - var(--header-h) - 32px);
+  overflow-y:auto; overflow-x:hidden;
   scrollbar-width:none;
-  padding-bottom:20px;
 }
 .sidebar::-webkit-scrollbar { display:none; }
 
@@ -331,11 +327,7 @@ body {
    ══════════════════════════════════════════════════════════ */
 .feed {
   flex:1; min-width:0;
-  height:100%;
-  overflow-y:auto;
-  overflow-x:hidden;
   overflow-anchor: none;
-  padding-bottom:40px;
 }
 
 /* Feed tabs */
@@ -626,12 +618,11 @@ body {
    ══════════════════════════════════════════════════════════ */
 .right-panel {
   width:270px; flex-shrink:0;
-  height:100%;
-  overflow-y:auto;
-  overflow-x:hidden;
+  position:sticky; top:calc(var(--header-h) + 16px);
+  max-height:calc(100vh - var(--header-h) - 32px);
+  overflow-y:auto; overflow-x:hidden;
   scrollbar-width:none;
   display:flex; flex-direction:column; gap:12px;
-  padding-bottom:20px;
 }
 .right-panel::-webkit-scrollbar { display:none; }
 
@@ -1816,12 +1807,9 @@ async function togglePin(postId, currentlyPinned) {
 // ══════════════════════════════════════════════════════════════════
 // ── مساعد: ارجع لأعلى الفيد دائماً ─────────────────────────
 function scrollFeedTop() {
-  const f = document.querySelector('.feed');
-  if (!f) return;
-  f.scrollTop = 0;
-  requestAnimationFrame(() => { f.scrollTop = 0; });
-  setTimeout(() => { f.scrollTop = 0; }, 80);
-  setTimeout(() => { f.scrollTop = 0; }, 300);
+  window.scrollTo(0,0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
 }
 
 function navigate(page, param = '', pushHistory = true) {
@@ -1844,10 +1832,6 @@ function navigate(page, param = '', pushHistory = true) {
     history.pushState({ page, param }, '', page === 'home' ? '/' : url);
   }
 
-  // ارجع للأعلى دائماً عند التنقل — مرتين: فوراً وبعد التحميل
-  const feedEl = document.querySelector('.feed');
-  if (feedEl) { feedEl.scrollTop = 0; }
-  setTimeout(() => { if (feedEl) feedEl.scrollTop = 0; }, 50);
   scrollFeedTop();
 
   if (page === 'home') {
@@ -1886,7 +1870,7 @@ function navigate(page, param = '', pushHistory = true) {
     else showLoginModal();
   } else if (page === 'post') {
     document.getElementById('page-post').classList.add('active');
-    const _f = document.querySelector('.feed'); if(_f) { _f.scrollTop = 0; }
+    window.scrollTo(0,0);
     loadPostPage(param);
   } else if (page === 'stock') {
     document.getElementById('page-stock').classList.add('active');
@@ -2768,7 +2752,7 @@ async function submitStockPost(symbol) {
 async function loadSearchPage(q) {
   const el = document.getElementById('search-page-content');
   el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3)">🔍 جاري البحث...</div>`;
-  const _f = document.querySelector('.feed'); if(_f) { _f.scrollTop = 0; }
+  window.scrollTo(0,0);
   const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
   const data = await res.json();
   let html = `
@@ -2804,7 +2788,7 @@ async function loadSearchPage(q) {
 async function loadStockPage(symbol) {
   const el = document.getElementById('stock-content');
   el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3)">⏳ جاري التحميل...</div>`;
-  const _f = document.querySelector('.feed'); if(_f) { _f.scrollTop = 0; }
+  window.scrollTo(0,0);
 
   // جلب البيانات بالتوازي
   const [statsRes, priceRes] = await Promise.all([
@@ -2993,7 +2977,7 @@ async function loadPostPage(postId) {
 
   // ارجع للأعلى فوراً
   const feed = document.querySelector('.feed');
-  if (feed) feed.scrollTop = 0;
+  window.scrollTo(0,0);
 
   // تأكد من حالة المستخدم أولاً
   if (!currentUser) await checkAuth();
@@ -3022,7 +3006,7 @@ async function loadPostPage(postId) {
     </div>`;
 
   // ارجع للأعلى بعد رسم الـ HTML
-  if (feed) feed.scrollTop = 0;
+  window.scrollTo(0,0);
 
   try {
     const r = await fetch('/api/posts/' + postId);
@@ -3030,7 +3014,7 @@ async function loadPostPage(postId) {
     if (d.post) {
       document.getElementById('post-page-card').innerHTML = createPostCard(d.post, true);
       // ارجع للأعلى بعد تحميل المحتوى الكامل
-      if (feed) feed.scrollTop = 0;
+      window.scrollTo(0,0);
       loadPostPageComments(postId);
     } else {
       document.getElementById('post-page-card').innerHTML = `
@@ -3175,7 +3159,7 @@ function loadNewPosts() {
   newPostsCount = 0;
   latestPostId = null;
   renderFeed(true);
-  const _f = document.querySelector('.feed'); if(_f) { _f.scrollTop = 0; }
+  window.scrollTo(0,0);
 }
 
 
