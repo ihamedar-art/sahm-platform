@@ -67,8 +67,8 @@
 
   /* ── Heights ── */
   --nav-h: 58px;
-  --ticker-h: 44px;
-  --header-h: 102px; /* nav + ticker */
+  --ticker-h: 76px;
+  --header-h: 134px; /* nav + ticker */
 }
 
 /* ══ Reset ══ */
@@ -1234,76 +1234,72 @@ body {
   background: #fff;
   border-bottom: 1.5px solid var(--border);
   box-shadow: var(--shadow-xs);
-  overflow: hidden;
-  height: 44px;
+  padding: 10px 20px;
   display: flex;
   align-items: center;
-  position: relative;
+  gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
-.ticker-bar::before,
-.ticker-bar::after {
-  content: '';
-  position: absolute;
-  top: 0; bottom: 0;
-  width: 40px;
-  z-index: 2;
-  pointer-events: none;
-}
-.ticker-bar::before { right: 0; background: linear-gradient(to right, transparent, #fff); }
-.ticker-bar::after  { left: 0;  background: linear-gradient(to left,  transparent, #fff); }
+.ticker-bar::-webkit-scrollbar { display: none; }
 
 .ticker-track {
   display: flex;
   align-items: center;
-  gap: 0;
-  white-space: nowrap;
-  animation: tickerScroll 40s linear infinite;
-  will-change: transform;
-}
-.ticker-bar:hover .ticker-track { animation-play-state: paused; }
-
-@keyframes tickerScroll {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+  gap: 10px;
+  flex-wrap: nowrap;
+  width: 100%;
 }
 
 .ticker-item {
   display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 18px;
-  border-left: 1px solid var(--border);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 8px 14px;
+  background: var(--bg3);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r8);
   cursor: pointer;
-  transition: background .15s;
-  height: 44px;
+  transition: all .18s;
   flex-shrink: 0;
+  min-width: 110px;
 }
-.ticker-item:first-child { border-left: none; }
-.ticker-item:hover { background: var(--bg3); }
+.ticker-item:hover {
+  border-color: var(--primary);
+  background: var(--primary-l);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-xs);
+}
+.ticker-item.up   { border-top: 2px solid var(--green); }
+.ticker-item.down { border-top: 2px solid var(--red); }
 
-.ticker-flag { font-size: 14px; line-height: 1; }
+.ticker-header {
+  display: flex; align-items: center; gap: 5px;
+}
+.ticker-flag { font-size: 13px; line-height: 1; }
 .ticker-label {
-  font-size: 12.5px; font-weight: 700;
+  font-size: 11.5px; font-weight: 700;
   color: var(--text2);
+  white-space: nowrap;
 }
 .ticker-price {
-  font-size: 13px; font-weight: 700;
+  font-size: 13.5px; font-weight: 700;
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 .ticker-change {
-  font-size: 12px; font-weight: 600;
-  padding: 2px 6px; border-radius: 5px;
+  font-size: 11.5px; font-weight: 600;
 }
-.ticker-change.up   { color: var(--green); background: var(--green-l); }
-.ticker-change.down { color: var(--red);   background: var(--red-l); }
+.ticker-change.up   { color: var(--green); }
+.ticker-change.down { color: var(--red); }
 
 .ticker-loading {
-  display: flex; align-items: center; gap: 20px;
-  padding: 0 20px; width: 100%;
+  display: flex; align-items: center; gap: 10px;
+  width: 100%;
 }
 .ticker-skel {
-  height: 20px; width: 120px; border-radius: 6px;
+  height: 54px; width: 110px; border-radius: var(--r8);
   background: linear-gradient(90deg, var(--bg3) 25%, var(--bg4) 50%, var(--bg3) 75%);
   background-size: 200% 100%; animation: shimmer 1.4s infinite;
   flex-shrink: 0;
@@ -1615,16 +1611,17 @@ async function loadTickerBar() {
       const cls = m.isUp ? 'up' : 'down';
       const sym = TICKER_STOCK_MAP[m.key] || m.key.toUpperCase();
       return `
-        <div class="ticker-item" onclick="navigateToStock('$${sym}')">
-          <span class="ticker-flag">${m.flag}</span>
-          <span class="ticker-label">${m.label}</span>
+        <div class="ticker-item ${cls}" onclick="navigateToStock('$${sym}')">
+          <div class="ticker-header">
+            <span class="ticker-flag">${m.flag}</span>
+            <span class="ticker-label">${m.label}</span>
+          </div>
           <span class="ticker-price">${formatTickerPrice(m.price, m.currency)}</span>
           <span class="ticker-change ${cls}">${arrow} ${Math.abs(pct)}%</span>
         </div>`;
     }).join('');
 
-    // نسختان للـ loop المستمر
-    bar.innerHTML = '<div class="ticker-track">' + itemsHtml + itemsHtml + '</div>';
+    bar.innerHTML = '<div class="ticker-track">' + itemsHtml + '</div>';
   } catch(e) {
     console.error('Ticker error:', e);
   }
