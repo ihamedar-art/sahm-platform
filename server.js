@@ -535,9 +535,39 @@ app.get('/api/me', (req, res) => {
 // ── بيانات الأسهم من Yahoo Finance ───────────────────────────────────────────
 const https = require('https');
 
+// جدول تحويل الرموز → الرموز الرسمية في Yahoo Finance
+const YAHOO_SYMBOL_MAP = {
+  // المؤشرات الأمريكية
+  'SPX': '^GSPC', 'SP500': '^GSPC',
+  'NDX': '^IXIC', 'NASDAQ': '^IXIC',
+  'DJI': '^DJI', 'DOW': '^DJI',
+  'VIX': '^VIX',
+  // السوق السعودي
+  'TASI': '^TASI',
+  // السلع
+  'GOLD':   'GC=F',
+  'SILVER': 'SI=F',
+  'BRENT':  'BZ=F',
+  'WTI':    'CL=F',
+  'OIL':    'CL=F',
+  'NATGAS': 'NG=F',
+  'COPPER': 'HG=F',
+  // العملات الرقمية
+  'BTC':  'BTC=X',
+  'ETH':  'ETH=X',
+  'XRP':  'XRP-USD',
+  'SOL':  'SOL-USD',
+  'BNB':  'BNB-USD',
+  'DOGE': 'DOGE-USD',
+};
+
 function fetchYahooData(symbol, interval = '1d') {
   return new Promise((resolve, reject) => {
-    const yahooSymbol = symbol.match(/^\d+$/) ? `${symbol}.SR` : symbol;
+    // تحويل الرمز: أرقام → .SR، مؤشرات/سلع → الرمز الرسمي
+    const upper = symbol.toUpperCase();
+    let yahooSymbol = symbol.match(/^\d+$/)
+      ? `${symbol}.SR`
+      : (YAHOO_SYMBOL_MAP[upper] || symbol);
     // تحديد الـ range بناءً على الفريم
     const rangeMap = {
       '1m':  '1d',   '5m':  '5d',  '15m': '5d',
@@ -593,7 +623,8 @@ app.get('/api/stock-chart/:symbol', async (req, res) => {
 app.get('/api/stock-price/:symbol', async (req, res) => {
   try {
     const symbol = req.params.symbol.replace('$', '');
-    const yahooSymbol = symbol.match(/^\d+$/) ? `${symbol}.SR` : symbol;
+    const upper = symbol.toUpperCase();
+    const yahooSymbol = symbol.match(/^\d+$/) ? `${symbol}.SR` : (YAHOO_SYMBOL_MAP[upper] || symbol);
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?interval=1d&range=5d`;
     const options = { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } };
     const data = await new Promise((resolve, reject) => {
@@ -639,8 +670,8 @@ const TICKER_SYMBOLS = [
   { key: 'wti',    yahoo: 'CL%3DF',   label: 'WTI',      flag: '🛢️',  group: 'oil' },
   { key: 'gold',   yahoo: 'GC%3DF',   label: 'ذهب',      flag: '🥇', group: 'metals' },
   { key: 'silver', yahoo: 'SI%3DF',   label: 'فضة',      flag: '🥈', group: 'metals' },
-  { key: 'btc',    yahoo: 'BTC-USD',  label: 'بيتكوين',  flag: '₿',  group: 'crypto' },
-  { key: 'eth',    yahoo: 'ETH-USD',  label: 'إيثيريوم', flag: '⟠',  group: 'crypto' },
+  { key: 'btc',    yahoo: 'BTC%3DX',  label: 'بيتكوين',  flag: '₿',  group: 'crypto' },
+  { key: 'eth',    yahoo: 'ETH%3DX',  label: 'إيثيريوم', flag: '⟠',  group: 'crypto' },
 ];
 
 let tickerCache = null;
