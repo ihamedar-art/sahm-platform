@@ -2026,7 +2026,7 @@ app.post('/api/rooms/:id/token', requireAuth, async (req, res) => {
   const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
     identity: user.id,
     name: user.display_name,
-    ttl: '4h',
+    ttl: 14400,
   });
   at.addGrant({
     roomJoin: true,
@@ -2143,7 +2143,7 @@ app.post('/api/rooms/:id/grant-mic/:userId', requireAuth, async (req, res) => {
     const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
       identity: req.params.userId,
       name: targetUser.display_name,
-      ttl: '4h',
+      ttl: 14400,
     });
     at.addGrant({ roomJoin: true, room: req.params.id, canPublish: grant, canSubscribe: true, canPublishData: true });
     const token = await at.toJwt();
