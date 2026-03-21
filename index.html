@@ -3336,8 +3336,8 @@ async function joinLiveKitRoom(roomId, tokenData) {
         }
         if (msg.type === 'grant_mic' && msg.userId === currentUser.id) {
           if (msg.grant) {
-            // حفظ التوكن الجديد لاستخدامه عند قبول المايك
-            if (msg.newToken) window._pendingMicToken = msg.newToken;
+            // إعادة الاتصال بالروم بتوكن جديد يحتوي canPublish=true
+            window._pendingMicGrant = true;
             showMicRequestPopup(roomId, msg.fromName);
           } else {
             stopSpeaking();
@@ -3719,34 +3719,56 @@ function showMicRequestPopup(roomId, fromName) {
 async function acceptMic(roomId) {
   document.getElementById('mic-request-popup')?.remove();
   document.getElementById('mic-request-overlay')?.remove();
-  // إظهار أزرار التحكم بالمايك
-  showSpeakerControls(roomId);
-  // فتح المايك مباشرة — السيرفر أعطى canPublish في الـ grant-mic endpoint
-  // نحاول نشر المسار مباشرة بدون إعادة اتصال
-  try {
-    if (!localAudioTrack) {
-      localAudioTrack = await LivekitClient.createLocalAudioTrack({ 
-        echoCancellation: true, noiseSuppression: true 
-      });
-    }
-    if (livekitRoom && livekitRoom.localParticipant) {
-      await livekitRoom.localParticipant.publishTrack(localAudioTrack);
-      isMuted = false;
-      updateMicUI(false);
-      toast('🎙️ تم فتح المايك!', 'success');
-    }
-  } catch(e) {
-    console.error('acceptMic error:', e);
-    toast('⚠️ اضغط زر المايك لتفعيله', 'info');
-  }
-  // أبلغ الأدمن بالقبول
+  toast('🔄 جاري تفعيل المايك...', 'info');
+  // أبلغ الأدمن بالقبول أولاً
   if (livekitRoom && livekitRoom.localParticipant) {
     try {
       const msg = JSON.stringify({ type: 'mic_accepted', userId: currentUser.id, userName: currentUser.display_name });
       await livekitRoom.localParticipant.publishData(new TextEncoder().encode(msg), { reliable: true });
     } catch(e) {}
   }
+  // قطع الاتصال القديم
+  if (livekitRoom) { try { await livekitRoom.disconnect(); } catch(e) {} livekitRoom = null; }
+  if (localAudioTrack) { localAudioTrack.stop(); localAudioTrack = null; }
+  if (chatPollInterval) { clearInterval(chatPollInterval); chatPollInterval = null; }
+  if (roomInfoInterval) { clearInterval(roomInfoInterval); roomInfoInterval = null; }
+  // إلغاء الـ join القديم
+  await fetch(`/api/rooms/${roomId}/leave`, { method: 'POST' });
+  await new Promise(r => setTimeout(r, 800));
+  // إعادة الانضمام بتوكن جديد
+  await fetch(`/api/rooms/${roomId}/join`, { method: 'POST' });
+  const tokenRes = await fetch(`/api/rooms/${roomId}/token`, { method: 'POST' });
+  const tokenData = await tokenRes.json();
+  if (!tokenData.canSpeak) {
+    toast('⚠️ لم يتم تفعيل المايك، حاول مرة أخرى', 'error');
+    return;
+  }
+  // الاتصال بـ LiveKit بتوكن جديد
+  livekitRoom = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
+  livekitRoom.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => {
+    if (track.kind === LivekitClient.Track.Kind.Audio) track.attach();
+  });
+  livekitRoom.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track) => { track.detach(); });
+  livekitRoom.on(LivekitClient.RoomEvent.DataReceived, (data) => {
+    try {
+      const msg = JSON.parse(new TextDecoder().decode(data));
+      if (msg.type === 'mute' && msg.userId === currentUser.id) { forceMute(); toast('🔇 تم كتمك', 'info'); }
+      if (msg.type === 'kick' && msg.userId === currentUser.id) { toast('🚫 تم طردك', 'error'); leaveRoom(roomId, true); }
+      if (msg.type === 'refresh') refreshRoomInfo(roomId);
+    } catch(e) {}
+  });
+  window._livekitUrl = tokenData.livekitUrl;
+  await livekitRoom.connect(tokenData.livekitUrl, tokenData.token);
+  // فتح المايك
+  await startSpeaking(roomId);
+  // إظهار أزرار التحكم
+  showSpeakerControls(roomId);
+  // تشغيل الـ intervals
+  loadRoomChat(roomId);
+  chatPollInterval = setInterval(() => loadRoomChat(roomId), 3000);
   refreshRoomInfo(roomId);
+  roomInfoInterval = setInterval(() => refreshRoomInfo(roomId), 5000);
+  toast('🎙️ تم فتح المايك!', 'success');
 }
 
 async function rejectMic(roomId) {
