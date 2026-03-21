@@ -3090,16 +3090,23 @@ init();
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@1.2.2/dist/livekit-client.umd.min.js"></script>
 <script>
 // ══════════════════════════════════════════════════════════════════
-// VOICE ROOMS — LiveKit
 // ══════════════════════════════════════════════════════════════════
-let livekitRoom = null;
-let localAudioTrack = null;
-let isMuted = false;
-let isHandRaised = false;
-let currentRoomId = null;
-let chatPollInterval = null;
+// VOICE ROOMS — LiveKit Cloud
+// سيناريو نظيف: المستضيف يتحكم، المستمع يطلب
+// ══════════════════════════════════════════════════════════════════
 
-// ── صفحة قائمة الرومات ──────────────────────────────────────────
+// ── متغيرات عامة ─────────────────────────────────────────────────
+let livekitRoom    = null;
+let localAudioTrack = null;
+let isMuted        = true;
+let isHandRaised   = false;
+let myRole         = 'listener';   // owner | mod | listener
+let currentRoomId  = null;
+let chatPollInterval  = null;
+let roomInfoInterval  = null;
+const LIVEKIT_URL_CACHE = { url: null };
+
+// ── صفحة قائمة الرومات ───────────────────────────────────────────
 async function loadRoomsPage() {
   const el = document.getElementById('rooms-content');
   el.innerHTML = `
@@ -3107,11 +3114,14 @@ async function loadRoomsPage() {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
         <div>
           <h2 style="font-size:20px;font-weight:700">🎙️ الرومات الصوتية</h2>
-          <p style="color:var(--text2);font-size:13px;margin-top:4px">انضم لنقاش حي أو أنشئ روم جديد</p>
+          <p style="color:var(--text2);font-size:13px;margin-top:4px">انضم لنقاش حي أو أنشئ روماً جديداً</p>
         </div>
         ${currentUser ? `<button class="btn btn-primary" onclick="showCreateRoom()">➕ إنشاء روم</button>` : ''}
       </div>
-      <div id="rooms-list"><div class="skeleton" style="height:80px;margin-bottom:12px;border-radius:14px"></div><div class="skeleton" style="height:80px;border-radius:14px"></div></div>
+      <div id="rooms-list">
+        <div class="skeleton" style="height:80px;margin-bottom:12px;border-radius:14px"></div>
+        <div class="skeleton" style="height:80px;border-radius:14px"></div>
+      </div>
     </div>`;
   await fetchRooms();
 }
@@ -3121,11 +3131,11 @@ async function fetchRooms() {
   const d = await r.json();
   const list = document.getElementById('rooms-list');
   if (!list) return;
-  if (!d.rooms || !d.rooms.length) {
+  if (!d.rooms?.length) {
     list.innerHTML = `<div class="empty-state">
       <div class="empty-icon">🎙️</div>
       <div class="empty-title">لا توجد رومات نشطة</div>
-      <p style="margin-top:8px">${currentUser ? 'كن أول من يفتح روم!' : 'سجّل دخولك لفتح روم'}</p>
+      <p style="margin-top:8px">${currentUser ? 'كن أول من يفتح روماً!' : 'سجّل دخولك لفتح روم'}</p>
     </div>`;
     return;
   }
@@ -3140,8 +3150,10 @@ async function fetchRooms() {
       </div>
       ${room.description ? `<div style="font-size:13px;color:var(--text2);margin:8px 0">${room.description}</div>` : ''}
       <div class="room-host">
-        <div class="avatar" style="width:24px;height:24px;font-size:10px">${room.host_avatar ? `<img src="${room.host_avatar}">` : room.host_name[0]}</div>
-        <span style="font-size:12px;color:var(--text2)">🎙️ ${room.host_name} ${room.host_verified ? '✓' : ''}</span>
+        <div class="avatar" style="width:24px;height:24px;font-size:10px">
+          ${room.host_avatar ? `<img src="${room.host_avatar}">` : room.host_name[0]}
+        </div>
+        <span style="font-size:12px;color:var(--text2)">🎙️ ${room.host_name}</span>
         <span class="room-count" style="margin-right:auto">👥 ${room.participants_count}</span>
       </div>
     </div>`).join('');
@@ -3154,31 +3166,26 @@ function showCreateRoom() {
     <div class="modal-subtitle">افتح نقاشاً حياً مع المتداولين</div>
     <div class="form-group">
       <label class="form-label">اسم الروم *</label>
-      <input class="form-input" id="room-name-inp" placeholder="مثال: تحليل تاسي الآن" maxlength="60">
+      <input class="form-input" id="room-name-inp" placeholder="مثال: جلسة السوق الصباحية" maxlength="60">
     </div>
     <div class="form-group">
       <label class="form-label">الموضوع</label>
-      <input class="form-input" id="room-topic-inp" placeholder="مثال: أرامكو، الراجحي، تاسي..." maxlength="100">
+      <input class="form-input" id="room-topic-inp" placeholder="مثال: تحليل السوق السعودي" maxlength="60">
     </div>
-    <div class="form-group">
-      <label class="form-label">وصف قصير</label>
-      <input class="form-input" id="room-desc-inp" placeholder="اختياري..." maxlength="150">
-    </div>
-    <div id="room-err" class="form-error"></div>
+    <div id="room-err" style="color:var(--red);font-size:13px;margin-bottom:8px"></div>
     <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;padding:12px" onclick="createRoom()">
-      🚀 إنشاء وبدء الروم
+      🎙️ إنشاء الروم
     </button>`;
-  showModal('auth-modal');
+  document.getElementById('auth-modal').style.display = 'flex';
 }
 
 async function createRoom() {
-  const name = document.getElementById('room-name-inp')?.value.trim();
+  const name  = document.getElementById('room-name-inp')?.value.trim();
   const topic = document.getElementById('room-topic-inp')?.value.trim();
-  const description = document.getElementById('room-desc-inp')?.value.trim();
   if (!name) { document.getElementById('room-err').textContent = 'اسم الروم مطلوب'; return; }
   const r = await fetch('/api/rooms', {
     method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ name, topic, description })
+    body: JSON.stringify({ name, topic })
   });
   const d = await r.json();
   if (d.error) { document.getElementById('room-err').textContent = d.error; return; }
@@ -3186,19 +3193,16 @@ async function createRoom() {
   navigate('room', d.room.id);
 }
 
-// ── صفحة الروم ──────────────────────────────────────────────────
+// ── صفحة الروم ───────────────────────────────────────────────────
 async function loadRoomPage(roomId) {
   currentRoomId = roomId;
   const el = document.getElementById('room-content');
-  el.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:200px;color:var(--text3)">جاري الانضمام للروم...</div>`;
-
+  el.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:200px;color:var(--text3)">جاري الانضمام...</div>`;
   if (!currentUser) {
-    el.innerHTML = `<div class="empty-state">
-      <div class="empty-icon">🔒</div><div class="empty-title">يجب تسجيل الدخول</div>
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🔒</div><div class="empty-title">يجب تسجيل الدخول</div>
       <button class="btn btn-primary" style="margin-top:14px" onclick="showLoginModal()">تسجيل الدخول</button></div>`;
     return;
   }
-
   const r = await fetch('/api/rooms');
   const d = await r.json();
   const room = d.rooms?.find(rm => rm.id === roomId);
@@ -3207,37 +3211,43 @@ async function loadRoomPage(roomId) {
       <button class="btn btn-ghost" style="margin-top:14px" onclick="navigate('rooms')">← الرجوع</button></div>`;
     return;
   }
-
   const isHost = room.host_id === currentUser.id;
+  el.innerHTML = buildRoomUI(room, roomId, isHost);
 
-  el.innerHTML = `
+  // انضمام + توكن
+  await fetch(`/api/rooms/${roomId}/join`, { method: 'POST' });
+  const tokenRes = await fetch(`/api/rooms/${roomId}/token`, { method: 'POST' });
+  const tokenData = await tokenRes.json();
+  if (tokenData.error) { toast(tokenData.error, 'error'); return; }
+  myRole = tokenData.role;
+  LIVEKIT_URL_CACHE.url = tokenData.livekitUrl;
+
+  await connectToLiveKit(roomId, tokenData.token, tokenData.canSpeak);
+  loadRoomChat(roomId);
+  chatPollInterval  = setInterval(() => loadRoomChat(roomId), 3000);
+  await refreshRoomInfo(roomId);
+  roomInfoInterval  = setInterval(() => refreshRoomInfo(roomId), 5000);
+}
+
+function buildRoomUI(room, roomId, isHost) {
+  return `
     <div class="room-page">
-      <!-- الجانب الأيمن: المتواجدون + الأزرار -->
       <div class="room-participants-panel">
         <div class="room-participants-header">👥 المتواجدون <span id="participants-count" style="color:var(--text3);font-weight:400"></span></div>
-        <!-- المتحدثون في الأعلى -->
         <div class="speakers-stage">
           <div class="stage-section-title">🎙️ المتحدثون</div>
-          <div class="speakers-grid" id="speakers-grid">
-            <div class="speaker-item" id="speaker-${currentUser.id}">
-              <div class="speaker-avatar-wrap">
-                <div class="avatar speaker-avatar ${!isHost?'muted':''}" id="av-${currentUser.id}">
-                  ${currentUser.avatar?`<img src="${currentUser.avatar}">`:currentUser.display_name[0]}
-                </div>
-                <div class="speaker-mic ${!isHost?'muted':''}" id="mic-ic-${currentUser.id}">${isHost?'🎙️':'🔇'}</div>
-              </div>
-              <div class="speaker-name">${currentUser.display_name}</div>
-            </div>
-          </div>
+          <div class="speakers-grid" id="speakers-grid"></div>
         </div>
-        <!-- قائمة المشاركين قابلة للسكرول -->
         <div class="room-participants-list" id="participants-list"></div>
-        <!-- الأزرار ثابتة في الأسفل -->
-        <div class="room-controls">
+        <div class="room-controls" id="room-controls">
           ${isHost ? `
             <div style="text-align:center">
               <button class="ctrl-btn mic-on" id="mic-btn" onclick="toggleMic()">🎙️</button>
               <div class="ctrl-label">المايك</div>
+            </div>
+            <div style="text-align:center">
+              <button class="ctrl-btn" style="background:var(--red-bg);color:var(--red);border:2px solid var(--red)" onclick="endRoom('${roomId}')">🔴</button>
+              <div class="ctrl-label">إنهاء</div>
             </div>` : `
             <div style="text-align:center">
               <button class="ctrl-btn hand-btn" id="hand-btn" onclick="toggleHand('${roomId}')">🤚</button>
@@ -3247,19 +3257,13 @@ async function loadRoomPage(roomId) {
             <button class="ctrl-btn leave-btn" onclick="leaveRoom('${roomId}')">📵</button>
             <div class="ctrl-label">مغادرة</div>
           </div>
-          ${isHost ? `
-            <div style="text-align:center">
-              <button class="ctrl-btn" style="background:var(--red-bg);color:var(--red);border:2px solid var(--red)" onclick="endRoom('${roomId}')">🔴</button>
-              <div class="ctrl-label">إنهاء</div>
-            </div>` : ''}
         </div>
       </div>
-      <!-- الوسط: الشات الكتابي -->
       <div class="room-chat">
         <div class="room-header">
           <button class="btn btn-ghost btn-sm" onclick="leaveRoom('${roomId}')">← خروج</button>
           <div class="room-header-title">🎙️ ${room.name}</div>
-          ${room.topic?`<span style="font-size:11px;color:var(--text3);background:var(--bg3);padding:2px 8px;border-radius:10px">${room.topic}</span>`:''}
+          ${room.topic ? `<span style="font-size:11px;color:var(--text3);background:var(--bg3);padding:2px 8px;border-radius:10px">${room.topic}</span>` : ''}
           <span class="room-live-badge">مباشر</span>
         </div>
         <div id="hand-requests-wrap"></div>
@@ -3270,193 +3274,228 @@ async function loadRoomPage(roomId) {
         </div>
       </div>
     </div>`;
-
-  // الانضمام أولاً ثم جلب التوكن (مهم: الترتيب يضمن صحة الصلاحيات)
-  await fetch(`/api/rooms/${roomId}/join`, { method: 'POST' });
-  const tokenRes = await fetch(`/api/rooms/${roomId}/token`, { method: 'POST' });
-  const tokenData = await tokenRes.json();
-  if (tokenData.error) { toast(tokenData.error, 'error'); return; }
-  myRole = tokenData.role;
-
-  await joinLiveKitRoom(roomId, tokenData);
-  loadRoomChat(roomId);
-  chatPollInterval = setInterval(() => loadRoomChat(roomId), 3000);
-  await refreshRoomInfo(roomId);
-  roomInfoInterval = setInterval(() => refreshRoomInfo(roomId), 5000);
 }
 
-// ── LiveKit Connection ───────────────────────────────────────────
-let myRole = 'listener'; // owner / mod / listener
-let roomInfoInterval = null;
-
-async function joinLiveKitRoom(roomId, tokenData) {
+// ── LiveKit Connection ────────────────────────────────────────────
+async function connectToLiveKit(roomId, token, canSpeak) {
   try {
+    // تنظيف اتصال قديم لو موجود
+    await cleanupLiveKit();
+
     livekitRoom = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
 
-    livekitRoom.on(LivekitClient.RoomEvent.ParticipantConnected, (p) => {
-      refreshRoomInfo(roomId);
-      toast(`انضم ${p.name || p.identity}`, 'info');
-    });
-
-    livekitRoom.on(LivekitClient.RoomEvent.ParticipantDisconnected, (p) => {
-      document.getElementById(`speaker-${p.identity}`)?.remove();
-      refreshRoomInfo(roomId);
-    });
-
-    livekitRoom.on(LivekitClient.RoomEvent.TrackSubscribed, (track, pub, p) => {
+    livekitRoom.on(LivekitClient.RoomEvent.ParticipantConnected, () => refreshRoomInfo(roomId));
+    livekitRoom.on(LivekitClient.RoomEvent.ParticipantDisconnected, () => refreshRoomInfo(roomId));
+    livekitRoom.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => {
       if (track.kind === LivekitClient.Track.Kind.Audio) track.attach();
     });
+    livekitRoom.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track) => track.detach());
+    livekitRoom.on(LivekitClient.RoomEvent.DataReceived, (data) => handleDataMessage(data, roomId));
 
-    livekitRoom.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track) => {
-      track.detach();
-    });
+    await livekitRoom.connect(LIVEKIT_URL_CACHE.url, token);
 
-    // عند تحديث صلاحيات النشر من LiveKit Cloud — فتح المايك تلقائياً
-    livekitRoom.on(LivekitClient.RoomEvent.LocalTrackPublished, () => {});
-    livekitRoom.localParticipant?.on('permissionsChanged', async (prevPerms) => {
-      const perms = livekitRoom.localParticipant.permissions;
-      if (perms?.canPublish && !prevPerms?.canPublish) {
-        // تم منح صلاحية النشر — فتح المايك
-        try {
-          await startSpeaking();
-        } catch(e) {}
-      }
-    });
-
-    // استقبال أوامر الإدارة عبر Data Channel
-    livekitRoom.on(LivekitClient.RoomEvent.DataReceived, (data) => {
-      try {
-        const msg = JSON.parse(new TextDecoder().decode(data));
-        if (msg.type === 'kick' && msg.userId === currentUser.id) {
-          toast('🚫 تم طردك من الروم', 'error');
-          leaveRoom(roomId, true);
-        }
-        if (msg.type === 'mute' && msg.userId === currentUser.id) {
-          forceMute();
-          toast('🔇 تم كتمك من قبل الإدارة', 'info');
-        }
-        if (msg.type === 'grant_mic' && msg.userId === currentUser.id) {
-          if (msg.grant) {
-            window._pendingMicToken = msg.newToken || null;
-            showMicRequestPopup(roomId, msg.fromName);
-          } else {
-            stopSpeaking();
-            // إزالة أزرار المايك وإعادة زر رفع اليد
-            document.getElementById('mic-btn')?.parentElement?.remove();
-            document.querySelectorAll('.ctrl-btn').forEach(btn => {
-              if (btn.textContent === '🎤') btn.parentElement?.remove();
-            });
-            const controls = document.querySelector('.room-controls');
-            if (controls && !document.getElementById('hand-btn')) {
-              const handDiv = document.createElement('div');
-              handDiv.style.textAlign = 'center';
-              handDiv.innerHTML = `<button class="ctrl-btn hand-btn" id="hand-btn" onclick="toggleHand('${roomId}')">🤚</button><div class="ctrl-label">رفع يد</div>`;
-              controls.prepend(handDiv);
-            }
-            toast('🔇 تم سحب مايكك', 'info');
-          }
-        }
-        if (msg.type === 'refresh') {
-          refreshRoomInfo(roomId);
-        }
-        if (msg.type === 'mic_accepted') {
-          toast(`✅ ${msg.userName} قبل المايك وبدأ الكلام`, 'success');
-          refreshRoomInfo(roomId);
-        }
-        if (msg.type === 'mic_rejected') {
-          toast(`❌ ${msg.userName} رفض المايك`, 'info');
-          refreshRoomInfo(roomId);
-        }
-      } catch(e) {}
-    });
-
-    window._livekitUrl = tokenData.livekitUrl;
-    await livekitRoom.connect(tokenData.livekitUrl, tokenData.token);
-
-    if (tokenData.canSpeak) {
-      try {
-        await startSpeaking();
-      } catch(e) {
-        toast('⚠️ تعذّر فتح المايك — اضغط زر المايك يدوياً', 'error');
-      }
-    } else {
-      isMuted = true;
-      updateMicUI(true);
+    if (canSpeak) {
+      await enableMic();
     }
 
     toast('✅ انضممت للروم', 'success');
   } catch(e) {
-    console.error('LiveKit error:', e);
-    toast('⚠️ تعذّر الاتصال — تأكد من إذن المايك', 'error');
+    console.error('LiveKit connect error:', e);
+    toast('⚠️ تعذّر الاتصال بالروم الصوتي', 'error');
   }
 }
 
-async function startSpeaking() {
-  try {
-    if (!livekitRoom || !livekitRoom.localParticipant) throw new Error('room not ready');
-    if (!localAudioTrack) {
-      localAudioTrack = await LivekitClient.createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true });
-      await livekitRoom.localParticipant.publishTrack(localAudioTrack);
-    } else if (localAudioTrack.isMuted) {
-      await localAudioTrack.unmute();
-    }
-    isMuted = false;
-    updateMicUI(false);
-  } catch(e) {
-    console.error('mic error', e);
-    toast('⚠️ تعذّر فتح المايك', 'error');
-    throw e;
+async function cleanupLiveKit() {
+  if (localAudioTrack) {
+    try { localAudioTrack.stop(); } catch(e) {}
+    localAudioTrack = null;
   }
+  if (livekitRoom) {
+    try { await livekitRoom.disconnect(); } catch(e) {}
+    livekitRoom = null;
+  }
+  isMuted = true;
 }
 
-async function stopSpeaking() {
-  try {
-    if (localAudioTrack) await localAudioTrack.mute();
-  } catch(e) {}
+// ── التحكم بالمايك ────────────────────────────────────────────────
+async function enableMic() {
+  if (!livekitRoom?.localParticipant) return;
+  if (!localAudioTrack) {
+    localAudioTrack = await LivekitClient.createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true });
+    await livekitRoom.localParticipant.publishTrack(localAudioTrack);
+  } else if (localAudioTrack.isMuted) {
+    await localAudioTrack.unmute();
+  }
+  isMuted = false;
+  updateMicUI(false);
+}
+
+async function disableMic() {
+  if (localAudioTrack) {
+    try { await localAudioTrack.mute(); } catch(e) {}
+  }
   isMuted = true;
   updateMicUI(true);
 }
 
-function forceMute() {
-  if (localAudioTrack && !localAudioTrack.isMuted) {
-    localAudioTrack.mute();
-    isMuted = true;
-    updateMicUI(true);
+async function toggleMic() {
+  if (isMuted) {
+    await enableMic();
+  } else {
+    await disableMic();
   }
 }
 
 function updateMicUI(muted) {
   const btn = document.getElementById('mic-btn');
-  const mic = document.getElementById(`mic-ic-${currentUser.id}`);
-  const av = document.getElementById(`av-${currentUser.id}`);
+  const mic = document.getElementById(`mic-ic-${currentUser?.id}`);
+  const av  = document.getElementById(`av-spk-${currentUser?.id}`);
   if (btn) { btn.className = `ctrl-btn ${muted ? 'mic-off' : 'mic-on'}`; btn.textContent = muted ? '🔇' : '🎙️'; }
   if (mic) { mic.className = `speaker-mic ${muted ? 'muted' : ''}`; mic.textContent = muted ? '🔇' : '🎙️'; }
-  if (av) av.className = `avatar speaker-avatar ${muted ? 'muted' : 'speaking'}`;
+  if (av)  { av.className  = `avatar speaker-avatar ${muted ? 'muted' : 'speaking'}`; }
 }
 
-async function toggleMic() {
-  if (!localAudioTrack && !isMuted) return;
-  if (isMuted) {
-    // إعادة تشغيل المايك
-    await startSpeaking();
-  } else {
-    // كتم المايك مع إبقاء الـ track
-    await localAudioTrack.mute();
-    isMuted = true;
-    updateMicUI(true);
+// ── استقبال رسائل البيانات ─────────────────────────────────────────
+function handleDataMessage(data, roomId) {
+  try {
+    const msg = JSON.parse(new TextDecoder().decode(data));
+
+    if (msg.type === 'kick' && msg.userId === currentUser.id) {
+      toast('🚫 تم طردك من الروم', 'error');
+      leaveRoom(roomId, true);
+    }
+
+    if (msg.type === 'force_mute' && msg.userId === currentUser.id) {
+      disableMic();
+      toast('🔇 تم كتمك من قبل الإدارة', 'info');
+    }
+
+    if (msg.type === 'revoke_mic' && msg.userId === currentUser.id) {
+      // سحب المايك — نزل من المايك وأعد زر رفع اليد
+      disableMic();
+      removeSpeakerControls(roomId);
+      toast('🔇 تم سحب المايك منك', 'info');
+    }
+
+    if (msg.type === 'grant_mic' && msg.userId === currentUser.id) {
+      // منح المايك
+      if (msg.handRaised) {
+        // المستمع رفع يده — يصير على المايك مباشرة بدون popup
+        autoAcceptMic(roomId);
+      } else {
+        // بدون رفع يد — يظهر popup قبول/رفض
+        showMicRequestPopup(roomId, msg.fromName);
+      }
+    }
+
+    if (msg.type === 'mic_accepted') {
+      toast(`✅ ${msg.userName} بدأ الكلام`, 'success');
+      refreshRoomInfo(roomId);
+    }
+
+    if (msg.type === 'mic_rejected') {
+      toast(`❌ ${msg.userName} رفض المايك`, 'info');
+      refreshRoomInfo(roomId);
+    }
+
+    if (msg.type === 'refresh') {
+      refreshRoomInfo(roomId);
+    }
+  } catch(e) {}
+}
+
+// ── قبول المايك تلقائياً (بعد رفع اليد) ─────────────────────────
+async function autoAcceptMic(roomId) {
+  isHandRaised = false;
+  const handBtn = document.getElementById('hand-btn');
+  if (handBtn) { handBtn.className = 'ctrl-btn hand-btn'; handBtn.textContent = '🤚'; }
+
+  await reconnectWithMic(roomId);
+  showSpeakerControls(roomId);
+  toast('🎙️ تم فتح المايك!', 'success');
+
+  // أبلغ الجميع
+  sendData({ type: 'mic_accepted', userId: currentUser.id, userName: currentUser.display_name });
+  refreshRoomInfo(roomId);
+}
+
+// ── قبول المايك من popup ─────────────────────────────────────────
+async function acceptMic(roomId) {
+  document.getElementById('mic-request-popup')?.remove();
+  document.getElementById('mic-request-overlay')?.remove();
+  showSpeakerControls(roomId);
+
+  await reconnectWithMic(roomId);
+  toast('🎙️ تم فتح المايك!', 'success');
+
+  sendData({ type: 'mic_accepted', userId: currentUser.id, userName: currentUser.display_name });
+  refreshRoomInfo(roomId);
+}
+
+// ── إعادة الاتصال بتوكن جديد canPublish:true ────────────────────
+async function reconnectWithMic(roomId) {
+  // جلب توكن جديد — الآن can_speak=1 في DB
+  const tokenRes = await fetch(`/api/rooms/${roomId}/token`, { method: 'POST' });
+  const tokenData = await tokenRes.json();
+
+  if (!tokenData.canSpeak) {
+    toast('⚠️ لم تُمنح صلاحية المايك', 'error');
+    return;
   }
+
+  // تنظيف الاتصال القديم
+  await cleanupLiveKit();
+  await new Promise(r => setTimeout(r, 500));
+
+  // اتصال جديد بتوكن canPublish:true
+  livekitRoom = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
+  livekitRoom.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => {
+    if (track.kind === LivekitClient.Track.Kind.Audio) track.attach();
+  });
+  livekitRoom.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track) => track.detach());
+  livekitRoom.on(LivekitClient.RoomEvent.DataReceived, (data) => handleDataMessage(data, roomId));
+  livekitRoom.on(LivekitClient.RoomEvent.ParticipantConnected, () => refreshRoomInfo(roomId));
+  livekitRoom.on(LivekitClient.RoomEvent.ParticipantDisconnected, () => refreshRoomInfo(roomId));
+
+  await livekitRoom.connect(tokenData.livekitUrl, tokenData.token);
+  await enableMic();
+}
+
+async function rejectMic(roomId) {
+  document.getElementById('mic-request-popup')?.remove();
+  document.getElementById('mic-request-overlay')?.remove();
+  toast('تم رفض طلب المايك', 'info');
+  // سحب الصلاحية من DB
+  await fetch(`/api/rooms/${roomId}/grant-mic/${currentUser.id}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ grant: false })
+  });
+  sendData({ type: 'mic_rejected', userId: currentUser.id, userName: currentUser.display_name });
+  refreshRoomInfo(roomId);
+}
+
+// ── إرسال رسالة بيانات ───────────────────────────────────────────
+async function sendData(obj) {
+  if (!livekitRoom?.localParticipant) return;
+  try {
+    const data = new TextEncoder().encode(JSON.stringify(obj));
+    await livekitRoom.localParticipant.publishData(data, { reliable: true });
+  } catch(e) {}
 }
 
 // ── رفع اليد ────────────────────────────────────────────────────
 async function toggleHand(roomId) {
-  // لا تسمح برفع اليد لو المستمع على المايك فعلاً
-  if (localAudioTrack && !isMuted) {
-    toast('أنت تتحدث الآن — لا حاجة لرفع اليد', 'info');
+  // لو على المايك — لا حاجة لرفع يد
+  if (!isMuted && localAudioTrack) {
+    toast('أنت تتحدث الآن', 'info');
     return;
   }
   isHandRaised = !isHandRaised;
   const btn = document.getElementById('hand-btn');
-  if (btn) { btn.className = `ctrl-btn hand-btn${isHandRaised ? ' raised' : ''}`; btn.textContent = isHandRaised ? '✋' : '🤚'; }
+  if (btn) {
+    btn.className = `ctrl-btn hand-btn${isHandRaised ? ' raised' : ''}`;
+    btn.textContent = isHandRaised ? '✋' : '🤚';
+  }
   await fetch(`/api/rooms/${roomId}/hand`, {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ raise: isHandRaised })
@@ -3466,52 +3505,34 @@ async function toggleHand(roomId) {
   refreshRoomInfo(roomId);
 }
 
-// ── إدارة الروم ──────────────────────────────────────────────────
-async function grantMic(roomId, userId, grant = true) {
+// ── منح/سحب المايك من المضيف ─────────────────────────────────────
+async function grantMic(roomId, userId, grant, handRaised = false) {
   const r = await fetch(`/api/rooms/${roomId}/grant-mic/${userId}`, {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ grant })
   });
   const d = await r.json();
   if (d.error) { toast(d.error, 'error'); return; }
-  // تحديث فوري للواجهة
-  refreshRoomInfo(roomId);
-  if (livekitRoom) {
-    try {
-      const msg = JSON.stringify({ 
-        type: 'grant_mic', userId, grant, 
-        fromName: currentUser.display_name,
-        newToken: d.token || null
-      });
-      await livekitRoom.localParticipant.publishData(new TextEncoder().encode(msg), { reliable: true });
-      setTimeout(() => refreshRoomInfo(roomId), 300);
-    } catch(e) {}
-  }
+
   if (grant) {
-    // إخفاء طلب اليد فوراً من الواجهة
-    const prow = document.getElementById(`prow-${userId}`);
-    if (prow) {
-      const roleDiv = prow.querySelector('.participant-row-role');
-      if (roleDiv) roleDiv.innerHTML = 'مستمع';
-      const handRaised = prow.querySelector('.hand-raised');
-      if (handRaised) handRaised.remove();
-    }
-    toast('✅ تم إرسال طلب المايك — بانتظار القبول', 'info');
+    // إرسال رسالة منح المايك مع معلومة رفع اليد
+    sendData({ type: 'grant_mic', userId, grant: true, handRaised, fromName: currentUser.display_name });
+    toast('✅ تم إرسال المايك', 'info');
   } else {
+    // سحب المايك
+    sendData({ type: 'revoke_mic', userId });
     toast('🔇 تم سحب المايك', 'info');
-    refreshRoomInfo(roomId);
   }
+  setTimeout(() => refreshRoomInfo(roomId), 300);
 }
 
+// ── إدارة الروم ──────────────────────────────────────────────────
 async function kickUser(roomId, userId, userName) {
-  if (!confirm(`هل تريد طرد ${userName}؟`)) return;
+  if (!confirm(`هل تريد طرد ${userName} لمدة ساعة؟`)) return;
   const r = await fetch(`/api/rooms/${roomId}/kick/${userId}`, { method: 'POST' });
   const d = await r.json();
   if (d.error) { toast(d.error, 'error'); return; }
-  if (livekitRoom) {
-    const msg = JSON.stringify({ type: 'kick', userId });
-    await livekitRoom.localParticipant.publishData(new TextEncoder().encode(msg), { reliable: true });
-  }
+  sendData({ type: 'kick', userId });
   toast(`تم طرد ${userName}`, 'success');
   setTimeout(() => refreshRoomInfo(roomId), 500);
 }
@@ -3520,11 +3541,9 @@ async function muteUser(roomId, userId, userName) {
   const r = await fetch(`/api/rooms/${roomId}/mute/${userId}`, { method: 'POST' });
   const d = await r.json();
   if (d.error) { toast(d.error, 'error'); return; }
-  if (livekitRoom) {
-    const msg = JSON.stringify({ type: 'mute', userId });
-    await livekitRoom.localParticipant.publishData(new TextEncoder().encode(msg), { reliable: true });
-  }
-  toast(`تم كتم ${userName}`, 'info');
+  sendData({ type: 'force_mute', userId });
+  toast(`تم كتم ${userName}`, 'success');
+  refreshRoomInfo(roomId);
 }
 
 async function chatBanUser(roomId, userId, userName, ban = true) {
@@ -3534,7 +3553,8 @@ async function chatBanUser(roomId, userId, userName, ban = true) {
   });
   const d = await r.json();
   if (d.error) { toast(d.error, 'error'); return; }
-  toast(ban ? `🚫 تم حظر ${userName} من الشات` : `✅ تم رفع حظر ${userName}`, 'info');
+  toast(ban ? `تم حظر شات ${userName}` : `تم رفع حظر شات ${userName}`, 'success');
+  refreshRoomInfo(roomId);
 }
 
 async function makeMod(roomId, userId, userName, mod = true) {
@@ -3544,15 +3564,19 @@ async function makeMod(roomId, userId, userName, mod = true) {
   });
   const d = await r.json();
   if (d.error) { toast(d.error, 'error'); return; }
-  if (livekitRoom) {
-    const msg = JSON.stringify({ type: 'refresh' });
-    await livekitRoom.localParticipant.publishData(new TextEncoder().encode(msg), { reliable: true });
-  }
-  toast(mod ? `⭐ ${userName} أصبح مشرفاً` : `تم إزالة إشراف ${userName}`, 'info');
+  toast(mod ? `تم تعيين ${userName} مشرفاً` : `تم إزالة ${userName} من المشرفين`, 'success');
   refreshRoomInfo(roomId);
 }
 
-// ── تحديث معلومات الروم (المشاركون + طلبات اليد) ─────────────────
+async function dismissHand(roomId, userId) {
+  await fetch(`/api/rooms/${roomId}/hand`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ raise: false, userId })
+  });
+  refreshRoomInfo(roomId);
+}
+
+// ── تحديث معلومات الروم ──────────────────────────────────────────
 async function refreshRoomInfo(roomId) {
   try {
     const r = await fetch(`/api/rooms/${roomId}/info`);
@@ -3565,282 +3589,187 @@ async function refreshRoomInfo(roomId) {
 }
 
 function renderParticipants(data, roomId) {
-  const speakersGrid = document.getElementById('speakers-grid');
+  const speakersGrid    = document.getElementById('speakers-grid');
   const participantsList = document.getElementById('participants-list');
   if (!speakersGrid || !participantsList) return;
 
-  const room = data.room;
+  const room    = data.room;
   const members = data.members || [];
-  const canMod = myRole === 'owner' || myRole === 'mod';
+  const hands   = data.hands   || [];
+  const canMod  = myRole === 'owner' || myRole === 'mod';
+  const handIds = new Set(hands.map(h => h.user_id));
 
-  // بناء قائمة المشاركين على اليمين
+  // بناء قائمة الكل
   const allParticipants = [
-    { user_id: room.host_id, display_name: room.host_name, role: 'owner', can_speak: 1, is_muted: 0 },
+    { user_id: room.host_id, display_name: room.host_name, role: 'owner', can_speak: 1, is_muted: 0, avatar: room.host_avatar || '' },
     ...members.filter(m => m.user_id !== room.host_id)
   ];
 
-  // تحديث عدد المشاركين الفعليين
+  // عدد المشاركين
   const countEl = document.getElementById('participants-count');
   if (countEl) countEl.textContent = `(${allParticipants.length})`;
 
+  // قائمة المشاركين
   participantsList.innerHTML = allParticipants.map(m => {
-    const isMe = m.user_id === currentUser.id;
+    const isMe     = m.user_id === currentUser?.id;
     const canSpeak = m.can_speak || m.role === 'owner' || m.role === 'mod';
+    const handUp   = handIds.has(m.user_id);
     const roleIcon = m.role === 'owner' ? '👑' : m.role === 'mod' ? '🛡️' : '';
-    const micIcon = canSpeak ? (m.is_muted ? '🔇' : '🎙️') : '🔇';
-    const modActions = canMod && !isMe && m.role !== 'owner' ? `
-      <div class="participant-row-actions">
+    const micIcon  = canSpeak ? (m.is_muted ? '🔇' : '🎙️') : (handUp ? '✋' : '🎧');
+
+    // أزرار الإدارة
+    let actions = '';
+    if (canMod && !isMe && m.role !== 'owner') {
+      actions = `<div class="participant-row-actions">
         ${canSpeak
-          ? `<button class="pact-btn" onclick="grantMic('${roomId}','${m.user_id}',false)" title="سحب المايك">🔇</button>`
-          : `<button class="pact-btn" onclick="grantMic('${roomId}','${m.user_id}',true)" title="إعطاء المايك">🎙️</button>`}
-        <button class="pact-btn" onclick="muteUser('${roomId}','${m.user_id}','${m.display_name}')" title="كتم">🤐</button>
-        <button class="pact-btn" onclick="chatBanUser('${roomId}','${m.user_id}','${m.display_name}',${!m.chat_banned})" title="حظر الشات">💬</button>
-        ${myRole === 'owner' ? `<button class="pact-btn" onclick="makeMod('${roomId}','${m.user_id}','${m.display_name}',${m.role!=='mod'})" title="${m.role==='mod'?'إزالة مشرف':'تعيين مشرف'}">⭐</button>` : ''}
-        <button class="pact-btn danger" onclick="kickUser('${roomId}','${m.user_id}','${m.display_name}')" title="طرد">🚫</button>
-      </div>` : '';
-    const handRaised = data.hands && data.hands.some(h => h.user_id === m.user_id);
+          ? `<button class="pact-btn danger" onclick="grantMic('${roomId}','${m.user_id}',false)">🔇 سحب</button>`
+          : `<button class="pact-btn" onclick="grantMic('${roomId}','${m.user_id}',true,${handUp})">🎙️ منح</button>`}
+        <button class="pact-btn" onclick="muteUser('${roomId}','${m.user_id}','${m.display_name}')">🤐 كتم</button>
+        <button class="pact-btn" onclick="chatBanUser('${roomId}','${m.user_id}','${m.display_name}',${!m.chat_banned})">💬 ${m.chat_banned?'رفع حظر':'حظر شات'}</button>
+        ${myRole === 'owner' ? `<button class="pact-btn" onclick="makeMod('${roomId}','${m.user_id}','${m.display_name}',${m.role!=='mod'})">⭐ ${m.role==='mod'?'إزالة مشرف':'مشرف'}</button>` : ''}
+        <button class="pact-btn danger" onclick="kickUser('${roomId}','${m.user_id}','${m.display_name}')">🚫 طرد</button>
+      </div>`;
+    }
+
     return `
       <div class="participant-row" id="prow-${m.user_id}">
         <div style="position:relative;flex-shrink:0">
-          <div class="av ${canSpeak && !m.is_muted ? 'speaking' : 'muted-av'}" id="av-${m.user_id}">
+          <div class="av ${canSpeak && !m.is_muted ? 'speaking' : ''}" id="av-${m.user_id}">
             ${m.avatar ? `<img src="${m.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : (m.display_name||'?')[0]}
           </div>
-          ${handRaised ? `<span class="hand-raised">✋</span>` : ''}
+          ${handUp ? `<span class="hand-raised">✋</span>` : ''}
         </div>
         <div class="participant-row-info">
           <div class="participant-row-name">${roleIcon} ${m.display_name}${isMe?' (أنا)':''}</div>
-          <div class="participant-row-role">${handRaised ? '<span style="color:var(--gold)">✋ رافع يد</span>' : m.role==='owner'?'المضيف':m.role==='mod'?'مشرف':'مستمع'}</div>
+          <div class="participant-row-role" style="${handUp?'color:var(--gold)':''}">
+            ${handUp ? '✋ يطلب الكلام' : m.role==='owner' ? 'المضيف' : m.role==='mod' ? 'مشرف' : 'مستمع'}
+          </div>
         </div>
         <div class="participant-row-mic">${micIcon}</div>
-        ${modActions}
+        ${actions}
       </div>`;
   }).join('');
 
-  // تحديث المتحدثين في المنطقة المركزية
+  // منطقة المتحدثين
   const speakers = allParticipants.filter(m => m.can_speak || m.role === 'owner' || m.role === 'mod');
   speakersGrid.innerHTML = speakers.map(m => {
     const canSpeak = m.can_speak || m.role === 'owner' || m.role === 'mod';
-    const roleLabel = m.role === 'owner' ? '<div style="font-size:10px;color:var(--gold)">👑</div>' : m.role === 'mod' ? '<div style="font-size:10px;color:var(--primary)">🛡️</div>' : '';
     return `
       <div class="speaker-item" id="speaker-${m.user_id}">
         <div class="speaker-avatar-wrap">
-          <div class="avatar speaker-avatar ${canSpeak && !m.is_muted ? '' : 'muted'}" id="av-spk-${m.user_id}">
+          <div class="avatar speaker-avatar ${canSpeak && !m.is_muted ? 'speaking' : 'muted'}" id="av-spk-${m.user_id}">
             ${m.avatar ? `<img src="${m.avatar}">` : (m.display_name||'?')[0]}
           </div>
-          <div class="speaker-mic ${canSpeak && !m.is_muted ? '' : 'muted'}" id="mic-ic-${m.user_id}">${canSpeak && !m.is_muted ? '🎙️' : '🔇'}</div>
+          <div class="speaker-mic ${canSpeak && !m.is_muted ? '' : 'muted'}" id="mic-ic-${m.user_id}">
+            ${canSpeak && !m.is_muted ? '🎙️' : '🔇'}
+          </div>
         </div>
         <div class="speaker-name">${m.display_name}</div>
-        ${roleLabel}
+        ${m.role==='owner'?'<div style="font-size:10px;color:var(--gold)">👑</div>':m.role==='mod'?'<div style="font-size:10px;color:var(--primary)">🛡️</div>':''}
       </div>`;
   }).join('');
+
+  // تحديث UI المايك لنفسي
+  updateMicUI(isMuted);
 }
 
 function renderHandRequests(hands, roomId) {
   const canMod = myRole === 'owner' || myRole === 'mod';
-  const wrap = document.getElementById('hand-requests-wrap');
+  const wrap   = document.getElementById('hand-requests-wrap');
   if (!wrap) return;
-  if (!canMod || !hands || !hands.length) { wrap.innerHTML = ''; return; }
+  if (!canMod || !hands?.length) { wrap.innerHTML = ''; return; }
   wrap.innerHTML = `
     <div style="background:var(--gold-bg);border:1px solid var(--gold);border-radius:var(--radius2);padding:10px 14px;margin:12px 12px 0">
       <div style="font-size:13px;font-weight:700;color:var(--gold);margin-bottom:8px">✋ طلبات الكلام (${hands.length})</div>
       ${hands.map(h => `
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
           <span style="font-size:13px;flex:1">${h.display_name}</span>
-          <button class="btn btn-primary btn-sm" onclick="grantMic('${roomId}','${h.user_id}',true)">🎙️ منح</button>
+          <button class="btn btn-primary btn-sm" onclick="grantMic('${roomId}','${h.user_id}',true,true)">🎙️ منح</button>
           <button class="btn btn-ghost btn-sm" onclick="dismissHand('${roomId}','${h.user_id}')">✕</button>
         </div>`).join('')}
     </div>`;
 }
 
-async function dismissHand(roomId, userId) {
-  await fetch(`/api/rooms/${roomId}/hand`, {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ raise: false, userId })
-  });
-  refreshRoomInfo(roomId);
-}
-
-// ── popup طلب المايك ─────────────────────────────────────────────
+// ── popup طلب المايك (بدون رفع يد) ──────────────────────────────
 function showMicRequestPopup(roomId, fromName) {
-  // احذف أي popup موجود
   document.getElementById('mic-request-popup')?.remove();
+  document.getElementById('mic-request-overlay')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'mic-request-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9998;';
 
   const popup = document.createElement('div');
   popup.id = 'mic-request-popup';
   popup.style.cssText = `
-    position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
-    background: var(--bg2); border: 2px solid var(--primary);
-    border-radius: 16px; padding: 28px 32px; z-index: 9999;
-    box-shadow: 0 8px 40px rgba(0,0,0,.25); text-align: center;
-    min-width: 280px; animation: fadeIn .25s ease;
-  `;
+    position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+    background:var(--bg2);border:2px solid var(--primary);border-radius:16px;
+    padding:28px 32px;z-index:9999;box-shadow:0 8px 40px rgba(0,0,0,.25);
+    text-align:center;min-width:280px;`;
   popup.innerHTML = `
     <div style="font-size:40px;margin-bottom:12px">🎙️</div>
-    <div style="font-size:17px;font-weight:700;margin-bottom:6px">طلب مايك</div>
+    <div style="font-size:17px;font-weight:700;margin-bottom:6px">دعوة للكلام</div>
     <div style="font-size:14px;color:var(--text2);margin-bottom:20px">
-      منحك <strong>${fromName || 'الأدمن'}</strong> صلاحية التحدث
+      دعاك <strong>${fromName || 'الأدمن'}</strong> للتحدث
     </div>
     <div style="display:flex;gap:10px;justify-content:center">
-      <button onclick="acceptMic('${roomId}')" style="
-        padding:10px 28px; border-radius:10px; border:none;
-        background:var(--primary); color:#fff; font-family:inherit;
-        font-size:15px; font-weight:700; cursor:pointer;
-      ">✅ قبول</button>
-      <button onclick="rejectMic('${roomId}')" style="
-        padding:10px 28px; border-radius:10px; border:none;
-        background:var(--red-bg); color:var(--red); border:1.5px solid var(--red);
-        font-family:inherit; font-size:15px; font-weight:700; cursor:pointer;
-      ">❌ رفض</button>
-    </div>
-  `;
+      <button onclick="acceptMic('${roomId}')" style="padding:10px 28px;border-radius:10px;border:none;background:var(--primary);color:#fff;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer">✅ قبول</button>
+      <button onclick="rejectMic('${roomId}')" style="padding:10px 28px;border-radius:10px;border:1.5px solid var(--red);background:var(--red-bg);color:var(--red);font-family:inherit;font-size:15px;font-weight:700;cursor:pointer">❌ رفض</button>
+    </div>`;
 
-  // خلفية شبه شفافة
-  const overlay = document.createElement('div');
-  overlay.id = 'mic-request-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9998;';
   document.body.appendChild(overlay);
   document.body.appendChild(popup);
 }
 
-async function acceptMic(roomId) {
-  document.getElementById('mic-request-popup')?.remove();
-  document.getElementById('mic-request-overlay')?.remove();
-  showSpeakerControls(roomId);
-  toast('🔄 جاري تفعيل المايك...', 'info');
-
-  try {
-    // جلب توكن جديد canPublish:true من السيرفر
-    const tokenRes = await fetch('/api/rooms/' + roomId + '/token', { method: 'POST' });
-    const tokenData = await tokenRes.json();
-    if (!tokenData.canSpeak) { toast('⚠️ لم تمنح الصلاحية', 'error'); return; }
-
-    // قطع الاتصال القديم وتنظيف
-    if (localAudioTrack) { try { localAudioTrack.stop(); } catch(e) {} localAudioTrack = null; }
-    const oldRoom = livekitRoom;
-    livekitRoom = null;
-    if (oldRoom) { try { await oldRoom.disconnect(); } catch(e) {} }
-    await new Promise(r => setTimeout(r, 700));
-
-    // إنشاء room جديد كلياً
-    livekitRoom = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
-    livekitRoom.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => {
-      if (track.kind === LivekitClient.Track.Kind.Audio) track.attach();
-    });
-    livekitRoom.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track) => track.detach());
-    livekitRoom.on(LivekitClient.RoomEvent.DataReceived, (data) => {
-      try {
-        const msg = JSON.parse(new TextDecoder().decode(data));
-        if (msg.type === 'mute' && msg.userId === currentUser.id) { forceMute(); toast('🔇 تم كتمك', 'info'); }
-        if (msg.type === 'kick' && msg.userId === currentUser.id) { toast('🚫 تم طردك', 'error'); leaveRoom(roomId, true); }
-        if (msg.type === 'refresh') { refreshRoomInfo(roomId); }
-        if (msg.type === 'grant_mic' && msg.userId === currentUser.id && !msg.grant) {
-          stopSpeaking();
-          document.getElementById('mic-btn')?.parentElement?.remove();
-          const controls = document.querySelector('.room-controls');
-          if (controls && !document.getElementById('hand-btn')) {
-            const d = document.createElement('div');
-            d.style.textAlign = 'center';
-            d.innerHTML = `<button class="ctrl-btn hand-btn" id="hand-btn" onclick="toggleHand('${roomId}')">🤚</button><div class="ctrl-label">رفع يد</div>`;
-            controls.prepend(d);
-          }
-          toast('🔇 تم سحب مايكك', 'info');
-        }
-      } catch(e) {}
-    });
-
-    // الاتصال بالتوكن الجديد
-    await livekitRoom.connect(tokenData.livekitUrl, tokenData.token);
-    await startSpeaking();
-    toast('🎙️ تم فتح المايك!', 'success');
-
-    // أبلغ الأدمن بالقبول
-    try {
-      const msg = JSON.stringify({ type: 'mic_accepted', userId: currentUser.id, userName: currentUser.display_name });
-      await livekitRoom.localParticipant.publishData(new TextEncoder().encode(msg), { reliable: true });
-    } catch(e) {}
-
-  } catch(e) {
-    console.error('acceptMic error:', e);
-    toast('⚠️ اضغط زر المايك لتفعيله', 'info');
-  }
-  refreshRoomInfo(roomId);
-}
-
-async function rejectMic(roomId) {
-  document.getElementById('mic-request-popup')?.remove();
-  document.getElementById('mic-request-overlay')?.remove();
-  toast('تم رفض طلب المايك', 'info');
-  // سحب الصلاحية من DB فوراً
-  await fetch(`/api/rooms/${roomId}/grant-mic/${currentUser.id}`, {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ grant: false })
-  });
-  // أبلغ الأدمن بالرفض
-  if (livekitRoom) {
-    const msg = JSON.stringify({ type: 'mic_rejected', userId: currentUser.id, userName: currentUser.display_name });
-    await livekitRoom.localParticipant.publishData(new TextEncoder().encode(msg), { reliable: true });
-  }
-  refreshRoomInfo(roomId);
-}
-
-// ── إظهار أزرار التحكم بالمايك للمستخدم الممنوح ─────────────────
+// ── أزرار تحكم المتحدث ───────────────────────────────────────────
 function showSpeakerControls(roomId) {
-  const controls = document.querySelector('.room-controls');
+  const controls = document.getElementById('room-controls');
   if (!controls) return;
   // إزالة زر رفع اليد
   document.getElementById('hand-btn')?.parentElement?.remove();
-  // إزالة أزرار قديمة لو موجودة
+  // إضافة أزرار المايك لو ما موجودة
+  if (!document.getElementById('mic-btn')) {
+    const micDiv = document.createElement('div');
+    micDiv.style.textAlign = 'center';
+    micDiv.innerHTML = `<button class="ctrl-btn mic-on" id="mic-btn" onclick="toggleMic()">🎙️</button><div class="ctrl-label">المايك</div>`;
+    const leaveDiv = document.createElement('div');
+    leaveDiv.style.textAlign = 'center';
+    leaveDiv.id = 'leave-mic-wrap';
+    leaveDiv.innerHTML = `<button class="ctrl-btn" style="background:var(--gold-bg);color:var(--gold);border:2px solid var(--gold)" onclick="leaveMic('${roomId}')">🎤</button><div class="ctrl-label">ترك المايك</div>`;
+    controls.prepend(leaveDiv);
+    controls.prepend(micDiv);
+  }
+}
+
+function removeSpeakerControls(roomId) {
   document.getElementById('mic-btn')?.parentElement?.remove();
-  document.querySelectorAll('.ctrl-btn').forEach(btn => {
-    if (btn.textContent === '🎤') btn.parentElement?.remove();
-  });
-  const micDiv = document.createElement('div');
-  micDiv.style.textAlign = 'center';
-  micDiv.innerHTML = `
-    <button class="ctrl-btn mic-on" id="mic-btn" onclick="toggleMic()">🎙️</button>
-    <div class="ctrl-label">المايك</div>`;
-  const leaveMicDiv = document.createElement('div');
-  leaveMicDiv.style.textAlign = 'center';
-  leaveMicDiv.innerHTML = `
-    <button class="ctrl-btn" style="background:var(--gold-bg);color:var(--gold);border:2px solid var(--gold)" onclick="leaveMic('${roomId}')">🎤</button>
-    <div class="ctrl-label">ترك المايك</div>`;
-  controls.prepend(leaveMicDiv);
-  controls.prepend(micDiv);
+  document.getElementById('leave-mic-wrap')?.remove();
+  const controls = document.getElementById('room-controls');
+  if (controls && !document.getElementById('hand-btn')) {
+    const div = document.createElement('div');
+    div.style.textAlign = 'center';
+    div.innerHTML = `<button class="ctrl-btn hand-btn" id="hand-btn" onclick="toggleHand('${roomId}')">🤚</button><div class="ctrl-label">رفع يد</div>`;
+    controls.prepend(div);
+  }
 }
 
 async function leaveMic(roomId) {
-  await stopSpeaking();
-  // إزالة أزرار المايك وإعادة زر رفع اليد
-  document.getElementById('mic-btn')?.parentElement?.remove();
-  document.querySelectorAll('.ctrl-btn').forEach(btn => {
-    if (btn.textContent === '🎤') btn.parentElement?.remove();
-  });
-  const controls = document.querySelector('.room-controls');
-  if (controls) {
-    const handDiv = document.createElement('div');
-    handDiv.style.textAlign = 'center';
-    handDiv.innerHTML = `
-      <button class="ctrl-btn hand-btn" id="hand-btn" onclick="toggleHand('${roomId}')">🤚</button>
-      <div class="ctrl-label">رفع يد</div>`;
-    controls.prepend(handDiv);
-  }
-  // سحب الصلاحية من DB
+  await disableMic();
+  removeSpeakerControls(roomId);
+  // سحب صلاحية النشر من DB
   await fetch(`/api/rooms/${roomId}/grant-mic/${currentUser.id}`, {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ grant: false })
   });
-  toast('تركت المايك', 'info');
   refreshRoomInfo(roomId);
 }
 
+// ── مغادرة وإنهاء الروم ──────────────────────────────────────────
 async function leaveRoom(roomId, kicked = false) {
-  try {
-    if (livekitRoom) { await livekitRoom.disconnect(); livekitRoom = null; }
-    if (localAudioTrack) { localAudioTrack.stop(); localAudioTrack = null; }
-    if (chatPollInterval) { clearInterval(chatPollInterval); chatPollInterval = null; }
-    if (roomInfoInterval) { clearInterval(roomInfoInterval); roomInfoInterval = null; }
-    if (!kicked) await fetch(`/api/rooms/${roomId}/leave`, { method: 'POST' });
-  } catch(e) {}
+  if (chatPollInterval)  { clearInterval(chatPollInterval);  chatPollInterval  = null; }
+  if (roomInfoInterval)  { clearInterval(roomInfoInterval);  roomInfoInterval  = null; }
+  await cleanupLiveKit();
+  if (!kicked) await fetch(`/api/rooms/${roomId}/leave`, { method: 'POST' });
   currentRoomId = null; isMuted = false; isHandRaised = false; myRole = 'listener';
   navigate('rooms');
 }
@@ -3853,16 +3782,18 @@ async function endRoom(roomId) {
 
 // ── شات الروم ────────────────────────────────────────────────────
 async function loadRoomChat(roomId) {
-  const r = await fetch(`/api/rooms/${roomId}/messages`);
-  const d = await r.json();
+  const r  = await fetch(`/api/rooms/${roomId}/messages`);
+  const d  = await r.json();
   const el = document.getElementById('room-chat-msgs');
   if (!el) return;
   const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
   el.innerHTML = (d.messages||[]).map(m => `
     <div class="chat-msg">
-      <div class="avatar avatar-sm" style="flex-shrink:0">${m.avatar ? `<img src="${m.avatar}">` : (m.display_name||'?')[0]}</div>
+      <div class="avatar avatar-sm" style="flex-shrink:0">
+        ${m.avatar ? `<img src="${m.avatar}">` : (m.display_name||'?')[0]}
+      </div>
       <div class="chat-msg-body">
-        <div class="chat-msg-name">${m.display_name}${m.is_verified ? ' ✓' : ''}</div>
+        <div class="chat-msg-name">${m.display_name}${m.is_verified?' ✓':''}</div>
         <div class="chat-msg-text">${m.content}</div>
       </div>
     </div>`).join('');
@@ -3883,6 +3814,7 @@ async function sendRoomChat(roomId) {
   if (d.error) { toast(d.error, 'error'); inp.value = content; return; }
   loadRoomChat(roomId);
 }
+
 </script>
 
 <script>
