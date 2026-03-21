@@ -1941,7 +1941,7 @@ const LIVEKIT_URL = process.env.LIVEKIT_URL || 'wss://brzan.com/livekit';
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET;
 
-const { AccessToken, RoomServiceClient } = require('livekit-server-sdk');
+const { AccessToken, VideoGrant, RoomServiceClient } = require('livekit-server-sdk');
 const livekitService = new RoomServiceClient('http://localhost:7880', LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
 
 // جداول الرومات
@@ -2028,13 +2028,14 @@ app.post('/api/rooms/:id/token', requireAuth, async (req, res) => {
     name: user.display_name,
     ttl: 14400,
   });
-  at.addGrant({
+  const grant = new VideoGrant({
     roomJoin: true,
     room: req.params.id,
     canPublish: canSpeak,
     canSubscribe: true,
     canPublishData: true,
   });
+  at.addGrant(grant);
   const token = await at.toJwt();
   res.json({ token, livekitUrl: LIVEKIT_URL, isHost, isMod, canSpeak, role });
 });
@@ -2145,7 +2146,7 @@ app.post('/api/rooms/:id/grant-mic/:userId', requireAuth, async (req, res) => {
       name: targetUser.display_name,
       ttl: 14400,
     });
-    at.addGrant({ roomJoin: true, room: req.params.id, canPublish: grant, canSubscribe: true, canPublishData: true });
+    at.addGrant(new VideoGrant({ roomJoin: true, room: req.params.id, canPublish: grant, canSubscribe: true, canPublishData: true }));
     const token = await at.toJwt();
     res.json({ success: true, token, grant });
   } catch(e) {
