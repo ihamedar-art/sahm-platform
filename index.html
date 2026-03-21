@@ -3190,7 +3190,6 @@ async function createRoom() {
 async function loadRoomPage(roomId) {
   currentRoomId = roomId;
   const el = document.getElementById('room-content');
-  el.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:200px;color:var(--text3)">جاري الانضمام للروم...</div>`;
 
   if (!currentUser) {
     el.innerHTML = `<div class="empty-state">
@@ -3198,6 +3197,35 @@ async function loadRoomPage(roomId) {
       <button class="btn btn-primary" style="margin-top:14px" onclick="showLoginModal()">تسجيل الدخول</button></div>`;
     return;
   }
+
+  // شاشة الانضمام
+  el.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px">
+      <div style="font-size:48px">🎙️</div>
+      <div style="font-size:20px;font-weight:700">انضم للروم الصوتي</div>
+      <div style="color:var(--text3);font-size:13px;text-align:center;max-width:300px">
+        سيطلب منك المتصفح إذن الوصول للمايك
+      </div>
+      <button class="btn btn-primary" style="padding:14px 40px;font-size:16px;margin-top:8px" 
+        onclick="joinRoomWithMic('${roomId}')">
+        🎙️ انضم للروم
+      </button>
+      <button class="btn btn-ghost" onclick="navigate('rooms')">← الرجوع</button>
+    </div>`;
+}
+
+async function joinRoomWithMic(roomId) {
+  const el = document.getElementById('room-content');
+  // طلب إذن المايك — هذا ناتج من ضغطة المستخدم المباشرة
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(t => t.stop());
+  } catch(e) {
+    toast('⚠️ يجب السماح بالوصول للمايك للانضمام للروم', 'error');
+    return;
+  }
+
+  el.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:200px;color:var(--text3)">جاري الانضمام للروم...</div>`;
 
   const r = await fetch('/api/rooms');
   const d = await r.json();
@@ -3277,15 +3305,6 @@ async function loadRoomPage(roomId) {
   const tokenData = await tokenRes.json();
   if (tokenData.error) { toast(tokenData.error, 'error'); return; }
   myRole = tokenData.role;
-
-  // طلب إذن المايك من جميع المستخدمين قبل الاتصال بـ LiveKit
-  // لأن الكل سينشر track مكتوم من البداية
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    stream.getTracks().forEach(t => t.stop());
-  } catch(e) {
-    toast('⚠️ يجب السماح بالوصول للمايك للانضمام للروم', 'error');
-  }
 
   await joinLiveKitRoom(roomId, tokenData);
   loadRoomChat(roomId);
