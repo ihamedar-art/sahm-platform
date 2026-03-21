@@ -1296,11 +1296,7 @@ body {
     <!-- Poll widget -->
     <div id="poll-widget-wrap"></div>
 
-    <!-- Popular stocks -->
-    <div class="sidebar-card" id="popular-stocks-sidebar">
-      <div class="sidebar-card-title">📊 أسهم رائجة</div>
-      <div id="popular-stocks-list"></div>
-    </div>
+    <div id="popular-stocks-sidebar" style="display:none"><div id="popular-stocks-list"></div></div>
   </aside>
 
   <!-- ═══ CENTER FEED ═══ -->
@@ -1423,14 +1419,7 @@ body {
       <div id="hot-posts-list"></div>
     </div>
 
-    <!-- Leaderboard -->
-    <div class="panel-card">
-      <div class="panel-title">🏆 المتصدرون</div>
-      <div id="leaderboard-panel"></div>
-      <div style="margin-top:10px;text-align:center">
-        <button class="btn btn-ghost btn-sm" style="width:100%" onclick="navigate('leaderboard')">عرض الكل →</button>
-      </div>
-    </div>
+    <div id="leaderboard-panel" style="display:none"></div>
 
   </aside>
 </div>
