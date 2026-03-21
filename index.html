@@ -231,12 +231,7 @@ body {
    ══════════════════════════════════════════════════════════ */
 .sidebar {
   width:220px; flex-shrink:0;
-  position:sticky; top:calc(var(--header-h) + 16px);
-  max-height:calc(100vh - var(--header-h) - 32px);
-  overflow-y:auto; overflow-x:hidden;
-  scrollbar-width:none;
 }
-.sidebar::-webkit-scrollbar { display:none; }
 
 /* Navigation */
 .sidebar-nav {
@@ -618,13 +613,8 @@ body {
    ══════════════════════════════════════════════════════════ */
 .right-panel {
   width:270px; flex-shrink:0;
-  position:sticky; top:calc(var(--header-h) + 16px);
-  max-height:calc(100vh - var(--header-h) - 32px);
-  overflow-y:auto; overflow-x:hidden;
-  scrollbar-width:none;
   display:flex; flex-direction:column; gap:12px;
 }
-.right-panel::-webkit-scrollbar { display:none; }
 
 .panel-card {
   background:#fff; border:1.5px solid var(--border);
