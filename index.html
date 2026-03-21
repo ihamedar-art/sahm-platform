@@ -3707,31 +3707,25 @@ async function acceptMic(roomId) {
   document.getElementById('mic-request-overlay')?.remove();
   showSpeakerControls(roomId);
 
-  // قطع اتصال LiveKit فقط وإعادته بتوكن جديد canPublish:true
-  // بدون الخروج من الروم (الـ DB والـ chat لا تتأثر)
-  const newToken = window._pendingMicToken;
-  window._pendingMicToken = null;
+  // جلب توكن جديد مباشرة من السيرفر — الآن can_speak=1 في DB
+  try {
+    const tokenRes = await fetch(`/api/rooms/${roomId}/token`, { method: 'POST' });
+    const tokenData = await tokenRes.json();
 
-  if (newToken && livekitRoom) {
-    try {
+    if (tokenData.canSpeak && livekitRoom) {
+      // قطع اتصال LiveKit وإعادته بالتوكن الجديد
       if (localAudioTrack) { try { localAudioTrack.stop(); } catch(e) {} localAudioTrack = null; }
       await livekitRoom.disconnect();
-      await new Promise(r => setTimeout(r, 400));
-      await livekitRoom.connect(window._livekitUrl, newToken);
+      await new Promise(r => setTimeout(r, 500));
+      await livekitRoom.connect(window._livekitUrl, tokenData.token);
       await startSpeaking();
       toast('🎙️ تم فتح المايك!', 'success');
-    } catch(e) {
-      console.error('acceptMic error:', e);
+    } else {
       toast('⚠️ اضغط زر المايك لتفعيله', 'info');
     }
-  } else {
-    // بدون توكن جديد — حاول مباشرة
-    try {
-      await startSpeaking();
-      toast('🎙️ تم فتح المايك!', 'success');
-    } catch(e) {
-      toast('⚠️ اضغط زر المايك لتفعيله', 'info');
-    }
+  } catch(e) {
+    console.error('acceptMic error:', e);
+    toast('⚠️ اضغط زر المايك لتفعيله', 'info');
   }
 
   // أبلغ الأدمن بالقبول
