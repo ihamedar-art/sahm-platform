@@ -3393,11 +3393,15 @@ async function joinLiveKitRoom(roomId, tokenData) {
 
 async function startSpeaking(roomId) {
   try {
+    if (!livekitRoom || !livekitRoom.localParticipant) {
+      throw new Error('LiveKit room not ready');
+    }
     if (!localAudioTrack) {
       localAudioTrack = await LivekitClient.createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true });
     }
     if (localAudioTrack.isMuted) await localAudioTrack.unmute();
-    if (!livekitRoom.localParticipant.audioTracks.size) {
+    const published = livekitRoom.localParticipant.audioTrackPublications;
+    if (!published || published.size === 0) {
       await livekitRoom.localParticipant.publishTrack(localAudioTrack);
     }
     isMuted = false;
@@ -3405,6 +3409,7 @@ async function startSpeaking(roomId) {
   } catch(e) {
     console.error('mic error', e);
     toast('⚠️ تعذّر فتح المايك', 'error');
+    throw e;
   }
 }
 
