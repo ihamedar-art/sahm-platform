@@ -2031,7 +2031,7 @@ app.post('/api/rooms/:id/token', requireAuth, (req, res) => {
   at.addGrant({
     roomJoin: true,
     room: req.params.id,
-    canPublish: canSpeak === true,
+    canPublish: true,  // الجميع يملك صلاحية النشر — التحكم عبر mute/unmute
     canSubscribe: true,
     canPublishData: true,
   });
