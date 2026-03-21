@@ -3405,7 +3405,12 @@ async function startSpeaking(roomId) {
     if (localAudioTrack.isMuted) await localAudioTrack.unmute();
     const published = livekitRoom.localParticipant.audioTrackPublications;
     if (!published || published.size === 0) {
-      await livekitRoom.localParticipant.publishTrack(localAudioTrack);
+      try {
+        await livekitRoom.localParticipant.publishTrack(localAudioTrack);
+      } catch(publishErr) {
+        // لو كان المسار منشوراً مسبقاً نتجاهل الخطأ
+        if (!publishErr.message?.includes('already')) throw publishErr;
+      }
     }
     isMuted = false;
     updateMicUI(false);
@@ -3716,30 +3721,26 @@ async function acceptMic(roomId) {
   document.getElementById('mic-request-overlay')?.remove();
   // إظهار أزرار التحكم بالمايك
   showSpeakerControls(roomId);
-  // طلب توكن جديد من السيرفر مباشرة
+  // فتح المايك مباشرة — السيرفر أعطى canPublish في الـ grant-mic endpoint
+  // نحاول نشر المسار مباشرة بدون إعادة اتصال
   try {
-    const tokenRes = await fetch(`/api/rooms/${roomId}/token`, { method: 'POST' });
-    const tokenData = await tokenRes.json();
-    if (tokenData.canSpeak && livekitRoom) {
-      // قطع الاتصال وإعادته بالتوكن الجديد
-      const url = window._livekitUrl || 'wss://brzan.com/livekit';
-      localAudioTrack = null;
-      await livekitRoom.disconnect();
-      await new Promise(r => setTimeout(r, 500));
-      await livekitRoom.connect(url, tokenData.token);
+    if (!localAudioTrack) {
+      localAudioTrack = await LivekitClient.createLocalAudioTrack({ 
+        echoCancellation: true, noiseSuppression: true 
+      });
     }
-  } catch(e) { console.error('token refresh error', e); }
-
-  // فتح المايك
-  await new Promise(r => setTimeout(r, 300));
-  try {
-    await startSpeaking(roomId);
-    toast('🎙️ تم فتح المايك!', 'success');
+    if (livekitRoom && livekitRoom.localParticipant) {
+      await livekitRoom.localParticipant.publishTrack(localAudioTrack);
+      isMuted = false;
+      updateMicUI(false);
+      toast('🎙️ تم فتح المايك!', 'success');
+    }
   } catch(e) {
+    console.error('acceptMic error:', e);
     toast('⚠️ اضغط زر المايك لتفعيله', 'info');
   }
   // أبلغ الأدمن بالقبول
-  if (livekitRoom) {
+  if (livekitRoom && livekitRoom.localParticipant) {
     try {
       const msg = JSON.stringify({ type: 'mic_accepted', userId: currentUser.id, userName: currentUser.display_name });
       await livekitRoom.localParticipant.publishData(new TextEncoder().encode(msg), { reliable: true });
