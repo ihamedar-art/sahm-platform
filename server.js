@@ -2044,7 +2044,7 @@ app.get('/api/rooms/:id/info', requireAuth, (req, res) => {
   const room = db.prepare(`SELECT r.*, u.display_name as host_name FROM voice_rooms r JOIN users u ON r.host_id=u.id WHERE r.id=?`).get(req.params.id);
   if (!room) return res.json({ error: 'غير موجود' });
   const members = db.prepare(`SELECT rm.*, u.display_name, u.avatar FROM room_members rm JOIN users u ON rm.user_id=u.id WHERE rm.room_id=? AND rm.is_banned=0`).all(req.params.id);
-  const hands = db.prepare(`SELECT rh.user_id, u.display_name FROM room_hand_requests rh JOIN users u ON rh.user_id=u.id WHERE rh.room_id=?`).all(req.params.id);
+  const hands = db.prepare(`SELECT rh.user_id, u.display_name, rh.requested_at FROM room_hand_requests rh JOIN users u ON rh.user_id=u.id WHERE rh.room_id=? ORDER BY rh.requested_at ASC`).all(req.params.id);
   const myRole = getRoomRole(req.params.id, req.session.userId, room);
   res.json({ room, members, hands, myRole });
 });

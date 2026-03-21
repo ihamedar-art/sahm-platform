@@ -3475,19 +3475,25 @@ async function grantMic(roomId, userId, grant = true) {
   });
   const d = await r.json();
   if (d.error) { toast(d.error, 'error'); return; }
+  // تحديث فوري للواجهة
+  refreshRoomInfo(roomId);
   if (livekitRoom) {
-    const msg = JSON.stringify({ 
-      type: 'grant_mic', userId, grant, 
-      fromName: currentUser.display_name 
-    });
-    await livekitRoom.localParticipant.publishData(new TextEncoder().encode(msg), { reliable: true });
+    try {
+      const msg = JSON.stringify({ 
+        type: 'grant_mic', userId, grant, 
+        fromName: currentUser.display_name 
+      });
+      await livekitRoom.localParticipant.publishData(new TextEncoder().encode(msg), { reliable: true });
+      // refresh ثاني بعد إرسال الرسالة
+      setTimeout(() => refreshRoomInfo(roomId), 300);
+    } catch(e) {}
   }
   if (grant) {
     toast('✅ تم إرسال طلب المايك — بانتظار القبول', 'info');
   } else {
     toast('🔇 تم سحب المايك', 'info');
+    refreshRoomInfo(roomId);
   }
-  refreshRoomInfo(roomId);
 }
 
 async function kickUser(roomId, userId, userName) {
@@ -3692,14 +3698,30 @@ function showMicRequestPopup(roomId, fromName) {
 async function acceptMic(roomId) {
   document.getElementById('mic-request-popup')?.remove();
   document.getElementById('mic-request-overlay')?.remove();
-  await startSpeaking(roomId);
-  toast('🎙️ تم فتح المايك!', 'success');
-  // إظهار أزرار التحكم بالمايك
+  // إظهار أزرار التحكم بالمايك أولاً
   showSpeakerControls(roomId);
+  // محاولة فتح المايك مع retry
+  let micOpened = false;
+  for (let i = 0; i < 3; i++) {
+    try {
+      await startSpeaking(roomId);
+      micOpened = true;
+      break;
+    } catch(e) {
+      await new Promise(r => setTimeout(r, 600));
+    }
+  }
+  if (micOpened) {
+    toast('🎙️ تم فتح المايك!', 'success');
+  } else {
+    toast('⚠️ اضغط زر المايك لتفعيله', 'info');
+  }
   // أبلغ الأدمن بالقبول
   if (livekitRoom) {
-    const msg = JSON.stringify({ type: 'mic_accepted', userId: currentUser.id, userName: currentUser.display_name });
-    await livekitRoom.localParticipant.publishData(new TextEncoder().encode(msg), { reliable: true });
+    try {
+      const msg = JSON.stringify({ type: 'mic_accepted', userId: currentUser.id, userName: currentUser.display_name });
+      await livekitRoom.localParticipant.publishData(new TextEncoder().encode(msg), { reliable: true });
+    } catch(e) {}
   }
   refreshRoomInfo(roomId);
 }
