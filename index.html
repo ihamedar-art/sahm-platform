@@ -3560,15 +3560,15 @@ function renderParticipants(data, roomId) {
   const members = data.members || [];
   const canMod = myRole === 'owner' || myRole === 'mod';
 
-  // تحديث عدد المشاركين
-  const countEl = document.getElementById('participants-count');
-  if (countEl) countEl.textContent = `(${members.length + 1})`;
-
   // بناء قائمة المشاركين على اليمين
   const allParticipants = [
     { user_id: room.host_id, display_name: room.host_name, role: 'owner', can_speak: 1, is_muted: 0 },
     ...members.filter(m => m.user_id !== room.host_id)
   ];
+
+  // تحديث عدد المشاركين الفعليين
+  const countEl = document.getElementById('participants-count');
+  if (countEl) countEl.textContent = `(${allParticipants.length})`;
 
   participantsList.innerHTML = allParticipants.map(m => {
     const isMe = m.user_id === currentUser.id;
@@ -3585,14 +3585,18 @@ function renderParticipants(data, roomId) {
         ${myRole === 'owner' ? `<button class="pact-btn" onclick="makeMod('${roomId}','${m.user_id}','${m.display_name}',${m.role!=='mod'})" title="${m.role==='mod'?'إزالة مشرف':'تعيين مشرف'}">⭐</button>` : ''}
         <button class="pact-btn danger" onclick="kickUser('${roomId}','${m.user_id}','${m.display_name}')" title="طرد">🚫</button>
       </div>` : '';
+    const handRaised = data.hands && data.hands.some(h => h.user_id === m.user_id);
     return `
       <div class="participant-row" id="prow-${m.user_id}">
-        <div class="av ${canSpeak && !m.is_muted ? 'speaking' : 'muted-av'}" id="av-${m.user_id}">
-          ${m.avatar ? `<img src="${m.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : (m.display_name||'?')[0]}
+        <div style="position:relative;flex-shrink:0">
+          <div class="av ${canSpeak && !m.is_muted ? 'speaking' : 'muted-av'}" id="av-${m.user_id}">
+            ${m.avatar ? `<img src="${m.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : (m.display_name||'?')[0]}
+          </div>
+          ${handRaised ? `<span class="hand-raised">✋</span>` : ''}
         </div>
         <div class="participant-row-info">
           <div class="participant-row-name">${roleIcon} ${m.display_name}${isMe?' (أنا)':''}</div>
-          <div class="participant-row-role">${m.role==='owner'?'المضيف':m.role==='mod'?'مشرف':'مستمع'}</div>
+          <div class="participant-row-role">${handRaised ? '<span style="color:var(--gold)">✋ رافع يد</span>' : m.role==='owner'?'المضيف':m.role==='mod'?'مشرف':'مستمع'}</div>
         </div>
         <div class="participant-row-mic">${micIcon}</div>
         ${modActions}
