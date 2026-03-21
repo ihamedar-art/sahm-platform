@@ -664,10 +664,10 @@ app.get('/api/stock-price/:symbol', async (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 // كل رمز مع fallback بديل في حال فشل الأول
 const TICKER_SYMBOLS = [
-  { key: 'tasi',   yahoo: '%5ETASI',              fallback: 'TASI.SR',    label: 'تاسي',     flag: '🇸🇦', group: 'sa' },
-  { key: 'sp500',  yahoo: '%5EGSPC',              fallback: 'VOO',        label: 'S&P 500',  flag: '🇺🇸', group: 'us' },
+  { key: 'tasi',   yahoo: '%5ETA125.SR',           fallback: '2222.SR',    label: 'تاسي',     flag: '🇸🇦', group: 'sa' },
+  { key: 'sp500',  yahoo: '%5EGSPC',              fallback: 'SPY',        label: 'S&P 500',  flag: '🇺🇸', group: 'us' },
   { key: 'nasdaq', yahoo: '%5EIXIC',              fallback: 'QQQ',        label: 'ناسداك',   flag: '🇺🇸', group: 'us' },
-  { key: 'brent',  yahoo: 'BZ%3DF',              fallback: 'CL%3DF',     label: 'برنت',     flag: '🛢️',  group: 'oil' },
+  { key: 'brent',  yahoo: 'BZ%3DF',              fallback: 'USO',        label: 'برنت',     flag: '🛢️',  group: 'oil' },
   { key: 'wti',    yahoo: 'CL%3DF',              fallback: 'USO',        label: 'WTI',      flag: '🛢️',  group: 'oil' },
   { key: 'gold',   yahoo: 'GC%3DF',              fallback: 'GLD',        label: 'ذهب',      flag: '🥇',  group: 'metals' },
   { key: 'silver', yahoo: 'SI%3DF',              fallback: 'SLV',        label: 'فضة',      flag: '🥈',  group: 'metals' },
@@ -680,14 +680,17 @@ let tickerCacheTime = 0;
 const TICKER_CACHE_MS = 60 * 1000;
 
 // دالة مساعدة تجلب رمزاً واحداً مع timeout
-function fetchYahooSymbol(yahooSym) {
+function fetchYahooSymbol(yahooSym, useQuery2 = false) {
   return new Promise((resolve) => {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=1d&range=2d`;
+    const host = useQuery2 ? 'query2.finance.yahoo.com' : 'query1.finance.yahoo.com';
+    const url = `https://${host}/v8/finance/chart/${yahooSym}?interval=1d&range=5d`;
     const options = {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
         'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://finance.yahoo.com/',
+        'Origin': 'https://finance.yahoo.com',
       }
     };
     const req = https.get(url, options, (r) => {
@@ -702,18 +705,28 @@ function fetchYahooSymbol(yahooSym) {
       });
     });
     req.on('error', () => resolve(null));
-    req.setTimeout(8000, () => { req.destroy(); resolve(null); });
+    req.setTimeout(10000, () => { req.destroy(); resolve(null); });
   });
 }
 
 async function fetchOneTicker(sym) {
   try {
-    // جرب الرمز الأساسي أولاً
-    let meta = await fetchYahooSymbol(sym.yahoo);
+    // ١. جرب query1 مع الرمز الأساسي
+    let meta = await fetchYahooSymbol(sym.yahoo, false);
 
-    // لو فشل أو السعر صفر، جرب الـ fallback
+    // ٢. جرب query2 لو query1 فشل
     if (!meta || !meta.regularMarketPrice) {
-      if (sym.fallback) meta = await fetchYahooSymbol(sym.fallback);
+      meta = await fetchYahooSymbol(sym.yahoo, true);
+    }
+
+    // ٣. جرب الـ fallback على query1
+    if ((!meta || !meta.regularMarketPrice) && sym.fallback) {
+      meta = await fetchYahooSymbol(sym.fallback, false);
+    }
+
+    // ٤. جرب الـ fallback على query2
+    if ((!meta || !meta.regularMarketPrice) && sym.fallback) {
+      meta = await fetchYahooSymbol(sym.fallback, true);
     }
 
     if (!meta || !meta.regularMarketPrice) return null;
