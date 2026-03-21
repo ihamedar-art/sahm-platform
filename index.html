@@ -2786,12 +2786,26 @@ async function loadStockPage(symbol) {
   const bullishPct = hasSentiment ? Math.round((stats.bullish / sentimentTotal) * 100) : 0;
   const bearishPct = hasSentiment ? 100 - bullishPct : 0;
 
-  const stockInfo = [
-    {symbol:'$2222',name:'أرامكو'},{symbol:'$1120',name:'الراجحي'},{symbol:'$1010',name:'الرياض'},
-    {symbol:'$2010',name:'سابك'},{symbol:'$7030',name:'STC'},{symbol:'$7020',name:'موبايلي'},
-    {symbol:'$1140',name:'البلاد'},{symbol:'$1150',name:'الانماء'},{symbol:'$2270',name:'المراعي'},
-    {symbol:'$4190',name:'جرير'},{symbol:'$4200',name:'أكوا باور'},{symbol:'$2380',name:'رابغ'},
-  ].find(s => s.symbol === symbol);
+  const STOCK_INFO_MAP = {
+    '$2222':'أرامكو','$1120':'الراجحي','$1010':'الرياض','$2010':'سابك',
+    '$7030':'STC','$7020':'موبايلي','$7040':'زين','$1140':'البلاد',
+    '$1150':'الانماء','$1180':'الأهلي','$2270':'المراعي','$4190':'جرير',
+    '$4200':'أكوا باور','$2380':'رابغ','$5110':'كهرباء','$4250':'جبل عمر',
+    '$4300':'دار الاركان','$1060':'الفرنسي','$2350':'كيان','$2290':'يانسب',
+    // مؤشرات
+    '$TASI':'مؤشر تاسي السعودي','$SPX':'S&P 500','$NDX':'ناسداك',
+    '$TASI':'مؤشر السوق السعودي',
+    // سلع
+    '$GOLD':'الذهب','$SILVER':'الفضة','$BRENT':'نفط برنت','$WTI':'نفط WTI',
+    '$OIL':'النفط','$NATGAS':'الغاز الطبيعي',
+    // عملات رقمية
+    '$BTC':'بيتكوين','$ETH':'إيثيريوم','$XRP':'ريبل','$SOL':'سولانا',
+    '$BNB':'بينانس','$DOGE':'دوج كوين','$ADA':'كاردانو',
+    // أسهم أمريكية
+    '$TSLA':'تسلا','$AAPL':'آبل','$MSFT':'مايكروسوفت','$AMZN':'أمازون',
+    '$GOOGL':'جوجل','$META':'ميتا','$NVDA':'انفيديا','$NFLX':'نتفلكس',
+  };
+  const stockInfoName = STOCK_INFO_MAP[symbol] || null;
 
   const sentimentBlock = !hasSentiment ? `
     <div style="background:var(--bg3);border-radius:var(--radius2);padding:12px 16px;text-align:center;color:var(--text3);font-size:13px">
@@ -2814,8 +2828,15 @@ async function loadStockPage(symbol) {
       </div>
     </div>`;
 
-  // بطاقة السعر
-  const priceCard = priceData.error ? '' : `
+  // بطاقة السعر — تظهر دائماً (ولو بدون بيانات)
+  const priceCard = priceData.error ? `
+    <div style="background:var(--bg3);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;color:var(--text3)">
+      <span style="font-size:22px">📡</span>
+      <div>
+        <div style="font-size:13px;font-weight:600;color:var(--text2)">البيانات غير متاحة حالياً</div>
+        <div style="font-size:12px;margin-top:2px">قد يكون السوق مغلقاً أو مصدر البيانات مؤقتاً غير متاح</div>
+      </div>
+    </div>` : `
     <div style="background:var(--bg2);border:1.5px solid ${priceData.isUp ? 'var(--green)' : 'var(--red)'};border-radius:var(--radius);padding:16px;margin-bottom:16px">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
         <div>
@@ -2852,7 +2873,7 @@ async function loadStockPage(symbol) {
   el.innerHTML = `
     <div class="stock-header">
       <div class="stock-symbol">${symbol}</div>
-      ${stockInfo ? `<div class="stock-name">${stockInfo.name}</div>` : (priceData.name ? `<div class="stock-name">${priceData.name}</div>` : '')}
+      ${stockInfoName ? `<div class="stock-name">${stockInfoName}</div>` : (priceData.name && !priceData.error ? `<div class="stock-name">${priceData.name}</div>` : '')}
       <div style="margin-top:12px;display:flex;gap:16px;flex-wrap:wrap">
         <span style="color:var(--text2);font-size:14px">📊 ${stats.total_posts} منشور</span>
         ${hasSentiment ? `<span style="color:var(--green);font-size:14px">📈 ${stats.bullish} صاعد</span>

@@ -664,7 +664,7 @@ app.get('/api/stock-price/:symbol', async (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 // كل رمز مع fallback بديل في حال فشل الأول
 const TICKER_SYMBOLS = [
-  { key: 'tasi',   yahoo: '%5ETA125.SR',           fallback: '2222.SR',    label: 'تاسي',     flag: '🇸🇦', group: 'sa' },
+  { key: 'tasi',   yahoo: '%5ETASI',              fallback: '%5ETA125.SR', label: 'تاسي',     flag: '🇸🇦', group: 'sa' },
   { key: 'sp500',  yahoo: '%5EGSPC',              fallback: 'SPY',        label: 'S&P 500',  flag: '🇺🇸', group: 'us' },
   { key: 'nasdaq', yahoo: '%5EIXIC',              fallback: 'QQQ',        label: 'ناسداك',   flag: '🇺🇸', group: 'us' },
   { key: 'brent',  yahoo: 'BZ%3DF',              fallback: 'USO',        label: 'برنت',     flag: '🛢️',  group: 'oil' },
