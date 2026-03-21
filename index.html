@@ -3707,23 +3707,42 @@ async function acceptMic(roomId) {
   document.getElementById('mic-request-popup')?.remove();
   document.getElementById('mic-request-overlay')?.remove();
   showSpeakerControls(roomId);
-  // انتظر لحظة ريثما يحدّث LiveKit Cloud الصلاحيات
-  await new Promise(r => setTimeout(r, 500));
-  // حاول فتح المايك
-  try {
-    await startSpeaking();
-    toast('🎙️ تم فتح المايك!', 'success');
-  } catch(e) {
-    toast('⚠️ اضغط زر المايك لتفعيله', 'info');
-  }
-  // أبلغ الأدمن بالقبول
+
+  // أبلغ الأدمن بالقبول أولاً
   if (livekitRoom && livekitRoom.localParticipant) {
     try {
       const msg = JSON.stringify({ type: 'mic_accepted', userId: currentUser.id, userName: currentUser.display_name });
       await livekitRoom.localParticipant.publishData(new TextEncoder().encode(msg), { reliable: true });
     } catch(e) {}
   }
+
+  // قطع الاتصال القديم بشكل نظيف
+  if (chatPollInterval) { clearInterval(chatPollInterval); chatPollInterval = null; }
+  if (roomInfoInterval) { clearInterval(roomInfoInterval); roomInfoInterval = null; }
+  if (localAudioTrack) { try { localAudioTrack.stop(); } catch(e) {} localAudioTrack = null; }
+  if (livekitRoom) { try { await livekitRoom.disconnect(); } catch(e) {} livekitRoom = null; }
+
+  // إخبار السيرفر بالخروج والدخول من جديد
+  await fetch(`/api/rooms/${roomId}/leave`, { method: 'POST' });
+  await new Promise(r => setTimeout(r, 600));
+  await fetch(`/api/rooms/${roomId}/join`, { method: 'POST' });
+
+  // جلب توكن جديد — الآن can_speak=1 في DB
+  const tokenRes = await fetch(`/api/rooms/${roomId}/token`, { method: 'POST' });
+  const tokenData = await tokenRes.json();
+
+  if (!tokenData.canSpeak) {
+    toast('⚠️ لم تُمنح صلاحية المايك، حاول مرة أخرى', 'error');
+    return;
+  }
+
+  // إعادة الاتصال بـ LiveKit بتوكن جديد
+  await joinLiveKitRoom(roomId, tokenData);
+  loadRoomChat(roomId);
+  chatPollInterval = setInterval(() => loadRoomChat(roomId), 3000);
   refreshRoomInfo(roomId);
+  roomInfoInterval = setInterval(() => refreshRoomInfo(roomId), 5000);
+  toast('🎙️ تم فتح المايك!', 'success');
 }
 
 async function rejectMic(roomId) {
