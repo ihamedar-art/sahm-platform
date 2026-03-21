@@ -2014,7 +2014,7 @@ function getRoomRole(roomId, userId, room) {
 function canModerate(role) { return role === 'owner' || role === 'mod'; }
 
 // توليد Token
-app.post('/api/rooms/:id/token', requireAuth, async (req, res) => {
+app.post('/api/rooms/:id/token', requireAuth, (req, res) => {
   const room = db.prepare(`SELECT * FROM voice_rooms WHERE id = ? AND is_active = 1 AND permanently_closed = 0`).get(req.params.id);
   if (!room) return res.json({ error: 'الروم غير موجود' });
   const user = getUser(req.session.userId);
@@ -2035,7 +2035,7 @@ app.post('/api/rooms/:id/token', requireAuth, async (req, res) => {
     canSubscribe: true,
     canPublishData: true,
   });
-  const token = await at.toJwt();
+  const token = at.toJwt();
   res.json({ token, livekitUrl: LIVEKIT_URL, isHost, isMod, canSpeak, role });
 });
 
@@ -2146,7 +2146,7 @@ app.post('/api/rooms/:id/grant-mic/:userId', requireAuth, async (req, res) => {
       ttl: '4h',
     });
     at.addGrant({ roomJoin: true, room: req.params.id, canPublish: grant, canSubscribe: true, canPublishData: true });
-    const token = await at.toJwt();
+    const token = at.toJwt();
     res.json({ success: true, token, grant });
   } catch(e) {
     res.json({ success: true, grant });
