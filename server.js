@@ -957,6 +957,31 @@ app.post('/api/posts/:id/comments', requireAuth, (req, res) => {
   const post = db.prepare('SELECT * FROM posts WHERE id=?').get(req.params.id);
   if (!post) return res.json({ error: 'المنشور غير موجود' });
 
+  // ── حماية السبام للتعليقات (السوبر أدمن معفى) ──────────────────
+  const commenterUser = db.prepare('SELECT is_super_admin FROM users WHERE id=?').get(req.session.userId);
+  if (commenterUser && !commenterUser.is_super_admin) {
+    // ١. 15 ثانية بين كل تعليق
+    const lastComment = db.prepare(
+      `SELECT created_at FROM comments WHERE user_id=? ORDER BY created_at DESC LIMIT 1`
+    ).get(req.session.userId);
+    if (lastComment) {
+      const secsSinceLast = (Date.now() - new Date(lastComment.created_at + 'Z').getTime()) / 1000;
+      if (secsSinceLast < 15) {
+        const wait = Math.ceil(15 - secsSinceLast);
+        return res.json({ error: `انتظر ${wait} ثانية قبل التعليق مجدداً` });
+      }
+    }
+
+    // ٢. منع تكرار نفس النص خلال 30 دقيقة
+    const trimmed = content.trim();
+    const duplicate = db.prepare(`
+      SELECT id FROM comments
+      WHERE user_id=? AND content=?
+      AND created_at >= datetime('now', '-30 minutes')
+    `).get(req.session.userId, trimmed);
+    if (duplicate) return res.json({ error: 'كتبت هذا التعليق مؤخراً، انتظر 30 دقيقة قبل تكراره' });
+  }
+
   const id = uuidv4();
   db.prepare('INSERT INTO comments (id,post_id,user_id,parent_id,content) VALUES (?,?,?,?,?)').run(
     id, req.params.id, req.session.userId, parent_id || null, content.trim()
