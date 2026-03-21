@@ -3740,7 +3740,7 @@ async function acceptMic(roomId) {
           if (controls && !document.getElementById('hand-btn')) {
             const d = document.createElement('div');
             d.style.textAlign = 'center';
-            d.innerHTML = '<button class="ctrl-btn hand-btn" id="hand-btn" onclick="toggleHand('' + roomId + '')">🤚</button><div class="ctrl-label">رفع يد</div>';
+            d.innerHTML = `<button class="ctrl-btn hand-btn" id="hand-btn" onclick="toggleHand('${roomId}')">🤚</button><div class="ctrl-label">رفع يد</div>`;
             controls.prepend(d);
           }
           toast('🔇 تم سحب مايكك', 'info');
