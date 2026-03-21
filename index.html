@@ -3583,6 +3583,22 @@ async function refreshRoomInfo(roomId) {
     const d = await r.json();
     if (d.error) return;
     myRole = d.myRole;
+
+    // تحقق إذا مُنح المستمع المايك — يفعّل المايك تلقائياً
+    const me = d.members?.find(m => m.user_id === currentUser?.id);
+    if (me && me.can_speak === 1 && !localAudioTrack && myRole !== 'owner' && myRole !== 'mod') {
+      const wasGranted = window._wasGrantedMic;
+      window._wasGrantedMic = true;
+      if (!wasGranted) {
+        // أول مرة يُمنح المايك — فعّله تلقائياً
+        await reconnectWithMic(roomId);
+        showSpeakerControls(roomId);
+        toast('🎙️ تم فتح المايك!', 'success');
+      }
+    } else if (me && me.can_speak === 0) {
+      window._wasGrantedMic = false;
+    }
+
     renderParticipants(d, roomId);
     renderHandRequests(d.hands, roomId);
   } catch(e) {}
