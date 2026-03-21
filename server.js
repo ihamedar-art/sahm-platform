@@ -2031,7 +2031,7 @@ app.post('/api/rooms/:id/token', requireAuth, (req, res) => {
   at.addGrant({
     roomJoin: true,
     room: req.params.id,
-    canPublish: true,  // الجميع يملك صلاحية النشر — التحكم عبر mute/unmute
+    canPublish: canSpeak,
     canSubscribe: true,
     canPublishData: true,
   });
@@ -2137,20 +2137,17 @@ app.post('/api/rooms/:id/grant-mic/:userId', requireAuth, async (req, res) => {
   db.prepare(`UPDATE room_members SET can_speak=?, is_muted=0 WHERE room_id=? AND user_id=?`).run(grant?1:0, req.params.id, req.params.userId);
   db.prepare(`DELETE FROM room_hand_requests WHERE room_id=? AND user_id=?`).run(req.params.id, req.params.userId);
 
-  // توليد token جديد للمستخدم مع صلاحية النشر
+  // تحديث صلاحيات المستخدم في LiveKit مباشرة عبر Admin API
   try {
-    const targetUser = getUser(req.params.userId);
-    const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
-      identity: req.params.userId,
-      name: targetUser.display_name,
-      ttl: '4h',
+    await livekitService.updateParticipant(req.params.id, req.params.userId, undefined, {
+      canPublish: grant,
+      canSubscribe: true,
+      canPublishData: true,
     });
-    at.addGrant({ roomJoin: true, room: req.params.id, canPublish: grant, canSubscribe: true, canPublishData: true });
-    const token = at.toJwt();
-    res.json({ success: true, token, grant });
   } catch(e) {
-    res.json({ success: true, grant });
+    console.error('livekit updateParticipant error:', e.message);
   }
+  res.json({ success: true, grant });
 });
 
 // ── كتم مستخدم ──────────────────────────────────────────────────

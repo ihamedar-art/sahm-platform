@@ -3311,6 +3311,18 @@ async function joinLiveKitRoom(roomId, tokenData) {
       track.detach();
     });
 
+    // عند تحديث صلاحيات النشر من LiveKit Cloud — فتح المايك تلقائياً
+    livekitRoom.on(LivekitClient.RoomEvent.LocalTrackPublished, () => {});
+    livekitRoom.localParticipant?.on('permissionsChanged', async (prevPerms) => {
+      const perms = livekitRoom.localParticipant.permissions;
+      if (perms?.canPublish && !prevPerms?.canPublish) {
+        // تم منح صلاحية النشر — فتح المايك
+        try {
+          await startSpeaking();
+        } catch(e) {}
+      }
+    });
+
     // استقبال أوامر الإدارة عبر Data Channel
     livekitRoom.on(LivekitClient.RoomEvent.DataReceived, (data) => {
       try {
@@ -3694,11 +3706,16 @@ function showMicRequestPopup(roomId, fromName) {
 async function acceptMic(roomId) {
   document.getElementById('mic-request-popup')?.remove();
   document.getElementById('mic-request-overlay')?.remove();
-  // إظهار أزرار التحكم فوراً
   showSpeakerControls(roomId);
-  // فتح المايك — الكل عنده canPublish:true، فقط نحتاج publish + unmute
-  await startSpeaking();
-  toast('🎙️ تم فتح المايك!', 'success');
+  // انتظر لحظة ريثما يحدّث LiveKit Cloud الصلاحيات
+  await new Promise(r => setTimeout(r, 500));
+  // حاول فتح المايك
+  try {
+    await startSpeaking();
+    toast('🎙️ تم فتح المايك!', 'success');
+  } catch(e) {
+    toast('⚠️ اضغط زر المايك لتفعيله', 'info');
+  }
   // أبلغ الأدمن بالقبول
   if (livekitRoom && livekitRoom.localParticipant) {
     try {
