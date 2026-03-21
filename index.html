@@ -3362,21 +3362,9 @@ async function joinLiveKitRoom(roomId, tokenData) {
     window._livekitUrl = tokenData.livekitUrl;
     await livekitRoom.connect(tokenData.livekitUrl, tokenData.token);
 
-    // كل المستخدمين ينشرون track مكتوم من البداية لتأسيس الـ peer connection
-    try {
-      localAudioTrack = await LivekitClient.createLocalAudioTrack({ 
-        echoCancellation: true, noiseSuppression: true 
-      });
-      await localAudioTrack.mute();
-      await livekitRoom.localParticipant.publishTrack(localAudioTrack);
-    } catch(e) { console.error('initial track error:', e); }
-
     if (tokenData.canSpeak) {
-      // المضيف/المشرف يفتح المايك فوراً
       try {
-        if (localAudioTrack) await localAudioTrack.unmute();
-        isMuted = false;
-        updateMicUI(false);
+        await startSpeaking();
       } catch(e) {
         toast('⚠️ تعذّر فتح المايك — اضغط زر المايك يدوياً', 'error');
       }
@@ -3385,7 +3373,6 @@ async function joinLiveKitRoom(roomId, tokenData) {
       updateMicUI(true);
     }
 
-    if (livekitRoom.remoteParticipants) livekitRoom.remoteParticipants.forEach(p => {});
     toast('✅ انضممت للروم', 'success');
   } catch(e) {
     console.error('LiveKit error:', e);
@@ -3393,18 +3380,15 @@ async function joinLiveKitRoom(roomId, tokenData) {
   }
 }
 
-async function startSpeaking(roomId) {
+async function startSpeaking() {
   try {
-    if (!livekitRoom || !livekitRoom.localParticipant) {
-      throw new Error('LiveKit room not ready');
-    }
+    if (!livekitRoom || !livekitRoom.localParticipant) throw new Error('room not ready');
     if (!localAudioTrack) {
-      // لو ما في track — أنشئ وانشر
       localAudioTrack = await LivekitClient.createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true });
       await livekitRoom.localParticipant.publishTrack(localAudioTrack);
+    } else if (localAudioTrack.isMuted) {
+      await localAudioTrack.unmute();
     }
-    // فك الكتم فقط
-    if (localAudioTrack.isMuted) await localAudioTrack.unmute();
     isMuted = false;
     updateMicUI(false);
   } catch(e) {
@@ -3415,9 +3399,9 @@ async function startSpeaking(roomId) {
 }
 
 async function stopSpeaking() {
-  if (localAudioTrack) {
-    try { await localAudioTrack.mute(); } catch(e) {}
-  }
+  try {
+    if (localAudioTrack) await localAudioTrack.mute();
+  } catch(e) {}
   isMuted = true;
   updateMicUI(true);
 }
@@ -3443,7 +3427,7 @@ async function toggleMic() {
   if (!localAudioTrack && !isMuted) return;
   if (isMuted) {
     // إعادة تشغيل المايك
-    await startSpeaking(currentRoomId);
+    await startSpeaking();
   } else {
     // كتم المايك مع إبقاء الـ track
     await localAudioTrack.mute();
@@ -3713,7 +3697,7 @@ async function acceptMic(roomId) {
   // إظهار أزرار التحكم فوراً
   showSpeakerControls(roomId);
   // فتح المايك — الكل عنده canPublish:true، فقط نحتاج publish + unmute
-  await startSpeaking(roomId);
+  await startSpeaking();
   toast('🎙️ تم فتح المايك!', 'success');
   // أبلغ الأدمن بالقبول
   if (livekitRoom && livekitRoom.localParticipant) {
