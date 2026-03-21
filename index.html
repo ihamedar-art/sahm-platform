@@ -3278,15 +3278,13 @@ async function loadRoomPage(roomId) {
   if (tokenData.error) { toast(tokenData.error, 'error'); return; }
   myRole = tokenData.role;
 
-  // طلب إذن المايك مسبقاً للمتحدثين (host/mod) — قبل الاتصال بـ LiveKit
-  // هذا يضمن أن المتصفح يعطي الإذن لأنه ناتج عن تفاعل المستخدم المباشر
-  if (tokenData.canSpeak) {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(t => t.stop()); // نوقفها فوراً، LiveKit سيفتحها لاحقاً
-    } catch(e) {
-      toast('⚠️ يجب السماح بالوصول للمايك', 'error');
-    }
+  // طلب إذن المايك من جميع المستخدمين قبل الاتصال بـ LiveKit
+  // لأن الكل سينشر track مكتوم من البداية
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(t => t.stop());
+  } catch(e) {
+    toast('⚠️ يجب السماح بالوصول للمايك للانضمام للروم', 'error');
   }
 
   await joinLiveKitRoom(roomId, tokenData);
