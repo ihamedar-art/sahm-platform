@@ -65,8 +65,10 @@
   --shadow-lg:  0 8px 32px rgba(12,27,51,.12), 0 2px 8px rgba(12,27,51,.06);
   --shadow-blue: 0 4px 20px rgba(27,79,216,.2);
 
-  /* ── Navbar height ── */
+  /* ── Heights ── */
   --nav-h: 58px;
+  --ticker-h: 44px;
+  --header-h: 102px; /* nav + ticker */
 }
 
 /* ══ Reset ══ */
@@ -229,7 +231,7 @@ body {
    ══════════════════════════════════════════════════════════ */
 .sidebar {
   width:220px; flex-shrink:0;
-  position:sticky; top:calc(var(--nav-h) + 16px);
+  position:sticky; top:calc(var(--header-h) + 16px);
   height:fit-content;
 }
 
@@ -407,7 +409,7 @@ body {
 .dir-btn.bearish.active { background:var(--red-l);   border-color:var(--red);   color:var(--red); }
 
 /* ══ New Posts Button ══ */
-.new-posts-btn { display:none; position:sticky; top:calc(var(--nav-h)+10px); z-index:50; margin-bottom:12px; text-align:center; }
+.new-posts-btn { display:none; position:sticky; top:calc(var(--header-h)+10px); z-index:50; margin-bottom:12px; text-align:center; }
 .new-posts-btn.show { display:block; }
 .new-posts-btn button {
   background:var(--primary); color:#fff; border:none;
@@ -610,7 +612,7 @@ body {
    ══════════════════════════════════════════════════════════ */
 .right-panel {
   width:270px; flex-shrink:0;
-  position:sticky; top:calc(var(--nav-h)+16px);
+  position:sticky; top:calc(var(--header-h)+16px);
   height:fit-content; display:flex; flex-direction:column; gap:12px;
 }
 
@@ -1224,6 +1226,88 @@ body {
    ══════════════════════════════════════════════════════════ */
 .read-more-btn { color:var(--primary); font-weight:600; cursor:pointer; }
 .read-more-btn:hover { text-decoration:underline; }
+
+/* ══════════════════════════════════════════════════════════
+   MARKETS TICKER BAR
+   ══════════════════════════════════════════════════════════ */
+.ticker-bar {
+  background: #fff;
+  border-bottom: 1.5px solid var(--border);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+.ticker-bar::before,
+.ticker-bar::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 40px;
+  z-index: 2;
+  pointer-events: none;
+}
+.ticker-bar::before { right: 0; background: linear-gradient(to right, transparent, #fff); }
+.ticker-bar::after  { left: 0;  background: linear-gradient(to left,  transparent, #fff); }
+
+.ticker-track {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  white-space: nowrap;
+  animation: tickerScroll 40s linear infinite;
+  will-change: transform;
+}
+.ticker-bar:hover .ticker-track { animation-play-state: paused; }
+
+@keyframes tickerScroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px;
+  border-left: 1px solid var(--border);
+  cursor: pointer;
+  transition: background .15s;
+  height: 44px;
+  flex-shrink: 0;
+}
+.ticker-item:first-child { border-left: none; }
+.ticker-item:hover { background: var(--bg3); }
+
+.ticker-flag { font-size: 14px; line-height: 1; }
+.ticker-label {
+  font-size: 12.5px; font-weight: 700;
+  color: var(--text2);
+}
+.ticker-price {
+  font-size: 13px; font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.ticker-change {
+  font-size: 12px; font-weight: 600;
+  padding: 2px 6px; border-radius: 5px;
+}
+.ticker-change.up   { color: var(--green); background: var(--green-l); }
+.ticker-change.down { color: var(--red);   background: var(--red-l); }
+
+.ticker-loading {
+  display: flex; align-items: center; gap: 20px;
+  padding: 0 20px; width: 100%;
+}
+.ticker-skel {
+  height: 20px; width: 120px; border-radius: 6px;
+  background: linear-gradient(90deg, var(--bg3) 25%, var(--bg4) 50%, var(--bg3) 75%);
+  background-size: 200% 100%; animation: shimmer 1.4s infinite;
+  flex-shrink: 0;
+}
 </style>
 </head>
 <body>
@@ -1251,6 +1335,18 @@ body {
     <div id="auth-actions"></div>
   </div>
 </nav>
+
+<!-- ════════════════ MARKETS TICKER BAR ════════════════ -->
+<div class="ticker-bar" id="ticker-bar">
+  <div class="ticker-loading">
+    <div class="ticker-skel"></div>
+    <div class="ticker-skel"></div>
+    <div class="ticker-skel"></div>
+    <div class="ticker-skel"></div>
+    <div class="ticker-skel"></div>
+    <div class="ticker-skel"></div>
+  </div>
+</div>
 
 <!-- ════════════════ MAIN LAYOUT ════════════════ -->
 <div class="main-layout">
@@ -1485,6 +1581,53 @@ async function init() {
   loadRoomsWidget();
   setInterval(loadRoomsWidget, 20000);
   renderSidebarUserCard();
+  // شريط المؤشرات
+  loadTickerBar();
+  setInterval(loadTickerBar, 60000);
+}
+
+// ── Ticker Bar ────────────────────────────────────────────
+function formatTickerPrice(price, currency) {
+  if (!price && price !== 0) return '—';
+  if (price >= 10000) return price.toLocaleString('en', { maximumFractionDigits: 0 });
+  if (price >= 1000)  return price.toLocaleString('en', { maximumFractionDigits: 2 });
+  if (price >= 100)   return price.toFixed(2);
+  if (price >= 1)     return price.toFixed(3);
+  return price.toFixed(4);
+}
+
+const TICKER_STOCK_MAP = {
+  tasi:'TASI', sp500:'SPX', nasdaq:'NDX', brent:'BRENT',
+  wti:'WTI', gold:'GOLD', silver:'SILVER', btc:'BTC', eth:'ETH'
+};
+
+async function loadTickerBar() {
+  const bar = document.getElementById('ticker-bar');
+  if (!bar) return;
+  try {
+    const r = await fetch('/api/markets/ticker');
+    const d = await r.json();
+    if (!d.markets || !d.markets.length) return;
+
+    const itemsHtml = d.markets.map(m => {
+      const pct = parseFloat(m.changePct).toFixed(2);
+      const arrow = m.isUp ? '▲' : '▼';
+      const cls = m.isUp ? 'up' : 'down';
+      const sym = TICKER_STOCK_MAP[m.key] || m.key.toUpperCase();
+      return `
+        <div class="ticker-item" onclick="navigateToStock('$${sym}')">
+          <span class="ticker-flag">${m.flag}</span>
+          <span class="ticker-label">${m.label}</span>
+          <span class="ticker-price">${formatTickerPrice(m.price, m.currency)}</span>
+          <span class="ticker-change ${cls}">${arrow} ${Math.abs(pct)}%</span>
+        </div>`;
+    }).join('');
+
+    // نسختان للـ loop المستمر
+    bar.innerHTML = '<div class="ticker-track">' + itemsHtml + itemsHtml + '</div>';
+  } catch(e) {
+    console.error('Ticker error:', e);
+  }
 }
 
 // ── Rooms Widget (right panel) ────────────────────────────

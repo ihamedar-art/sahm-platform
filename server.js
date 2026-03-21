@@ -628,6 +628,69 @@ app.get('/api/stock-price/:symbol', async (req, res) => {
   }
 });
 
+// ══════════════════════════════════════════════════════════════════
+// MARKETS TICKER — شريط المؤشرات العالمية مع كاش دقيقة
+// ══════════════════════════════════════════════════════════════════
+const TICKER_SYMBOLS = [
+  { key: 'tasi',   yahoo: '%5ETASI',  label: 'تاسي',     flag: '🇸🇦', group: 'sa' },
+  { key: 'sp500',  yahoo: '%5EGSPC',  label: 'S&P 500',  flag: '🇺🇸', group: 'us' },
+  { key: 'nasdaq', yahoo: '%5EIXIC',  label: 'ناسداك',   flag: '🇺🇸', group: 'us' },
+  { key: 'brent',  yahoo: 'BZ%3DF',   label: 'برنت',     flag: '🛢️',  group: 'oil' },
+  { key: 'wti',    yahoo: 'CL%3DF',   label: 'WTI',      flag: '🛢️',  group: 'oil' },
+  { key: 'gold',   yahoo: 'GC%3DF',   label: 'ذهب',      flag: '🥇', group: 'metals' },
+  { key: 'silver', yahoo: 'SI%3DF',   label: 'فضة',      flag: '🥈', group: 'metals' },
+  { key: 'btc',    yahoo: 'BTC-USD',  label: 'بيتكوين',  flag: '₿',  group: 'crypto' },
+  { key: 'eth',    yahoo: 'ETH-USD',  label: 'إيثيريوم', flag: '⟠',  group: 'crypto' },
+];
+
+let tickerCache = null;
+let tickerCacheTime = 0;
+const TICKER_CACHE_MS = 60 * 1000;
+
+async function fetchOneTicker(sym) {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym.yahoo}?interval=1d&range=2d`;
+  const options = { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } };
+  return new Promise((resolve) => {
+    https.get(url, options, (r) => {
+      let d = '';
+      r.on('data', chunk => d += chunk);
+      r.on('end', () => {
+        try {
+          const json = JSON.parse(d);
+          const meta = json?.chart?.result?.[0]?.meta;
+          if (!meta) return resolve(null);
+          const prev = meta.chartPreviousClose || meta.previousClose || 0;
+          const price = meta.regularMarketPrice || 0;
+          const change = price - prev;
+          const changePct = prev ? (change / prev) * 100 : 0;
+          resolve({
+            key: sym.key, label: sym.label, flag: sym.flag, group: sym.group,
+            price, change, changePct,
+            isUp: change >= 0,
+            currency: meta.currency || 'USD',
+          });
+        } catch(e) { resolve(null); }
+      });
+    }).on('error', () => resolve(null));
+  });
+}
+
+app.get('/api/markets/ticker', async (req, res) => {
+  const now = Date.now();
+  if (tickerCache && (now - tickerCacheTime) < TICKER_CACHE_MS) {
+    return res.json({ markets: tickerCache, cached: true });
+  }
+  try {
+    const results = await Promise.all(TICKER_SYMBOLS.map(s => fetchOneTicker(s)));
+    const markets = results.filter(Boolean);
+    tickerCache = markets;
+    tickerCacheTime = now;
+    res.json({ markets, cached: false });
+  } catch(e) {
+    res.json({ markets: tickerCache || [], cached: true, error: e.message });
+  }
+});
+
 db.exec(`CREATE TABLE IF NOT EXISTS market_events (
   id TEXT PRIMARY KEY,
   event_date TEXT NOT NULL,
