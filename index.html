@@ -3714,39 +3714,28 @@ function showMicRequestPopup(roomId, fromName) {
 async function acceptMic(roomId) {
   document.getElementById('mic-request-popup')?.remove();
   document.getElementById('mic-request-overlay')?.remove();
-  // إظهار أزرار التحكم بالمايك أولاً
+  // إظهار أزرار التحكم بالمايك
   showSpeakerControls(roomId);
-  // إذا في توكن جديد — أعد الاتصال بـ LiveKit بصلاحية النشر
-  const newToken = window._pendingMicToken;
-  window._pendingMicToken = null;
-  if (newToken && livekitRoom) {
-    try {
-      // قطع الاتصال القديم وأعد الاتصال بالتوكن الجديد
-      await livekitRoom.disconnect();
-      livekitRoom = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
-      livekitRoom.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => {
-        if (track.kind === LivekitClient.Track.Kind.Audio) track.attach();
-      });
-      livekitRoom.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track) => { track.detach(); });
-      const livekitUrl = window._livekitUrl || 'wss://brzan.com/livekit';
-      await livekitRoom.connect(livekitUrl, newToken);
+  // طلب توكن جديد من السيرفر مباشرة
+  try {
+    const tokenRes = await fetch(`/api/rooms/${roomId}/token`, { method: 'POST' });
+    const tokenData = await tokenRes.json();
+    if (tokenData.canSpeak && livekitRoom) {
+      // قطع الاتصال وإعادته بالتوكن الجديد
+      const url = window._livekitUrl || 'wss://brzan.com/livekit';
       localAudioTrack = null;
-    } catch(e) { console.error('reconnect error', e); }
-  }
-  // فتح المايك
-  let micOpened = false;
-  for (let i = 0; i < 3; i++) {
-    try {
-      await startSpeaking(roomId);
-      micOpened = true;
-      break;
-    } catch(e) {
-      await new Promise(r => setTimeout(r, 600));
+      await livekitRoom.disconnect();
+      await new Promise(r => setTimeout(r, 500));
+      await livekitRoom.connect(url, tokenData.token);
     }
-  }
-  if (micOpened) {
+  } catch(e) { console.error('token refresh error', e); }
+
+  // فتح المايك
+  await new Promise(r => setTimeout(r, 300));
+  try {
+    await startSpeaking(roomId);
     toast('🎙️ تم فتح المايك!', 'success');
-  } else {
+  } catch(e) {
     toast('⚠️ اضغط زر المايك لتفعيله', 'info');
   }
   // أبلغ الأدمن بالقبول
