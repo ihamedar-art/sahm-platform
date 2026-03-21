@@ -3706,34 +3706,62 @@ async function acceptMic(roomId) {
   document.getElementById('mic-request-popup')?.remove();
   document.getElementById('mic-request-overlay')?.remove();
   showSpeakerControls(roomId);
+  toast('🔄 جاري تفعيل المايك...', 'info');
 
-  // جلب توكن جديد مباشرة من السيرفر — الآن can_speak=1 في DB
   try {
-    const tokenRes = await fetch(`/api/rooms/${roomId}/token`, { method: 'POST' });
+    // جلب توكن جديد canPublish:true من السيرفر
+    const tokenRes = await fetch('/api/rooms/' + roomId + '/token', { method: 'POST' });
     const tokenData = await tokenRes.json();
+    if (!tokenData.canSpeak) { toast('⚠️ لم تمنح الصلاحية', 'error'); return; }
 
-    if (tokenData.canSpeak && livekitRoom) {
-      // قطع اتصال LiveKit وإعادته بالتوكن الجديد
-      if (localAudioTrack) { try { localAudioTrack.stop(); } catch(e) {} localAudioTrack = null; }
-      await livekitRoom.disconnect();
-      await new Promise(r => setTimeout(r, 500));
-      await livekitRoom.connect(window._livekitUrl, tokenData.token);
-      await startSpeaking();
-      toast('🎙️ تم فتح المايك!', 'success');
-    } else {
-      toast('⚠️ اضغط زر المايك لتفعيله', 'info');
-    }
-  } catch(e) {
-    console.error('acceptMic error:', e);
-    toast('⚠️ اضغط زر المايك لتفعيله', 'info');
-  }
+    // قطع الاتصال القديم وتنظيف
+    if (localAudioTrack) { try { localAudioTrack.stop(); } catch(e) {} localAudioTrack = null; }
+    const oldRoom = livekitRoom;
+    livekitRoom = null;
+    if (oldRoom) { try { await oldRoom.disconnect(); } catch(e) {} }
+    await new Promise(r => setTimeout(r, 700));
 
-  // أبلغ الأدمن بالقبول
-  if (livekitRoom && livekitRoom.localParticipant) {
+    // إنشاء room جديد كلياً
+    livekitRoom = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
+    livekitRoom.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => {
+      if (track.kind === LivekitClient.Track.Kind.Audio) track.attach();
+    });
+    livekitRoom.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track) => track.detach());
+    livekitRoom.on(LivekitClient.RoomEvent.DataReceived, (data) => {
+      try {
+        const msg = JSON.parse(new TextDecoder().decode(data));
+        if (msg.type === 'mute' && msg.userId === currentUser.id) { forceMute(); toast('🔇 تم كتمك', 'info'); }
+        if (msg.type === 'kick' && msg.userId === currentUser.id) { toast('🚫 تم طردك', 'error'); leaveRoom(roomId, true); }
+        if (msg.type === 'refresh') { refreshRoomInfo(roomId); }
+        if (msg.type === 'grant_mic' && msg.userId === currentUser.id && !msg.grant) {
+          stopSpeaking();
+          document.getElementById('mic-btn')?.parentElement?.remove();
+          const controls = document.querySelector('.room-controls');
+          if (controls && !document.getElementById('hand-btn')) {
+            const d = document.createElement('div');
+            d.style.textAlign = 'center';
+            d.innerHTML = '<button class="ctrl-btn hand-btn" id="hand-btn" onclick="toggleHand('' + roomId + '')">🤚</button><div class="ctrl-label">رفع يد</div>';
+            controls.prepend(d);
+          }
+          toast('🔇 تم سحب مايكك', 'info');
+        }
+      } catch(e) {}
+    });
+
+    // الاتصال بالتوكن الجديد
+    await livekitRoom.connect(tokenData.livekitUrl, tokenData.token);
+    await startSpeaking();
+    toast('🎙️ تم فتح المايك!', 'success');
+
+    // أبلغ الأدمن بالقبول
     try {
       const msg = JSON.stringify({ type: 'mic_accepted', userId: currentUser.id, userName: currentUser.display_name });
       await livekitRoom.localParticipant.publishData(new TextEncoder().encode(msg), { reliable: true });
     } catch(e) {}
+
+  } catch(e) {
+    console.error('acceptMic error:', e);
+    toast('⚠️ اضغط زر المايك لتفعيله', 'info');
   }
   refreshRoomInfo(roomId);
 }
