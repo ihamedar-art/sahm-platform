@@ -3587,16 +3587,14 @@ async function refreshRoomInfo(roomId) {
 
     // تحقق إذا مُنح المستمع المايك — يفعّل المايك تلقائياً
     const me = d.members?.find(m => m.user_id === currentUser?.id);
-    if (me && me.can_speak === 1 && !localAudioTrack && myRole !== 'owner' && myRole !== 'mod') {
-      const wasGranted = window._wasGrantedMic;
-      window._wasGrantedMic = true;
-      if (!wasGranted) {
-        // أول مرة يُمنح المايك — فعّله تلقائياً
+    if (me && me.can_speak === 1 && myRole !== 'owner' && myRole !== 'mod') {
+      if (!window._wasGrantedMic) {
+        window._wasGrantedMic = true;
         await reconnectWithMic(roomId);
         showSpeakerControls(roomId);
         toast('🎙️ تم فتح المايك!', 'success');
       }
-    } else if (me && (me.can_speak === 0 || me.can_speak === null)) {
+    } else if (me && !me.can_speak) {
       window._wasGrantedMic = false;
     }
 
@@ -3773,10 +3771,11 @@ function removeSpeakerControls(roomId) {
 async function leaveMic(roomId) {
   await disableMic();
   removeSpeakerControls(roomId);
-  window._wasGrantedMic = false;
-  // إخبار السيرفر بالنزول من المايك
+  // إخبار السيرفر بالنزول من المايك — ننتظر حتى يكتمل
   await fetch(`/api/rooms/${roomId}/leave-mic`, { method: 'POST' });
-  refreshRoomInfo(roomId);
+  // بعد تأكيد السيرفر نصفّر المتغير
+  window._wasGrantedMic = false;
+  await refreshRoomInfo(roomId);
 }
 
 // ── مغادرة وإنهاء الروم ──────────────────────────────────────────
