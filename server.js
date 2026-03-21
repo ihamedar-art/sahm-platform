@@ -2022,7 +2022,7 @@ app.post('/api/rooms/:id/token', requireAuth, (req, res) => {
   const isHost = role === 'owner';
   const isMod = role === 'mod';
   const member = db.prepare(`SELECT * FROM room_members WHERE room_id=? AND user_id=?`).get(req.params.id, req.session.userId);
-  const canSpeak = isHost || isMod || (member && member.can_speak);
+  const canSpeak = !!(isHost || isMod || (member && member.can_speak === 1));
   const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
     identity: user.id,
     name: user.display_name,
@@ -2031,7 +2031,7 @@ app.post('/api/rooms/:id/token', requireAuth, (req, res) => {
   at.addGrant({
     roomJoin: true,
     room: req.params.id,
-    canPublish: canSpeak,
+    canPublish: canSpeak === true,
     canSubscribe: true,
     canPublishData: true,
   });
