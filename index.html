@@ -67,8 +67,8 @@
 
   /* ── Heights ── */
   --nav-h: 58px;
-  --ticker-h: 76px;
-  --header-h: 134px; /* nav + ticker */
+  --ticker-h: 38px;
+  --header-h: 96px; /* nav + ticker */
 }
 
 /* ══ Reset ══ */
@@ -1234,10 +1234,10 @@ body {
   background: #fff;
   border-bottom: 1.5px solid var(--border);
   box-shadow: var(--shadow-xs);
-  padding: 10px 20px;
+  padding: 6px 20px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -1246,60 +1246,52 @@ body {
 .ticker-track {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   flex-wrap: nowrap;
-  width: 100%;
 }
 
 .ticker-item {
   display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-  padding: 8px 14px;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
   background: var(--bg3);
-  border: 1.5px solid var(--border);
-  border-radius: var(--r8);
+  border: 1px solid var(--border);
+  border-radius: 20px;
   cursor: pointer;
   transition: all .18s;
   flex-shrink: 0;
-  min-width: 110px;
+  white-space: nowrap;
 }
 .ticker-item:hover {
   border-color: var(--primary);
   background: var(--primary-l);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-xs);
 }
-.ticker-item.up   { border-top: 2px solid var(--green); }
-.ticker-item.down { border-top: 2px solid var(--red); }
+.ticker-item.up   { border-right: 2px solid var(--green); }
+.ticker-item.down { border-right: 2px solid var(--red); }
 
-.ticker-header {
-  display: flex; align-items: center; gap: 5px;
-}
-.ticker-flag { font-size: 13px; line-height: 1; }
+.ticker-header { display: flex; align-items: center; gap: 4px; }
+.ticker-flag { font-size: 12px; line-height: 1; }
 .ticker-label {
-  font-size: 11.5px; font-weight: 700;
+  font-size: 11px; font-weight: 700;
   color: var(--text2);
-  white-space: nowrap;
 }
 .ticker-price {
-  font-size: 13.5px; font-weight: 700;
+  font-size: 12px; font-weight: 700;
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 .ticker-change {
-  font-size: 11.5px; font-weight: 600;
+  font-size: 11px; font-weight: 600;
 }
 .ticker-change.up   { color: var(--green); }
 .ticker-change.down { color: var(--red); }
 
 .ticker-loading {
-  display: flex; align-items: center; gap: 10px;
-  width: 100%;
+  display: flex; align-items: center; gap: 8px;
 }
 .ticker-skel {
-  height: 54px; width: 110px; border-radius: var(--r8);
+  height: 26px; width: 90px; border-radius: 20px;
   background: linear-gradient(90deg, var(--bg3) 25%, var(--bg4) 50%, var(--bg3) 75%);
   background-size: 200% 100%; animation: shimmer 1.4s infinite;
   flex-shrink: 0;
