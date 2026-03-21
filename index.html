@@ -3399,6 +3399,13 @@ function handleDataMessage(data, roomId) {
       refreshRoomInfo(roomId);
     }
 
+    if (msg.type === 'hand_dismissed' && msg.userId === currentUser.id) {
+      isHandRaised = false;
+      const btn = document.getElementById('hand-btn');
+      if (btn) { btn.className = 'ctrl-btn hand-btn'; btn.textContent = '🤚'; }
+      toast('❌ تم رفض طلب الكلام', 'info');
+    }
+
     if (msg.type === 'refresh') {
       refreshRoomInfo(roomId);
     }
@@ -3574,6 +3581,8 @@ async function dismissHand(roomId, userId) {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ raise: false, userId })
   });
+  // إرسال تنبيه للمستمع بأن طلبه رُفض
+  sendData({ type: 'hand_dismissed', userId, fromName: currentUser.display_name });
   refreshRoomInfo(roomId);
 }
 

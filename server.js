@@ -2117,11 +2117,14 @@ app.delete('/api/rooms/:id', requireAuth, (req, res) => {
 
 // ── رفع/إنزال اليد ──────────────────────────────────────────────
 app.post('/api/rooms/:id/hand', requireAuth, (req, res) => {
-  const { raise } = req.body;
+  const { raise, userId } = req.body;
   if (raise) {
     db.prepare(`INSERT OR REPLACE INTO room_hand_requests (room_id,user_id) VALUES (?,?)`).run(req.params.id, req.session.userId);
   } else {
-    db.prepare(`DELETE FROM room_hand_requests WHERE room_id=? AND user_id=?`).run(req.params.id, req.session.userId);
+    // لو في userId = المشرف يرفض طلب مستمع معين
+    // لو ما في userId = المستمع ينزل يده بنفسه
+    const targetId = userId || req.session.userId;
+    db.prepare(`DELETE FROM room_hand_requests WHERE room_id=? AND user_id=?`).run(req.params.id, targetId);
   }
   res.json({ success: true });
 });
