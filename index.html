@@ -3774,11 +3774,8 @@ async function leaveMic(roomId) {
   await disableMic();
   removeSpeakerControls(roomId);
   window._wasGrantedMic = false;
-  // سحب صلاحية النشر من DB
-  await fetch(`/api/rooms/${roomId}/grant-mic/${currentUser.id}`, {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ grant: false })
-  });
+  // إخبار السيرفر بالنزول من المايك
+  await fetch(`/api/rooms/${roomId}/leave-mic`, { method: 'POST' });
   refreshRoomInfo(roomId);
 }
 

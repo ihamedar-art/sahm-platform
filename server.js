@@ -2127,6 +2127,12 @@ app.post('/api/rooms/:id/hand', requireAuth, (req, res) => {
 });
 
 // ── إعطاء المايك / سحبه ─────────────────────────────────────────
+// المستمع ينزل من المايك بنفسه
+app.post('/api/rooms/:id/leave-mic', requireAuth, (req, res) => {
+  db.prepare(`UPDATE room_members SET can_speak=0, is_muted=0 WHERE room_id=? AND user_id=?`).run(req.params.id, req.session.userId);
+  res.json({ success: true });
+});
+
 app.post('/api/rooms/:id/grant-mic/:userId', requireAuth, async (req, res) => {
   const room = db.prepare(`SELECT * FROM voice_rooms WHERE id = ?`).get(req.params.id);
   if (!room) return res.json({ error: 'غير موجود' });
