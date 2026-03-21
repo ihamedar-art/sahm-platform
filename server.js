@@ -178,6 +178,8 @@ async function compressImage(filePath) {
 }
 
 // ── Middleware ───────────────────────────────────────────────────────────────
+let compression; try { compression = require('compression'); } catch(e) { compression = null; }
+if (compression) app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
@@ -197,15 +199,21 @@ app.use(session({
   cookie: { maxAge: 90 * 24 * 60 * 60 * 1000, httpOnly: true, sameSite: 'lax' }
 }));
 
-// ── Rate Limiter عام — 100 طلب/دقيقة لكل IP ──────────────────────────────────
+// ── Rate Limiter — 300 طلب/دقيقة لكل IP ─────────────────────────────────────
 const ipRequestMap = new Map();
+// طلبات القراءة السريعة — استثناء من الحد الصارم
+const READ_ONLY_PATHS = ['/api/me','/api/posts','/api/notifications/count',
+  '/api/messages/unread','/api/rooms','/api/stocks','/api/news',
+  '/api/poll','/api/leaderboard','/api/search','/api/markets'];
+
 app.use((req, res, next) => {
-  // استثنِ الملفات الثابتة
   if (req.path.startsWith('/uploads') || !req.path.startsWith('/api')) return next();
   const ip = req.ip || req.connection.remoteAddress;
   const now = Date.now();
-  const windowMs = 60 * 1000; // دقيقة واحدة
-  const maxRequests = 100;
+  const windowMs = 60 * 1000;
+  // حد أعلى للقراءة، أقل للكتابة
+  const isRead = READ_ONLY_PATHS.some(p => req.path.startsWith(p)) && req.method === 'GET';
+  const maxRequests = isRead ? 500 : 300;
   if (!ipRequestMap.has(ip)) ipRequestMap.set(ip, []);
   const requests = ipRequestMap.get(ip).filter(t => now - t < windowMs);
   requests.push(now);
@@ -215,7 +223,7 @@ app.use((req, res, next) => {
   }
   next();
 });
-// تنظيف الـ Map كل 5 دقائق لتوفير الذاكرة
+// تنظيف الـ Map كل 5 دقائق
 setInterval(() => {
   const now = Date.now();
   ipRequestMap.forEach((v, k) => {
@@ -226,6 +234,24 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 // ── Helper Functions ─────────────────────────────────────────────────────────
+
+// ── كاش ذكي للـ endpoints الثقيلة ────────────────────────────────────────────
+const apiCache = new Map();
+function setCache(key, data, ttlMs) {
+  apiCache.set(key, { data, expires: Date.now() + ttlMs });
+}
+function getCache(key) {
+  const entry = apiCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expires) { apiCache.delete(key); return null; }
+  return entry.data;
+}
+// تنظيف الكاش كل 5 دقائق
+setInterval(() => {
+  const now = Date.now();
+  apiCache.forEach((v, k) => { if (now > v.expires) apiCache.delete(k); });
+}, 5 * 60 * 1000);
+
 function requireAuth(req, res, next) {
   if (!req.session.userId) return res.status(401).json({ error: 'يجب تسجيل الدخول' });
   next();
@@ -1092,6 +1118,8 @@ app.post('/api/vote', requireAuth, (req, res) => {
   if (!['post', 'comment'].includes(target_type)) return res.json({ error: 'نوع هدف غير صالح' });
   if (!target_id || typeof target_id !== 'string' || target_id.length > 100) return res.json({ error: 'معرّف غير صالح' });
 
+  const existing = db.prepare('SELECT * FROM votes WHERE user_id=? AND target_id=? AND target_type=?').get(userId, target_id, target_type);
+
   if (existing) {
     if (existing.vote_type === vote_type) {
       // إلغاء التصويت
@@ -1315,6 +1343,8 @@ app.get('/api/notifications/count', requireAuth, (req, res) => {
 
 // ── Stocks ───────────────────────────────────────────────────────────────────
 app.get('/api/stocks/popular', (req, res) => {
+  const cached = getCache('stocks_popular');
+  if (cached) return res.json(cached);
   try {
     // جلب المنشورات الفعلية غير المحذوفة مع رموزها
     const trending = db.prepare(`
@@ -1362,11 +1392,15 @@ app.get('/api/stocks/popular', (req, res) => {
           };
         });
 
-      return res.json({ stocks, period });
+      const result1 = { stocks, period };
+      setCache('stocks_popular', result1, 2 * 60 * 1000);
+      return res.json(result1);
     }
   } catch(e) { console.error('popular stocks error:', e); }
 
-  res.json({ stocks: POPULAR_STOCKS, period: 'all' });
+  const fallback = { stocks: POPULAR_STOCKS, period: 'all' };
+  setCache('stocks_popular', fallback, 2 * 60 * 1000);
+  res.json(fallback);
 });
 
 app.get('/api/stocks/:symbol/stats', (req, res) => {
@@ -1393,10 +1427,14 @@ app.get('/api/search', (req, res) => {
 
 // ── Leaderboard ───────────────────────────────────────────────────────────────
 app.get('/api/leaderboard', (req, res) => {
+  const cached = getCache('leaderboard');
+  if (cached) return res.json(cached);
   const users = db.prepare(`SELECT id, username, display_name, avatar, reputation, level, posts_count, followers_count, is_verified
     FROM users ORDER BY reputation DESC LIMIT 20`
   ).all().map(u => ({ ...u, level_name: getLevelName(u.level) }));
-  res.json({ users });
+  const lb = { users };
+  setCache('leaderboard', lb, 5 * 60 * 1000);
+  res.json(lb);
 });
 
 
@@ -1488,6 +1526,8 @@ try { publishSampleNews(); } catch(e) { console.log('News init:', e.message); }
 // API: جلب آخر الأخبار للشريط الجانبي
 app.get('/api/news/latest', (req, res) => {
   const limit = parseInt(req.query.limit) || 6;
+  const cached = getCache('news_latest_' + limit);
+  if (cached) return res.json(cached);
   const news = db.prepare(`
     SELECT n.id, n.title, n.summary, n.source, n.source_url,
            n.stock_symbols, n.post_id, n.published_at, n.is_published,
