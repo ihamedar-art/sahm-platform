@@ -3336,6 +3336,8 @@ async function joinLiveKitRoom(roomId, tokenData) {
         }
         if (msg.type === 'grant_mic' && msg.userId === currentUser.id) {
           if (msg.grant) {
+            // حفظ التوكن الجديد لاستخدامه عند قبول المايك
+            if (msg.newToken) window._pendingMicToken = msg.newToken;
             showMicRequestPopup(roomId, msg.fromName);
           } else {
             stopSpeaking();
@@ -3368,6 +3370,7 @@ async function joinLiveKitRoom(roomId, tokenData) {
       } catch(e) {}
     });
 
+    window._livekitUrl = tokenData.livekitUrl;
     await livekitRoom.connect(tokenData.livekitUrl, tokenData.token);
 
     if (tokenData.canSpeak) {
@@ -3486,10 +3489,10 @@ async function grantMic(roomId, userId, grant = true) {
     try {
       const msg = JSON.stringify({ 
         type: 'grant_mic', userId, grant, 
-        fromName: currentUser.display_name 
+        fromName: currentUser.display_name,
+        newToken: d.token || null
       });
       await livekitRoom.localParticipant.publishData(new TextEncoder().encode(msg), { reliable: true });
-      // refresh ثاني بعد إرسال الرسالة
       setTimeout(() => refreshRoomInfo(roomId), 300);
     } catch(e) {}
   }
@@ -3713,7 +3716,24 @@ async function acceptMic(roomId) {
   document.getElementById('mic-request-overlay')?.remove();
   // إظهار أزرار التحكم بالمايك أولاً
   showSpeakerControls(roomId);
-  // محاولة فتح المايك مع retry
+  // إذا في توكن جديد — أعد الاتصال بـ LiveKit بصلاحية النشر
+  const newToken = window._pendingMicToken;
+  window._pendingMicToken = null;
+  if (newToken && livekitRoom) {
+    try {
+      // قطع الاتصال القديم وأعد الاتصال بالتوكن الجديد
+      await livekitRoom.disconnect();
+      livekitRoom = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
+      livekitRoom.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => {
+        if (track.kind === LivekitClient.Track.Kind.Audio) track.attach();
+      });
+      livekitRoom.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track) => { track.detach(); });
+      const livekitUrl = window._livekitUrl || 'wss://brzan.com/livekit';
+      await livekitRoom.connect(livekitUrl, newToken);
+      localAudioTrack = null;
+    } catch(e) { console.error('reconnect error', e); }
+  }
+  // فتح المايك
   let micOpened = false;
   for (let i = 0; i < 3; i++) {
     try {
