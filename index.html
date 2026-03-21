@@ -3455,6 +3455,11 @@ async function toggleMic() {
 
 // ── رفع اليد ────────────────────────────────────────────────────
 async function toggleHand(roomId) {
+  // لا تسمح برفع اليد لو المستمع على المايك فعلاً
+  if (localAudioTrack && !isMuted) {
+    toast('أنت تتحدث الآن — لا حاجة لرفع اليد', 'info');
+    return;
+  }
   isHandRaised = !isHandRaised;
   const btn = document.getElementById('hand-btn');
   if (btn) { btn.className = `ctrl-btn hand-btn${isHandRaised ? ' raised' : ''}`; btn.textContent = isHandRaised ? '✋' : '🤚'; }
@@ -3489,6 +3494,14 @@ async function grantMic(roomId, userId, grant = true) {
     } catch(e) {}
   }
   if (grant) {
+    // إخفاء طلب اليد فوراً من الواجهة
+    const prow = document.getElementById(`prow-${userId}`);
+    if (prow) {
+      const roleDiv = prow.querySelector('.participant-row-role');
+      if (roleDiv) roleDiv.innerHTML = 'مستمع';
+      const handRaised = prow.querySelector('.hand-raised');
+      if (handRaised) handRaised.remove();
+    }
     toast('✅ تم إرسال طلب المايك — بانتظار القبول', 'info');
   } else {
     toast('🔇 تم سحب المايك', 'info');
@@ -3747,11 +3760,14 @@ async function rejectMic(roomId) {
 function showSpeakerControls(roomId) {
   const controls = document.querySelector('.room-controls');
   if (!controls) return;
-  // إزالة زر رفع اليد وإضافة أزرار المايك
-  const handBtn = document.getElementById('hand-btn')?.parentElement;
-  if (handBtn) handBtn.remove();
-  // تحقق ما إذا كانت الأزرار موجودة مسبقاً
-  if (document.getElementById('mic-btn')) return;
+  // إزالة زر رفع اليد
+  document.getElementById('hand-btn')?.parentElement?.remove();
+  // إزالة أزرار قديمة لو موجودة
+  document.getElementById('mic-btn')?.parentElement?.remove();
+  document.querySelectorAll('.ctrl-btn').forEach(btn => {
+    if (btn.textContent === '🎤') btn.parentElement?.remove();
+  });
+  {
   const micDiv = document.createElement('div');
   micDiv.style.textAlign = 'center';
   micDiv.innerHTML = `
