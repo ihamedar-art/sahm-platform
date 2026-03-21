@@ -662,48 +662,73 @@ app.get('/api/stock-price/:symbol', async (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 // MARKETS TICKER — شريط المؤشرات العالمية مع كاش دقيقة
 // ══════════════════════════════════════════════════════════════════
+// كل رمز مع fallback بديل في حال فشل الأول
 const TICKER_SYMBOLS = [
-  { key: 'tasi',   yahoo: '%5ETASI',  label: 'تاسي',     flag: '🇸🇦', group: 'sa' },
-  { key: 'sp500',  yahoo: '%5EGSPC',  label: 'S&P 500',  flag: '🇺🇸', group: 'us' },
-  { key: 'nasdaq', yahoo: '%5EIXIC',  label: 'ناسداك',   flag: '🇺🇸', group: 'us' },
-  { key: 'brent',  yahoo: 'BZ%3DF',   label: 'برنت',     flag: '🛢️',  group: 'oil' },
-  { key: 'wti',    yahoo: 'CL%3DF',   label: 'WTI',      flag: '🛢️',  group: 'oil' },
-  { key: 'gold',   yahoo: 'GC%3DF',   label: 'ذهب',      flag: '🥇', group: 'metals' },
-  { key: 'silver', yahoo: 'SI%3DF',   label: 'فضة',      flag: '🥈', group: 'metals' },
-  { key: 'btc',    yahoo: 'BTC%3DX',  label: 'بيتكوين',  flag: '₿',  group: 'crypto' },
-  { key: 'eth',    yahoo: 'ETH%3DX',  label: 'إيثيريوم', flag: '⟠',  group: 'crypto' },
+  { key: 'tasi',   yahoo: '%5ETASI',              fallback: 'TASI.SR',    label: 'تاسي',     flag: '🇸🇦', group: 'sa' },
+  { key: 'sp500',  yahoo: '%5EGSPC',              fallback: 'VOO',        label: 'S&P 500',  flag: '🇺🇸', group: 'us' },
+  { key: 'nasdaq', yahoo: '%5EIXIC',              fallback: 'QQQ',        label: 'ناسداك',   flag: '🇺🇸', group: 'us' },
+  { key: 'brent',  yahoo: 'BZ%3DF',              fallback: 'CL%3DF',     label: 'برنت',     flag: '🛢️',  group: 'oil' },
+  { key: 'wti',    yahoo: 'CL%3DF',              fallback: 'USO',        label: 'WTI',      flag: '🛢️',  group: 'oil' },
+  { key: 'gold',   yahoo: 'GC%3DF',              fallback: 'GLD',        label: 'ذهب',      flag: '🥇',  group: 'metals' },
+  { key: 'silver', yahoo: 'SI%3DF',              fallback: 'SLV',        label: 'فضة',      flag: '🥈',  group: 'metals' },
+  { key: 'btc',    yahoo: 'BTC-USD',             fallback: 'IBIT',       label: 'بيتكوين',  flag: '₿',   group: 'crypto' },
+  { key: 'eth',    yahoo: 'ETH-USD',             fallback: 'ETHA',       label: 'إيثيريوم', flag: '⟠',   group: 'crypto' },
 ];
 
 let tickerCache = null;
 let tickerCacheTime = 0;
 const TICKER_CACHE_MS = 60 * 1000;
 
-async function fetchOneTicker(sym) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym.yahoo}?interval=1d&range=2d`;
-  const options = { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } };
+// دالة مساعدة تجلب رمزاً واحداً مع timeout
+function fetchYahooSymbol(yahooSym) {
   return new Promise((resolve) => {
-    https.get(url, options, (r) => {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=1d&range=2d`;
+    const options = {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json',
+        'Accept-Language': 'en-US,en;q=0.9',
+      }
+    };
+    const req = https.get(url, options, (r) => {
       let d = '';
       r.on('data', chunk => d += chunk);
       r.on('end', () => {
         try {
           const json = JSON.parse(d);
           const meta = json?.chart?.result?.[0]?.meta;
-          if (!meta) return resolve(null);
-          const prev = meta.chartPreviousClose || meta.previousClose || 0;
-          const price = meta.regularMarketPrice || 0;
-          const change = price - prev;
-          const changePct = prev ? (change / prev) * 100 : 0;
-          resolve({
-            key: sym.key, label: sym.label, flag: sym.flag, group: sym.group,
-            price, change, changePct,
-            isUp: change >= 0,
-            currency: meta.currency || 'USD',
-          });
+          resolve(meta || null);
         } catch(e) { resolve(null); }
       });
-    }).on('error', () => resolve(null));
+    });
+    req.on('error', () => resolve(null));
+    req.setTimeout(8000, () => { req.destroy(); resolve(null); });
   });
+}
+
+async function fetchOneTicker(sym) {
+  try {
+    // جرب الرمز الأساسي أولاً
+    let meta = await fetchYahooSymbol(sym.yahoo);
+
+    // لو فشل أو السعر صفر، جرب الـ fallback
+    if (!meta || !meta.regularMarketPrice) {
+      if (sym.fallback) meta = await fetchYahooSymbol(sym.fallback);
+    }
+
+    if (!meta || !meta.regularMarketPrice) return null;
+
+    const prev = meta.chartPreviousClose || meta.previousClose || 0;
+    const price = meta.regularMarketPrice || 0;
+    const change = price - prev;
+    const changePct = prev ? (change / prev) * 100 : 0;
+    return {
+      key: sym.key, label: sym.label, flag: sym.flag, group: sym.group,
+      price, change, changePct,
+      isUp: change >= 0,
+      currency: meta.currency || 'USD',
+    };
+  } catch(e) { return null; }
 }
 
 app.get('/api/markets/ticker', async (req, res) => {
