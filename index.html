@@ -3374,6 +3374,7 @@ function handleDataMessage(data, roomId) {
       // سحب المايك — نزل من المايك وأعد زر رفع اليد
       disableMic();
       removeSpeakerControls(roomId);
+      window._wasGrantedMic = false;
       toast('🔇 تم سحب المايك منك', 'info');
     }
 
@@ -3595,7 +3596,7 @@ async function refreshRoomInfo(roomId) {
         showSpeakerControls(roomId);
         toast('🎙️ تم فتح المايك!', 'success');
       }
-    } else if (me && me.can_speak === 0) {
+    } else if (me && (me.can_speak === 0 || me.can_speak === null)) {
       window._wasGrantedMic = false;
     }
 
@@ -3772,6 +3773,7 @@ function removeSpeakerControls(roomId) {
 async function leaveMic(roomId) {
   await disableMic();
   removeSpeakerControls(roomId);
+  window._wasGrantedMic = false;
   // سحب صلاحية النشر من DB
   await fetch(`/api/rooms/${roomId}/grant-mic/${currentUser.id}`, {
     method: 'POST', headers: {'Content-Type':'application/json'},
