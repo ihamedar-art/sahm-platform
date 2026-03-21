@@ -3373,17 +3373,27 @@ async function joinLiveKitRoom(roomId, tokenData) {
     window._livekitUrl = tokenData.livekitUrl;
     await livekitRoom.connect(tokenData.livekitUrl, tokenData.token);
 
+    // كل المستخدمين ينشرون track مكتوم من البداية لتأسيس الـ peer connection
+    try {
+      localAudioTrack = await LivekitClient.createLocalAudioTrack({ 
+        echoCancellation: true, noiseSuppression: true 
+      });
+      await localAudioTrack.mute();
+      await livekitRoom.localParticipant.publishTrack(localAudioTrack);
+    } catch(e) { console.error('initial track error:', e); }
+
     if (tokenData.canSpeak) {
-      // محاولتان لفتح المايك — الثانية بعد 800ms لو فشلت الأولى
+      // المضيف/المشرف يفتح المايك فوراً
       try {
-        await startSpeaking(roomId);
+        if (localAudioTrack) await localAudioTrack.unmute();
+        isMuted = false;
+        updateMicUI(false);
       } catch(e) {
-        setTimeout(async () => {
-          try { await startSpeaking(roomId); } catch(e2) {
-            toast('⚠️ تعذّر فتح المايك — اضغط زر المايك يدوياً', 'error');
-          }
-        }, 800);
+        toast('⚠️ تعذّر فتح المايك — اضغط زر المايك يدوياً', 'error');
       }
+    } else {
+      isMuted = true;
+      updateMicUI(true);
     }
 
     if (livekitRoom.remoteParticipants) livekitRoom.remoteParticipants.forEach(p => {});
@@ -3400,18 +3410,12 @@ async function startSpeaking(roomId) {
       throw new Error('LiveKit room not ready');
     }
     if (!localAudioTrack) {
+      // لو ما في track — أنشئ وانشر
       localAudioTrack = await LivekitClient.createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true });
+      await livekitRoom.localParticipant.publishTrack(localAudioTrack);
     }
+    // فك الكتم فقط
     if (localAudioTrack.isMuted) await localAudioTrack.unmute();
-    const published = livekitRoom.localParticipant.audioTrackPublications;
-    if (!published || published.size === 0) {
-      try {
-        await livekitRoom.localParticipant.publishTrack(localAudioTrack);
-      } catch(publishErr) {
-        // لو كان المسار منشوراً مسبقاً نتجاهل الخطأ
-        if (!publishErr.message?.includes('already')) throw publishErr;
-      }
-    }
     isMuted = false;
     updateMicUI(false);
   } catch(e) {
@@ -3423,9 +3427,7 @@ async function startSpeaking(roomId) {
 
 async function stopSpeaking() {
   if (localAudioTrack) {
-    await livekitRoom.localParticipant.unpublishTrack(localAudioTrack);
-    localAudioTrack.stop();
-    localAudioTrack = null;
+    try { await localAudioTrack.mute(); } catch(e) {}
   }
   isMuted = true;
   updateMicUI(true);
