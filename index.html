@@ -3767,7 +3767,6 @@ function showSpeakerControls(roomId) {
   document.querySelectorAll('.ctrl-btn').forEach(btn => {
     if (btn.textContent === '🎤') btn.parentElement?.remove();
   });
-  {
   const micDiv = document.createElement('div');
   micDiv.style.textAlign = 'center';
   micDiv.innerHTML = `
