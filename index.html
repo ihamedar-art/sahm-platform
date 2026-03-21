@@ -1813,6 +1813,16 @@ async function togglePin(postId, currentlyPinned) {
 // ══════════════════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════════════════
+// ── مساعد: ارجع لأعلى الفيد دائماً ─────────────────────────
+function scrollFeedTop() {
+  const f = document.querySelector('.feed');
+  if (!f) return;
+  f.scrollTop = 0;
+  // مرة ثانية بعد تحميل المحتوى
+  requestAnimationFrame(() => { f.scrollTop = 0; });
+  setTimeout(() => { f.scrollTop = 0; }, 100);
+}
+
 function navigate(page, param = '', pushHistory = true) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -1833,8 +1843,11 @@ function navigate(page, param = '', pushHistory = true) {
     history.pushState({ page, param }, '', page === 'home' ? '/' : url);
   }
 
-  // ارجع للأعلى دائماً عند التنقل
-  document.querySelector('.feed')?.scrollTo({ top: 0, behavior: 'instant' });
+  // ارجع للأعلى دائماً عند التنقل — مرتين: فوراً وبعد التحميل
+  const feedEl = document.querySelector('.feed');
+  if (feedEl) { feedEl.scrollTop = 0; }
+  setTimeout(() => { if (feedEl) feedEl.scrollTop = 0; }, 50);
+  scrollFeedTop();
 
   if (page === 'home') {
     document.getElementById('page-home').classList.add('active');
@@ -1872,7 +1885,7 @@ function navigate(page, param = '', pushHistory = true) {
     else showLoginModal();
   } else if (page === 'post') {
     document.getElementById('page-post').classList.add('active');
-    document.querySelector('.feed')?.scrollTo({ top: 0, behavior: 'instant' });
+    const _f = document.querySelector('.feed'); if(_f) { _f.scrollTop = 0; }
     loadPostPage(param);
   } else if (page === 'stock') {
     document.getElementById('page-stock').classList.add('active');
@@ -2754,7 +2767,7 @@ async function submitStockPost(symbol) {
 async function loadSearchPage(q) {
   const el = document.getElementById('search-page-content');
   el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3)">🔍 جاري البحث...</div>`;
-  document.querySelector('.feed')?.scrollTo({ top: 0, behavior: 'instant' });
+  const _f = document.querySelector('.feed'); if(_f) { _f.scrollTop = 0; }
   const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
   const data = await res.json();
   let html = `
@@ -2790,7 +2803,7 @@ async function loadSearchPage(q) {
 async function loadStockPage(symbol) {
   const el = document.getElementById('stock-content');
   el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3)">⏳ جاري التحميل...</div>`;
-  document.querySelector('.feed')?.scrollTo({ top: 0, behavior: 'instant' });
+  const _f = document.querySelector('.feed'); if(_f) { _f.scrollTop = 0; }
 
   // جلب البيانات بالتوازي
   const [statsRes, priceRes] = await Promise.all([
@@ -2976,7 +2989,7 @@ async function loadFullLeaderboard() {
 async function loadPostPage(postId) {
   const el = document.getElementById('post-page-content');
   window._currentPostId = postId;
-  document.querySelector('.feed')?.scrollTo({ top: 0, behavior: 'instant' });
+  const _f = document.querySelector('.feed'); if(_f) { _f.scrollTop = 0; }
 
   // تأكد من حالة المستخدم أولاً
   if (!currentUser) await checkAuth();
@@ -3153,7 +3166,7 @@ function loadNewPosts() {
   newPostsCount = 0;
   latestPostId = null;
   renderFeed(true);
-  document.querySelector('.feed')?.scrollTo({ top: 0, behavior: 'smooth' });
+  const _f = document.querySelector('.feed'); if(_f) { _f.scrollTop = 0; }
 }
 
 
