@@ -3383,7 +3383,7 @@ async function joinLiveKitRoom(roomId, tokenData) {
       }
     }
 
-    livekitRoom.remoteParticipants.forEach(p => {});
+    if (livekitRoom.remoteParticipants) livekitRoom.remoteParticipants.forEach(p => {});
     toast('✅ انضممت للروم', 'success');
   } catch(e) {
     console.error('LiveKit error:', e);
