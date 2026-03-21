@@ -664,7 +664,7 @@ app.get('/api/stock-price/:symbol', async (req, res) => {
 // ══════════════════════════════════════════════════════════════════
 // كل رمز مع fallback بديل في حال فشل الأول
 const TICKER_SYMBOLS = [
-  { key: 'tasi',   yahoo: '%5ETASI',              fallback: '%5ETA125.SR', label: 'تاسي',     flag: '🇸🇦', group: 'sa' },
+  { key: 'tasi',   yahoo: '%5ETA125.SR',           fallback: '2222.SR',     label: 'تاسي',     flag: '🇸🇦', group: 'sa' },
   { key: 'sp500',  yahoo: '%5EGSPC',              fallback: 'SPY',        label: 'S&P 500',  flag: '🇺🇸', group: 'us' },
   { key: 'nasdaq', yahoo: '%5EIXIC',              fallback: 'QQQ',        label: 'ناسداك',   flag: '🇺🇸', group: 'us' },
   { key: 'brent',  yahoo: 'BZ%3DF',              fallback: 'USO',        label: 'برنت',     flag: '🛢️',  group: 'oil' },
@@ -709,25 +709,104 @@ function fetchYahooSymbol(yahooSym, useQuery2 = false) {
   });
 }
 
+// ── جلب التاسي من Tadawul الرسمي ─────────────────────────
+let tasiCache = null, tasiCacheTime = 0;
+async function fetchTASIFromTadawul() {
+  const now = Date.now();
+  if (tasiCache && now - tasiCacheTime < 60000) return tasiCache;
+  return new Promise((resolve) => {
+    const options = {
+      hostname: 'www.saudiexchange.sa',
+      path: '/resources/saudi-tadawul/files/other/charts/tadawul-allshare-index-chart.html',
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        'Accept': 'text/html,application/json,*/*',
+        'Referer': 'https://www.saudiexchange.sa/',
+      }
+    };
+    // طريقة أبسط — نستخدم Yahoo query2 مع header محسّن
+    const url = 'https://query2.finance.yahoo.com/v8/finance/chart/%5ETA125.SR?interval=1d&range=5d&corsDomain=finance.yahoo.com';
+    const req = https.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': '*/*',
+        'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8',
+        'Referer': 'https://finance.yahoo.com/quote/%5ETA125.SR/',
+        'Origin': 'https://finance.yahoo.com',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-site',
+      }
+    }, (r) => {
+      let d = '';
+      r.on('data', chunk => d += chunk);
+      r.on('end', () => {
+        try {
+          const json = JSON.parse(d);
+          const meta = json?.chart?.result?.[0]?.meta;
+          if (meta && meta.regularMarketPrice) {
+            const prev = meta.chartPreviousClose || meta.previousClose || 0;
+            const price = meta.regularMarketPrice;
+            const change = price - prev;
+            const changePct = prev ? (change / prev) * 100 : 0;
+            const result = { key:'tasi', label:'تاسي', flag:'🇸🇦', group:'sa',
+              price, change, changePct, isUp: change >= 0, currency:'SAR' };
+            tasiCache = result; tasiCacheTime = Date.now();
+            resolve(result);
+          } else resolve(null);
+        } catch(e) { resolve(null); }
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.setTimeout(10000, () => { req.destroy(); resolve(null); });
+  });
+}
+
+// جلب تاسي من Tadawul بشكل مخصص
+async function fetchTASI() {
+  // أولاً جرب Tadawul endpoint المخصص
+  const tadawulResult = await fetchTASIFromTadawul();
+  if (tadawulResult) return tadawulResult;
+  // نجرب جلب بيانات التاسي من Yahoo بعدة رموز
+  const tasiSymbols = ['%5ETA125.SR', '%5ETASI', 'TASI.SR', '2222.SR'];
+  for (const sym of tasiSymbols) {
+    const meta = await fetchYahooSymbol(sym, false) || await fetchYahooSymbol(sym, true);
+    if (meta && meta.regularMarketPrice) {
+      const prev = meta.chartPreviousClose || meta.previousClose || 0;
+      const price = meta.regularMarketPrice || 0;
+      const change = price - prev;
+      const changePct = prev ? (change / prev) * 100 : 0;
+      // لو جاء من 2222.SR نعدل التسمية
+      const isProxy = sym === '2222.SR';
+      return {
+        key: 'tasi', label: isProxy ? 'أرامكو' : 'تاسي',
+        flag: '🇸🇦', group: 'sa',
+        price, change, changePct,
+        isUp: change >= 0,
+        currency: meta.currency || 'SAR',
+        isProxy,
+      };
+    }
+  }
+  return null;
+}
+
 async function fetchOneTicker(sym) {
   try {
-    // ١. جرب query1 مع الرمز الأساسي
+    // معالجة خاصة للتاسي
+    if (sym.key === 'tasi') return await fetchTASI();
+
+    // ١. query1 مع الرمز الأساسي
     let meta = await fetchYahooSymbol(sym.yahoo, false);
-
-    // ٢. جرب query2 لو query1 فشل
-    if (!meta || !meta.regularMarketPrice) {
+    // ٢. query2 لو query1 فشل
+    if (!meta || !meta.regularMarketPrice)
       meta = await fetchYahooSymbol(sym.yahoo, true);
-    }
-
-    // ٣. جرب الـ fallback على query1
-    if ((!meta || !meta.regularMarketPrice) && sym.fallback) {
+    // ٣. fallback على query1
+    if ((!meta || !meta.regularMarketPrice) && sym.fallback)
       meta = await fetchYahooSymbol(sym.fallback, false);
-    }
-
-    // ٤. جرب الـ fallback على query2
-    if ((!meta || !meta.regularMarketPrice) && sym.fallback) {
+    // ٤. fallback على query2
+    if ((!meta || !meta.regularMarketPrice) && sym.fallback)
       meta = await fetchYahooSymbol(sym.fallback, true);
-    }
 
     if (!meta || !meta.regularMarketPrice) return null;
 
