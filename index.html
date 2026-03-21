@@ -3271,13 +3271,24 @@ async function loadRoomPage(roomId) {
       </div>
     </div>`;
 
-  // جلب التوكن
+  // الانضمام أولاً ثم جلب التوكن (مهم: الترتيب يضمن صحة الصلاحيات)
+  await fetch(`/api/rooms/${roomId}/join`, { method: 'POST' });
   const tokenRes = await fetch(`/api/rooms/${roomId}/token`, { method: 'POST' });
   const tokenData = await tokenRes.json();
   if (tokenData.error) { toast(tokenData.error, 'error'); return; }
   myRole = tokenData.role;
 
-  await fetch(`/api/rooms/${roomId}/join`, { method: 'POST' });
+  // طلب إذن المايك مسبقاً للمتحدثين (host/mod) — قبل الاتصال بـ LiveKit
+  // هذا يضمن أن المتصفح يعطي الإذن لأنه ناتج عن تفاعل المستخدم المباشر
+  if (tokenData.canSpeak) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(t => t.stop()); // نوقفها فوراً، LiveKit سيفتحها لاحقاً
+    } catch(e) {
+      toast('⚠️ يجب السماح بالوصول للمايك', 'error');
+    }
+  }
+
   await joinLiveKitRoom(roomId, tokenData);
   loadRoomChat(roomId);
   chatPollInterval = setInterval(() => loadRoomChat(roomId), 3000);
@@ -3360,7 +3371,16 @@ async function joinLiveKitRoom(roomId, tokenData) {
     await livekitRoom.connect(tokenData.livekitUrl, tokenData.token);
 
     if (tokenData.canSpeak) {
-      await startSpeaking(roomId);
+      // محاولتان لفتح المايك — الثانية بعد 800ms لو فشلت الأولى
+      try {
+        await startSpeaking(roomId);
+      } catch(e) {
+        setTimeout(async () => {
+          try { await startSpeaking(roomId); } catch(e2) {
+            toast('⚠️ تعذّر فتح المايك — اضغط زر المايك يدوياً', 'error');
+          }
+        }, 800);
+      }
     }
 
     livekitRoom.remoteParticipants.forEach(p => {});
