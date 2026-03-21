@@ -224,6 +224,9 @@ body {
   display:flex; max-width:1280px; margin:0 auto;
   width:100%; padding:20px 16px; gap:20px; flex:1;
   align-items:flex-start;
+  /* كل عمود يسكرول بشكل مستقل */
+  height:calc(100vh - var(--header-h));
+  overflow:hidden;
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -231,9 +234,13 @@ body {
    ══════════════════════════════════════════════════════════ */
 .sidebar {
   width:220px; flex-shrink:0;
-  position:sticky; top:calc(var(--header-h) + 16px);
-  height:fit-content;
+  height:100%;
+  overflow-y:auto;
+  overflow-x:hidden;
+  scrollbar-width:none;
+  padding-bottom:20px;
 }
+.sidebar::-webkit-scrollbar { display:none; }
 
 /* Navigation */
 .sidebar-nav {
@@ -322,7 +329,13 @@ body {
 /* ══════════════════════════════════════════════════════════
    MAIN FEED (CENTER)
    ══════════════════════════════════════════════════════════ */
-.feed { flex:1; min-width:0; }
+.feed {
+  flex:1; min-width:0;
+  height:100%;
+  overflow-y:auto;
+  overflow-x:hidden;
+  padding-bottom:40px;
+}
 
 /* Feed tabs */
 .feed-tabs {
@@ -409,7 +422,7 @@ body {
 .dir-btn.bearish.active { background:var(--red-l);   border-color:var(--red);   color:var(--red); }
 
 /* ══ New Posts Button ══ */
-.new-posts-btn { display:none; position:sticky; top:calc(var(--header-h)+10px); z-index:50; margin-bottom:12px; text-align:center; }
+.new-posts-btn { display:none; position:sticky; top:0; z-index:50; margin-bottom:12px; text-align:center; }
 .new-posts-btn.show { display:block; }
 .new-posts-btn button {
   background:var(--primary); color:#fff; border:none;
@@ -612,9 +625,14 @@ body {
    ══════════════════════════════════════════════════════════ */
 .right-panel {
   width:270px; flex-shrink:0;
-  position:sticky; top:calc(var(--header-h)+16px);
-  height:fit-content; display:flex; flex-direction:column; gap:12px;
+  height:100%;
+  overflow-y:auto;
+  overflow-x:hidden;
+  scrollbar-width:none;
+  display:flex; flex-direction:column; gap:12px;
+  padding-bottom:20px;
 }
+.right-panel::-webkit-scrollbar { display:none; }
 
 .panel-card {
   background:#fff; border:1.5px solid var(--border);
@@ -1188,7 +1206,8 @@ body {
 @media(max-width:820px) {
   .sidebar { display:none; }
   .navbar-search { max-width:100%; }
-  .main-layout { padding:14px 12px; gap:14px; }
+  .main-layout { padding:14px 12px; gap:14px; height:calc(100vh - var(--header-h)); }
+  .feed { height:100%; }
 }
 @media(max-width:520px) {
   .post-card { padding:13px; }
@@ -1395,7 +1414,7 @@ body {
       <div class="feed-tabs">
         <button class="feed-tab active" onclick="switchTab('discover')">🔥 الاكتشاف</button>
         <button class="feed-tab" onclick="switchTab('following')">👥 المتابَعون</button>
-        <button class="feed-tab" onclick="switchTab('analysis')">📊 تحاليل</button>
+        <button class="feed-tab" onclick="switchTab('analysis')">📊 تحليلات</button>
       </div>
       <div id="posts-feed"></div>
       <div id="load-more-container"></div>
@@ -1815,7 +1834,7 @@ function navigate(page, param = '', pushHistory = true) {
   }
 
   // ارجع للأعلى دائماً عند التنقل
-  window.scrollTo({ top: 0, behavior: 'instant' });
+  document.querySelector('.feed')?.scrollTo({ top: 0, behavior: 'instant' });
 
   if (page === 'home') {
     document.getElementById('page-home').classList.add('active');
@@ -1853,7 +1872,7 @@ function navigate(page, param = '', pushHistory = true) {
     else showLoginModal();
   } else if (page === 'post') {
     document.getElementById('page-post').classList.add('active');
-    window.scrollTo({ top: 0, behavior: 'instant' });
+    document.querySelector('.feed')?.scrollTo({ top: 0, behavior: 'instant' });
     loadPostPage(param);
   } else if (page === 'stock') {
     document.getElementById('page-stock').classList.add('active');
@@ -2735,7 +2754,7 @@ async function submitStockPost(symbol) {
 async function loadSearchPage(q) {
   const el = document.getElementById('search-page-content');
   el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3)">🔍 جاري البحث...</div>`;
-  window.scrollTo({ top: 0, behavior: 'instant' });
+  document.querySelector('.feed')?.scrollTo({ top: 0, behavior: 'instant' });
   const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
   const data = await res.json();
   let html = `
@@ -2771,7 +2790,7 @@ async function loadSearchPage(q) {
 async function loadStockPage(symbol) {
   const el = document.getElementById('stock-content');
   el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3)">⏳ جاري التحميل...</div>`;
-  window.scrollTo({ top: 0, behavior: 'instant' });
+  document.querySelector('.feed')?.scrollTo({ top: 0, behavior: 'instant' });
 
   // جلب البيانات بالتوازي
   const [statsRes, priceRes] = await Promise.all([
@@ -2957,7 +2976,7 @@ async function loadFullLeaderboard() {
 async function loadPostPage(postId) {
   const el = document.getElementById('post-page-content');
   window._currentPostId = postId;
-  window.scrollTo({ top: 0, behavior: 'instant' });
+  document.querySelector('.feed')?.scrollTo({ top: 0, behavior: 'instant' });
 
   // تأكد من حالة المستخدم أولاً
   if (!currentUser) await checkAuth();
@@ -3134,7 +3153,7 @@ function loadNewPosts() {
   newPostsCount = 0;
   latestPostId = null;
   renderFeed(true);
-  window.scrollTo({top: 0, behavior: 'smooth'});
+  document.querySelector('.feed')?.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 
