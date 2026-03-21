@@ -3176,7 +3176,7 @@ function showCreateRoom() {
     <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;padding:12px" onclick="createRoom()">
       🎙️ إنشاء الروم
     </button>`;
-  document.getElementById('auth-modal').style.display = 'flex';
+  showModal('auth-modal');
 }
 
 async function createRoom() {
