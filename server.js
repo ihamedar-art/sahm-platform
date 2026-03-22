@@ -551,12 +551,65 @@ const POPULAR_STOCKS = [
 // ══════════════════════════════════════════════════════════════════════════════
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
+// ── اليوزرات المحجوزة ────────────────────────────────────────────────────────
+const RESERVED_USERNAMES = new Set([
+  // أسماء شخصية شائعة
+  'sultan','turki','turky','mohammed','mohammad','ahmed','nasser','khalid',
+  'nawaf','saleh','majed','hamad','naif','abdulaziz','abdullah','salman',
+  'saud','faisal','ali','taha','abdulrahman','badr','bandar','rakan','saad',
+  // عائلات وقبائل
+  'alshammari','alqahtani','alotaibi','alsaud','alfahad','alturki',
+  'alhabib','alrajhi',
+  // مؤسسات مالية سعودية
+  'sabinvest','sab','snb','alinma','saib','anb','mobily','awaed',
+  'alrajhicapital','snbcapital','aljazira','efg','alistithmar','albilad',
+  'musharaka','jadwa','arbah','sico','alkhabeer','alnefaie','gib',
+  // مصطلحات مالية
+  'dinar','drahim','sahmcapital','capital','market','stock','index',
+  'nasdaq','dow','dowjones','tasi','news',
+  // مدن ومناطق
+  'saudi','ksa','riyadh','alriyadh','jeddah','dammam','madina',
+  'dubai','abudhabi','oman','alsaudia','today','saudiexchange',
+  // منصات ومواقع
+  'derayah','sahm','saham','argaam',
+  // بنوك ومؤسسات عالمية
+  'morganstanley','merrilllynch','goldmansachs','hsbc','nbd','citigroup',
+  'jpmorgan','creditsuisse','riyad',
+  // محجوزة للنظام
+  'admin','jalsat','brzan','support','jalsat_news','administrator',
+  'moderator','mod','official','verified','system','bot',
+  // أرقام منفردة
+  '1','2','3','4','5','6','7','8','9','10',
+  // أحرف إنجليزية منفردة
+  'a','b','c','d','e','f','g','h','i','j','k','l','m',
+  'n','o','p','q','r','s','t','u','v','w','x','y','z',
+  // أحرف عربية منفردة
+  'ا','ب','ت','ث','ج','ح','خ','د','ذ','ر','ز','س','ش',
+  'ص','ض','ط','ظ','ع','غ','ف','ق','ك','ل','م','ن','ه','و','ي',
+]);
+
 app.post('/api/register', async (req, res) => {
   const { username, display_name, email, password } = req.body;
   if (!username || !display_name || !email || !password)
     return res.json({ error: 'جميع الحقول مطلوبة' });
   if (password.length < 8)
     return res.json({ error: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' });
+
+  // تحقق من طول اليوزر — 4 أحرف على الأقل
+  if (username.trim().length < 4)
+    return res.json({ error: 'اسم المستخدم يجب أن يكون 4 أحرف على الأقل' });
+
+  // إنجليزي وأرقام و _ فقط — مثل تويتر
+  if (!/^[a-zA-Z0-9_]+$/.test(username.trim()))
+    return res.json({ error: 'اسم المستخدم يجب أن يحتوي على أحرف إنجليزية وأرقام و _ فقط' });
+
+  // حد أقصى 20 حرف
+  if (username.trim().length > 20)
+    return res.json({ error: 'اسم المستخدم يجب أن لا يتجاوز 20 حرفاً' });
+
+  // تحقق من اليوزرات المحجوزة
+  if (RESERVED_USERNAMES.has(username.toLowerCase().trim()))
+    return res.json({ error: 'هذا الاسم محجوز وغير متاح للتسجيل' });
 
   const existing = db.prepare('SELECT id FROM users WHERE username = ? OR email = ?').get(username, email);
   if (existing) return res.json({ error: 'اسم المستخدم أو البريد مستخدم مسبقاً' });

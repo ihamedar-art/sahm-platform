@@ -3676,7 +3676,8 @@ function showRegisterModal() {
     </div>
     <div class="form-group">
       <label class="form-label">اسم المستخدم</label>
-      <input class="form-input" id="reg-username" type="text" placeholder="مثال: trader_ali" autocomplete="username">
+      <input class="form-input" id="reg-username" type="text" placeholder="مثال: trader_ali" autocomplete="username" oninput="this.value=this.value.replace(/[^a-zA-Z0-9_]/g,'')">
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">أحرف إنجليزية وأرقام و _ فقط · 4-20 حرف</div>
     </div>
     <div class="form-group">
       <label class="form-label">البريد الإلكتروني</label>
