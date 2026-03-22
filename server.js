@@ -623,10 +623,13 @@ app.post('/api/register', async (req, res) => {
 
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-  if (!user) return res.json({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
+  // يقبل إيميل أو يوزر نيم
+  const user = email.includes('@')
+    ? db.prepare('SELECT * FROM users WHERE email = ?').get(email)
+    : db.prepare('SELECT * FROM users WHERE username = ?').get(email.trim());
+  if (!user) return res.json({ error: 'البريد أو اسم المستخدم أو كلمة المرور غير صحيحة' });
   const valid = await bcrypt.compare(password, user.password_hash);
-  if (!valid) return res.json({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
+  if (!valid) return res.json({ error: 'البريد أو اسم المستخدم أو كلمة المرور غير صحيحة' });
   if (user.is_suspended) return res.json({ error: 'تم إيقاف حسابك. تواصل مع الإدارة.' });
   req.session.userId = user.id;
   if (user.is_admin) req.session.isAdmin = true;
