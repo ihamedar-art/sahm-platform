@@ -226,6 +226,7 @@ app.use((req, res, next) => {
   if (requests.length > maxRequests) {
     return res.status(429).json({ error: 'طلبات كثيرة جداً، انتظر دقيقة وحاول مجدداً' });
   }
+  trackVisitor(req);
   next();
 });
 // تنظيف الـ Map كل 5 دقائق
@@ -239,6 +240,35 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 // ── Helper Functions ─────────────────────────────────────────────────────────
+
+// ── نظام تتبع الزوار النشطين ──────────────────────────────────────────────────
+const activeVisitors = new Map(); // userId/ip → lastSeen
+const VISITOR_TIMEOUT = 5 * 60 * 1000; // 5 دقائق
+
+function trackVisitor(req) {
+  const key = req.session?.userId || ('guest_' + (req.ip || ''));
+  activeVisitors.set(key, {
+    lastSeen: Date.now(),
+    isLoggedIn: !!req.session?.userId,
+    userId: req.session?.userId || null,
+  });
+}
+
+function getActiveVisitors() {
+  const now = Date.now();
+  let loggedIn = 0, guests = 0;
+  activeVisitors.forEach((v, k) => {
+    if (now - v.lastSeen > VISITOR_TIMEOUT) { activeVisitors.delete(k); return; }
+    v.isLoggedIn ? loggedIn++ : guests++;
+  });
+  return { total: loggedIn + guests, loggedIn, guests };
+}
+
+// تنظيف الزوار المنتهية صلاحيتهم كل دقيقة
+setInterval(() => {
+  const now = Date.now();
+  activeVisitors.forEach((v, k) => { if (now - v.lastSeen > VISITOR_TIMEOUT) activeVisitors.delete(k); });
+}, 60 * 1000);
 
 // ── كاش ذكي للـ endpoints الثقيلة ────────────────────────────────────────────
 const apiCache = new Map();
@@ -1874,6 +1904,11 @@ app.post('/api/admin/login', (req, res) => {
 app.post('/api/admin/logout', (req, res) => { req.session.isAdmin = false; res.json({ success: true }); });
 
 // ── إحصائيات ────────────────────────────────────────────────────
+// عداد الزوار النشطين — سوبر أدمن فقط
+app.get('/api/admin/visitors', requireSuperAdmin, (req, res) => {
+  res.json(getActiveVisitors());
+});
+
 app.get('/api/admin/stats', requireAdmin, (req, res) => {
   res.json({
     totalUsers:     db.prepare('SELECT COUNT(*) as c FROM users').get().c,
@@ -1885,6 +1920,7 @@ app.get('/api/admin/stats', requireAdmin, (req, res) => {
     newPostsToday:  db.prepare("SELECT COUNT(*) as c FROM posts WHERE DATE(created_at)=DATE('now') AND is_soft_deleted=0").get().c,
     suspendedUsers: db.prepare('SELECT COUNT(*) as c FROM users WHERE is_suspended=1').get().c,
     topStocks:      db.prepare("SELECT stock_symbols, COUNT(*) as c FROM posts WHERE stock_symbols!='' AND is_soft_deleted=0 GROUP BY stock_symbols ORDER BY c DESC LIMIT 5").all(),
+    activeVisitors: getActiveVisitors(),
   });
 });
 

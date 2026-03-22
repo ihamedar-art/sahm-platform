@@ -4963,7 +4963,35 @@ async function loadAdminTab(tab) {
 async function renderAdminStats(el) {
   const r = await fetch('/api/admin/stats');
   const d = await r.json();
+
+  // عداد الزوار النشطين
+  let visitors = { total: 0, loggedIn: 0, guests: 0 };
+  try {
+    const vr = await fetch('/api/admin/visitors');
+    visitors = await vr.json();
+  } catch(e) {}
+
   el.innerHTML = `
+    <!-- عداد الزوار النشطين — بارز في الأعلى -->
+    <div style="background:linear-gradient(135deg,var(--primary),var(--purple));border-radius:var(--radius);padding:18px;margin-bottom:20px;color:#fff;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px">
+      <div>
+        <div style="font-size:12px;opacity:.8;margin-bottom:4px;font-weight:600;letter-spacing:.5px">🟢 الزوار النشطون الآن</div>
+        <div style="font-size:42px;font-weight:700;line-height:1" id="visitors-count">${visitors.total}</div>
+        <div style="font-size:12px;opacity:.7;margin-top:4px">آخر تحديث: <span id="visitors-updated">الآن</span></div>
+      </div>
+      <div style="display:flex;gap:20px">
+        <div style="text-align:center;background:rgba(255,255,255,.15);border-radius:var(--r8);padding:12px 20px">
+          <div style="font-size:24px;font-weight:700">${visitors.loggedIn}</div>
+          <div style="font-size:11px;opacity:.8">أعضاء مسجلون</div>
+        </div>
+        <div style="text-align:center;background:rgba(255,255,255,.1);border-radius:var(--r8);padding:12px 20px">
+          <div style="font-size:24px;font-weight:700">${visitors.guests}</div>
+          <div style="font-size:11px;opacity:.8">زوار غير مسجلين</div>
+        </div>
+      </div>
+      <button onclick="refreshVisitors()" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;padding:8px 16px;border-radius:var(--r8);font-family:inherit;font-size:13px;cursor:pointer">🔄 تحديث</button>
+    </div>
+
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-bottom:24px">
       ${[
         ['👥','الأعضاء',d.totalUsers,'var(--primary)'],
@@ -4981,6 +5009,21 @@ async function renderAdminStats(el) {
           <div style="font-size:12px;color:var(--text3)">${label}</div>
         </div>`).join('')}
     </div>`;
+
+  // تحديث تلقائي كل 5 دقائق
+  if (window._visitorsInterval) clearInterval(window._visitorsInterval);
+  window._visitorsInterval = setInterval(refreshVisitors, 5 * 60 * 1000);
+}
+
+async function refreshVisitors() {
+  try {
+    const r = await fetch('/api/admin/visitors');
+    const d = await r.json();
+    const el = document.getElementById('visitors-count');
+    const upd = document.getElementById('visitors-updated');
+    if (el) el.textContent = d.total;
+    if (upd) upd.textContent = new Date().toLocaleTimeString('ar-SA');
+  } catch(e) {}
 }
 
 // ── الأعضاء ──────────────────────────────────────────────────────
