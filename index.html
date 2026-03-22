@@ -3288,7 +3288,11 @@ function showAddWatchlistModal() {
 }
 
 async function submitAddWatchlist() {
-  const sym = document.getElementById('watchlist-symbol').value.trim().toUpperCase().replace('$','');
+  const raw = document.getElementById('watchlist-symbol').value.trim();
+  // حوّل الاسم العربي/الإنجليزي لرمز رسمي
+  const clean = raw.replace('$','');
+  const alias = SEARCH_ALIASES[clean] || SEARCH_ALIASES[clean.toLowerCase()];
+  const sym = (alias || clean).toUpperCase().replace('$','');
   const errEl = document.getElementById('watchlist-error');
   if (!sym) { errEl.textContent = 'أدخل رمز السهم'; return; }
   const btn = document.querySelector('#auth-modal-content .btn-primary');
