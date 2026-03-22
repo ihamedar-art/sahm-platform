@@ -1220,7 +1220,7 @@ body {
   .navbar-actions .btn-ghost { display:none; }
 
   /* Layout — مساحة للشريط السفلي */
-  .main-layout { padding:12px 10px 80px; gap:0; }
+  .main-layout { padding:12px 10px calc(80px + env(safe-area-inset-bottom, 0px)); gap:0; }
 
   /* شريط المؤشرات */
   .ticker-bar { padding:5px 8px; -webkit-overflow-scrolling:touch; }
