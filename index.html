@@ -2036,7 +2036,7 @@ function renderComposeArea() {
       <div class="compose-box" style="text-align:center;padding:24px">
         <div style="font-size:28px;margin-bottom:10px">📊</div>
         <p style="color:var(--text2);margin-bottom:14px">انضم لمجتمع جلسة السوق</p>
-        <button class="btn btn-primary" onclick="showRegisterModal()">إنشاء حساب مجاني</button>
+        <button class="btn btn-primary" onclick="showRegisterModal()">إنشاء حساب</button>
         <span style="margin:0 10px;color:var(--text3)">أو</span>
         <button class="btn btn-ghost" onclick="showLoginModal()">تسجيل الدخول</button>
       </div>`;
@@ -3689,7 +3689,7 @@ function showRegisterModal() {
         onkeydown="if(event.key==='Enter')submitRegister()">
     </div>
     <div id="reg-error" class="form-error"></div>
-    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;padding:12px" onclick="submitRegister()">إنشاء الحساب مجاناً</button>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;padding:12px" onclick="submitRegister()">إنشاء الحساب</button>
     <div class="form-switch">لديك حساب؟ <a onclick="showLoginModal()">سجّل الدخول</a></div>`;
   showModal('auth-modal');
 }
