@@ -191,9 +191,14 @@ if (helmet) {
     crossOriginEmbedderPolicy: false,
   }));
 }
+// ── Session Store في SQLite — يضمن مشاركة الـ session بين كل الـ instances ──
+const SqliteStore = require('better-sqlite3-session-store')(session);
+const sessionDb = new Database('./sessions.db');
+
 app.use(session({
+  store: new SqliteStore({ client: sessionDb, expired: { clear: true, intervalMs: 900000 } }),
   secret: process.env.SESSION_SECRET || 'sahm-secret-2026-very-long-key-do-not-change',
-  resave: true,
+  resave: false,
   saveUninitialized: false,
   rolling: true,
   cookie: { maxAge: 90 * 24 * 60 * 60 * 1000, httpOnly: true, sameSite: 'lax' }
