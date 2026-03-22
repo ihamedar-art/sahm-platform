@@ -2764,6 +2764,7 @@ async function loadProfile(username) {
     <div style="display:flex;gap:4px;margin-bottom:16px;background:#fff;border:1.5px solid var(--border);border-radius:var(--radius);padding:5px">
       <button class="feed-tab active" id="ptab-posts" onclick="switchProfileTab('posts','${u.username}','${u.id}')">📝 المنشورات</button>
       <button class="feed-tab" id="ptab-portfolio" onclick="switchProfileTab('portfolio','${u.username}','${u.id}')">📊 المحفظة</button>
+      <button class="feed-tab" id="ptab-transactions" onclick="switchProfileTab('transactions','${u.username}','${u.id}')">📋 السجل</button>
     </div>
     <div id="profile-tab-content">
       <div id="user-posts"></div>
@@ -2800,6 +2801,8 @@ async function switchProfileTab(tab, username, userId) {
     }
   } else if (tab === 'portfolio') {
     await loadPortfolio(username, userId);
+  } else if (tab === 'transactions') {
+    await loadTransactions(username);
   }
 }
 
@@ -2820,6 +2823,14 @@ async function loadPortfolio(username, userId) {
     const arrow = isPositive ? '▲' : '▼';
 
     el.innerHTML = `
+      <!-- تنبيه قانوني -->
+      <div style="background:var(--gold-l);border:1.5px solid var(--gold);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px;display:flex;align-items:flex-start;gap:10px">
+        <span style="font-size:20px;flex-shrink:0">⚠️</span>
+        <div style="font-size:12.5px;color:var(--gold);line-height:1.6">
+          <strong>تنبيه:</strong> المحفظة الافتراضية للأغراض التعليمية والترفيهية فقط، ولا تمثل توصيات استثمارية. جلسة السوق غير مرخصة كجهة مالية ولا تتحمل أي مسؤولية عن قرارات الاستثمار الفعلية.
+        </div>
+      </div>
+
       <!-- بطاقة الملخص -->
       <div style="background:linear-gradient(135deg,var(--primary),var(--purple));border-radius:var(--radius);padding:18px;margin-bottom:14px;color:#fff">
         <div style="font-size:12px;opacity:.8;margin-bottom:6px;font-weight:600">📊 المحفظة الافتراضية</div>
@@ -2910,6 +2921,13 @@ function showBuyModal() {
       <label class="form-label">الكمية</label>
       <input class="form-input" id="buy-qty" type="number" placeholder="عدد الأسهم" min="1">
     </div>
+    <div class="form-group">
+      <label class="form-label">سعر الشراء <span style="color:var(--text3);font-weight:400;font-size:12px">(اختياري — اتركه فارغاً لاستخدام السعر الحالي)</span></label>
+      <input class="form-input" id="buy-price" type="number" placeholder="السعر يدوياً" min="0" step="0.01" style="direction:ltr">
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:8px;padding:8px 10px;background:var(--bg3);border-radius:var(--r8);line-height:1.6">
+      ⚠️ هذه المحفظة للأغراض التعليمية فقط وليست توصية استثمارية.
+    </div>
     <div id="buy-error" class="form-error"></div>
     <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;padding:12px" onclick="submitBuy()">شراء ✅</button>`;
   showModal('auth-modal');
@@ -2918,16 +2936,18 @@ function showBuyModal() {
 async function submitBuy() {
   const symbol = '$' + document.getElementById('buy-symbol').value.trim().toUpperCase().replace('$','');
   const qty = parseFloat(document.getElementById('buy-qty').value);
+  const manualPrice = parseFloat(document.getElementById('buy-price')?.value) || null;
   const errEl = document.getElementById('buy-error');
   if (!symbol || symbol === '$') { errEl.textContent = 'أدخل رمز السهم'; return; }
   if (!qty || qty <= 0) { errEl.textContent = 'أدخل كمية صحيحة'; return; }
+  if (manualPrice !== null && manualPrice <= 0) { errEl.textContent = 'السعر يجب أن يكون أكبر من صفر'; return; }
   errEl.textContent = '';
   const btn = document.querySelector('#auth-modal-content .btn-primary');
   if (btn) { btn.disabled = true; btn.textContent = 'جاري الشراء...'; }
   try {
     const r = await fetch('/api/portfolio/buy', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ symbol, name: symbol, quantity: qty })
+      body: JSON.stringify({ symbol, name: symbol, quantity: qty, manual_price: manualPrice })
     });
     const d = await r.json();
     if (d.error) { errEl.textContent = d.error; if(btn){btn.disabled=false;btn.textContent='شراء ✅';} return; }
@@ -2967,6 +2987,64 @@ async function submitSell(symbol) {
     closeModal('auth-modal');
     if (window._portfolioUsername) await loadPortfolio(window._portfolioUsername, window._portfolioUserId);
   } catch(e) { errEl.textContent = 'حدث خطأ'; if(btn){btn.disabled=false;btn.textContent='بيع 📤';} }
+}
+
+async function loadTransactions(username) {
+  const el = document.getElementById('profile-tab-content');
+  el.innerHTML = `<div class="skeleton" style="height:300px;border-radius:var(--radius)"></div>`;
+  try {
+    const r = await fetch(`/api/portfolio/${username}/transactions`);
+    const d = await r.json();
+    if (d.error) { el.innerHTML = `<div class="empty-state"><div class="empty-title">${d.error}</div></div>`; return; }
+
+    if (!d.transactions.length) {
+      el.innerHTML = `<div class="empty-state">
+        <div class="empty-icon">📋</div>
+        <div class="empty-title">لا توجد عمليات بعد</div>
+      </div>`;
+      return;
+    }
+
+    el.innerHTML = `
+      <div style="background:#fff;border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden">
+        <div style="padding:12px 14px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700">
+          📋 سجل العمليات
+        </div>
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="background:var(--bg3);border-bottom:1px solid var(--border)">
+            <th style="padding:10px 12px;text-align:right">السهم</th>
+            <th style="padding:10px;text-align:center">النوع</th>
+            <th style="padding:10px;text-align:center">الكمية</th>
+            <th style="padding:10px;text-align:center">السعر</th>
+            <th style="padding:10px;text-align:center">الإجمالي</th>
+            <th style="padding:10px;text-align:center">التاريخ</th>
+          </tr></thead>
+          <tbody>
+          ${d.transactions.map(t => `
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:10px 12px">
+                <div style="font-weight:700;color:var(--primary)">${t.symbol}</div>
+                <div style="font-size:11px;color:var(--text3)">${t.name}</div>
+              </td>
+              <td style="padding:10px;text-align:center">
+                <span style="padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;
+                  background:${t.type==='buy'?'var(--green-l)':'var(--red-l)'};
+                  color:${t.type==='buy'?'var(--green)':'var(--red)'}">
+                  ${t.type==='buy'?'شراء ✅':'بيع 📤'}
+                </span>
+              </td>
+              <td style="padding:10px;text-align:center;font-weight:600">${t.quantity}</td>
+              <td style="padding:10px;text-align:center">${parseFloat(t.price).toFixed(2)}</td>
+              <td style="padding:10px;text-align:center;font-weight:600;color:${t.type==='buy'?'var(--red)':'var(--green)'}">${t.type==='buy'?'-':'+'} ${parseFloat(t.total).toFixed(2)}</td>
+              <td style="padding:10px;text-align:center;font-size:12px;color:var(--text3)">${t.time_ago}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table></div>
+      </div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-title">خطأ في تحميل السجل</div></div>`;
+  }
 }
 
 async function resetPortfolio() {
