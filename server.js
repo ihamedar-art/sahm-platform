@@ -3098,6 +3098,37 @@ app.post('/api/portfolio/sell', requireAuth, async (req, res) => {
   res.json({ success: true, price, total });
 });
 
+// ══════════════════════════════════════════════════════════════════
+// WATCHLIST — قائمة المتابعة
+// ══════════════════════════════════════════════════════════════════
+
+// جلب قائمة المتابعة
+app.get('/api/watchlist', requireAuth, (req, res) => {
+  const items = db.prepare('SELECT * FROM stock_watchlist WHERE user_id=? ORDER BY created_at DESC').all(req.session.userId);
+  res.json({ watchlist: items });
+});
+
+// إضافة سهم للقائمة
+app.post('/api/watchlist/:symbol', requireAuth, (req, res) => {
+  const symbol = req.params.symbol.toUpperCase();
+  try {
+    db.prepare('INSERT OR IGNORE INTO stock_watchlist (user_id,symbol) VALUES (?,?)').run(req.session.userId, symbol);
+    res.json({ success: true, added: true });
+  } catch(e) { res.json({ error: e.message }); }
+});
+
+// حذف سهم من القائمة
+app.delete('/api/watchlist/:symbol', requireAuth, (req, res) => {
+  db.prepare('DELETE FROM stock_watchlist WHERE user_id=? AND symbol=?').run(req.session.userId, req.params.symbol.toUpperCase());
+  res.json({ success: true, added: false });
+});
+
+// تحقق هل السهم في القائمة
+app.get('/api/watchlist/check/:symbol', requireAuth, (req, res) => {
+  const item = db.prepare('SELECT 1 FROM stock_watchlist WHERE user_id=? AND symbol=?').get(req.session.userId, req.params.symbol.toUpperCase());
+  res.json({ inWatchlist: !!item });
+});
+
 // سجل عمليات المحفظة
 app.get('/api/portfolio/:username/transactions', (req, res) => {
   const user = db.prepare('SELECT id FROM users WHERE username=?').get(req.params.username);

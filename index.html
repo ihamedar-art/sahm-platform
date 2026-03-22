@@ -1448,6 +1448,9 @@ body {
       <a class="nav-item" id="nav-profile" onclick="navigate('profile')">
         <span class="nav-icon">👤</span> حسابي
       </a>
+      <a class="nav-item" id="nav-watchlist" onclick="navigate('watchlist')">
+        <span class="nav-icon">⭐</span> قائمة المتابعة
+      </a>
       <a class="nav-item" id="nav-admin" onclick="navigate('admin')" style="display:none">
         <span class="nav-icon">⚙️</span> لوحة التحكم
       </a>
@@ -1531,6 +1534,11 @@ body {
     <!-- Messages Page -->
     <div class="page" id="page-messages">
       <div id="messages-page-content"></div>
+    </div>
+
+    <!-- Watchlist Page -->
+    <div class="page" id="page-watchlist">
+      <div id="watchlist-content"></div>
     </div>
 
     <!-- Single Post Page -->
@@ -1627,6 +1635,10 @@ body {
   <button class="mobile-nav-item" id="mnav-profile" onclick="navigate('profile');setMobileNav('profile')">
     <span class="mobile-nav-icon">👤</span>
     <span class="mobile-nav-label">حسابي</span>
+  </button>
+  <button class="mobile-nav-item" id="mnav-watchlist" onclick="navigate('watchlist');setMobileNav('watchlist')">
+    <span class="mobile-nav-icon">⭐</span>
+    <span class="mobile-nav-label">متابعة</span>
   </button>
 </nav>
 
@@ -1992,6 +2004,9 @@ function navigate(page, param = '', pushHistory = true) {
     document.getElementById('page-messages').classList.add('active');
     document.querySelector('.right-panel')?.style.setProperty('display','none');
     loadMessagesPage(param);
+  } else if (page === 'watchlist') {
+    document.getElementById('page-watchlist').classList.add('active');
+    loadWatchlistPage();
   }
 }
 
@@ -3180,6 +3195,144 @@ async function loadSearchPage(q) {
   el.innerHTML = html;
 }
 
+// ══════════════════════════════════════════════════════════════════
+// WATCHLIST PAGE
+// ══════════════════════════════════════════════════════════════════
+async function loadWatchlistPage() {
+  const el = document.getElementById('watchlist-content');
+  if (!currentUser) {
+    el.innerHTML = `<div class="compose-box" style="text-align:center;padding:30px">
+      <div style="font-size:36px;margin-bottom:12px">⭐</div>
+      <p style="color:var(--text2);margin-bottom:14px">سجّل دخولك لمتابعة أسهمك المفضلة</p>
+      <button class="btn btn-primary" onclick="showLoginModal()">تسجيل الدخول</button>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h2 style="font-size:20px;font-weight:700">⭐ قائمة المتابعة</h2>
+      <button class="btn btn-primary btn-sm" onclick="showAddWatchlistModal()">➕ إضافة سهم</button>
+    </div>
+    <div id="watchlist-items">
+      <div class="skeleton" style="height:60px;margin-bottom:8px;border-radius:var(--r8)"></div>
+      <div class="skeleton" style="height:60px;margin-bottom:8px;border-radius:var(--r8)"></div>
+      <div class="skeleton" style="height:60px;border-radius:var(--r8)"></div>
+    </div>`;
+
+  try {
+    const r = await fetch('/api/watchlist');
+    const d = await r.json();
+    const container = document.getElementById('watchlist-items');
+
+    if (!d.watchlist?.length) {
+      container.innerHTML = `<div class="empty-state">
+        <div class="empty-icon">⭐</div>
+        <div class="empty-title">قائمتك فارغة</div>
+        <p style="margin-bottom:14px;color:var(--text2)">أضف الأسهم التي تريد متابعتها</p>
+        <button class="btn btn-primary btn-sm" onclick="showAddWatchlistModal()">➕ إضافة سهم</button>
+      </div>`;
+      return;
+    }
+
+    // جلب الأسعار بالتوازي
+    const prices = await Promise.all(d.watchlist.map(item =>
+      fetch(`/api/stock-price/${item.symbol.replace('$','')}`)
+        .then(r => r.json()).catch(() => null)
+    ));
+
+    container.innerHTML = d.watchlist.map((item, i) => {
+      const p = prices[i];
+      const isUp = p && !p.error && p.isUp;
+      const color = p?.error ? 'var(--text3)' : isUp ? 'var(--green)' : 'var(--red)';
+      const arrow = isUp ? '▲' : '▼';
+      return `
+        <div style="background:#fff;border:1.5px solid var(--border);border-radius:var(--r12);padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all .18s"
+          onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--border)'"
+          onclick="navigateToStock('${item.symbol}')">
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:15px;color:var(--primary)">${item.symbol}</div>
+            ${p && !p.error ? `<div style="font-size:12px;color:var(--text3);margin-top:2px">${p.name||''}</div>` : ''}
+          </div>
+          <div style="text-align:left">
+            ${p && !p.error ? `
+              <div style="font-size:16px;font-weight:700;color:var(--text)">${p.price}</div>
+              <div style="font-size:12px;color:${color};font-weight:600">${arrow} ${Math.abs(p.changePct)}%</div>
+            ` : `<div style="font-size:12px;color:var(--text3)">—</div>`}
+          </div>
+          <button onclick="event.stopPropagation();removeFromWatchlist('${item.symbol}')"
+            style="background:var(--red-bg);color:var(--red);border:1px solid var(--red);border-radius:var(--r8);padding:5px 10px;font-size:12px;cursor:pointer;flex-shrink:0">
+            ✕
+          </button>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('watchlist-items').innerHTML = `<div class="empty-state"><div class="empty-title">خطأ في التحميل</div></div>`;
+  }
+}
+
+function showAddWatchlistModal() {
+  if (!currentUser) { showLoginModal(); return; }
+  document.getElementById('auth-modal-content').innerHTML = `
+    <div class="modal-title">⭐ إضافة سهم للمتابعة</div>
+    <div class="modal-subtitle">أدخل رمز السهم</div>
+    <div class="form-group">
+      <label class="form-label">رمز السهم</label>
+      <input class="form-input" id="watchlist-symbol" placeholder="مثال: 2222 أو AAPL أو BTC" style="direction:ltr"
+        onkeydown="if(event.key==='Enter') submitAddWatchlist()">
+    </div>
+    <div id="watchlist-error" class="form-error"></div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;padding:12px" onclick="submitAddWatchlist()">إضافة ⭐</button>`;
+  showModal('auth-modal');
+  setTimeout(() => document.getElementById('watchlist-symbol')?.focus(), 100);
+}
+
+async function submitAddWatchlist() {
+  const sym = document.getElementById('watchlist-symbol').value.trim().toUpperCase().replace('$','');
+  const errEl = document.getElementById('watchlist-error');
+  if (!sym) { errEl.textContent = 'أدخل رمز السهم'; return; }
+  const btn = document.querySelector('#auth-modal-content .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'جاري الإضافة...'; }
+  try {
+    const r = await fetch(`/api/watchlist/${sym}`, { method:'POST' });
+    const d = await r.json();
+    if (d.error) { errEl.textContent = d.error; if(btn){btn.disabled=false;btn.textContent='إضافة ⭐';} return; }
+    toast(`✅ تمت إضافة $${sym} لقائمة المتابعة`, 'success');
+    closeModal('auth-modal');
+    loadWatchlistPage();
+  } catch(e) { errEl.textContent = 'حدث خطأ'; if(btn){btn.disabled=false;btn.textContent='إضافة ⭐';} }
+}
+
+async function removeFromWatchlist(symbol) {
+  const sym = symbol.replace('$','').toUpperCase();
+  const r = await fetch(`/api/watchlist/${sym}`, { method:'DELETE' });
+  const d = await r.json();
+  if (d.success) {
+    toast(`تمت إزالة ${symbol} من القائمة`, 'info');
+    loadWatchlistPage();
+  }
+}
+
+// زر ⭐ في صفحة السهم
+async function toggleWatchlist(symbol) {
+  if (!currentUser) { showLoginModal(); return; }
+  const sym = symbol.replace('$','').toUpperCase();
+  const btn = document.getElementById('watchlist-btn');
+  try {
+    const check = await fetch(`/api/watchlist/check/${sym}`);
+    const cd = await check.json();
+    if (cd.inWatchlist) {
+      await fetch(`/api/watchlist/${sym}`, { method:'DELETE' });
+      if (btn) { btn.textContent = '☆ متابعة'; btn.classList.remove('btn-primary'); btn.classList.add('btn-ghost'); }
+      toast('تمت الإزالة من قائمة المتابعة', 'info');
+    } else {
+      await fetch(`/api/watchlist/${sym}`, { method:'POST' });
+      if (btn) { btn.textContent = '⭐ في قائمتك'; btn.classList.add('btn-primary'); btn.classList.remove('btn-ghost'); }
+      toast(`✅ تمت إضافة $${sym} للقائمة`, 'success');
+    }
+  } catch(e) { toast('حدث خطأ', 'error'); }
+}
+
 async function loadStockPage(symbol) {
   const el = document.getElementById('stock-content');
   el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3)">⏳ جاري التحميل...</div>`;
@@ -3284,7 +3437,10 @@ async function loadStockPage(symbol) {
 
   el.innerHTML = `
     <div class="stock-header">
-      <div class="stock-symbol">${symbol}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div class="stock-symbol">${symbol}</div>
+        ${currentUser ? `<button class="btn btn-ghost btn-sm" id="watchlist-btn" onclick="toggleWatchlist('${symbol}')">☆ متابعة</button>` : ''}
+      </div>
       ${stockInfoName ? `<div class="stock-name">${stockInfoName}</div>` : (priceData.name && !priceData.error ? `<div class="stock-name">${priceData.name}</div>` : '')}
       <div style="margin-top:12px;display:flex;gap:16px;flex-wrap:wrap">
         <span style="color:var(--text2);font-size:14px">📊 ${stats.total_posts} منشور</span>
@@ -3317,6 +3473,25 @@ async function loadStockPage(symbol) {
   } else {
     sp.innerHTML = '';
     postsData.posts.forEach(p => sp.insertAdjacentHTML('beforeend', createPostCard(p)));
+  }
+
+  // تحقق من حالة قائمة المتابعة
+  if (currentUser) {
+    try {
+      const sym = symbol.replace('$','').toUpperCase();
+      const wr = await fetch(`/api/watchlist/check/${sym}`);
+      const wd = await wr.json();
+      const wBtn = document.getElementById('watchlist-btn');
+      if (wBtn) {
+        if (wd.inWatchlist) {
+          wBtn.textContent = '⭐ في قائمتك';
+          wBtn.classList.add('btn-primary');
+          wBtn.classList.remove('btn-ghost');
+        } else {
+          wBtn.textContent = '☆ متابعة';
+        }
+      }
+    } catch(e) {}
   }
 }
 
