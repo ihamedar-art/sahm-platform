@@ -1188,13 +1188,88 @@ body {
 @media(max-width:820px) {
   .sidebar { display:none; }
   .navbar-search { max-width:100%; }
-  .main-layout { padding:14px 12px; gap:14px; height:calc(100vh - var(--header-h)); }
-  .feed { height:100%; }
+  .main-layout { padding:14px 12px; gap:14px; }
 }
 @media(max-width:520px) {
   .post-card { padding:13px; }
   .compose-box { padding:13px; }
   .room-participants-panel { width:180px; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   MOBILE — Bottom Navigation Bar
+   ══════════════════════════════════════════════════════════ */
+.mobile-nav { display:none; }
+
+@media(max-width:768px) {
+  /* Navbar */
+  .navbar { padding:0 12px; height:52px; gap:8px; }
+  .logo-sub { display:none; }
+  .navbar-search { flex:1; max-width:100%; }
+  .navbar-search input { font-size:13px; height:34px; }
+  .navbar-actions .btn-ghost { display:none; }
+
+  /* Layout — مساحة للشريط السفلي */
+  .main-layout { padding:12px 10px 80px; gap:0; }
+
+  /* شريط المؤشرات */
+  .ticker-bar { padding:5px 8px; -webkit-overflow-scrolling:touch; }
+  .ticker-item { min-width:85px; padding:4px 8px; }
+  .ticker-price { font-size:11.5px; }
+  .ticker-label { font-size:10px; }
+  .ticker-change { font-size:10px; }
+
+  /* الفيد */
+  .post-card { padding:12px; margin-bottom:8px; }
+  .post-content { font-size:14px; }
+  .compose-textarea { min-height:70px; }
+  .compose-footer { flex-wrap:wrap; gap:6px; }
+
+  /* الغرف */
+  .room-page { flex-direction:column; height:auto; }
+  .room-participants-panel { width:100%; height:auto; border-left:none; border-bottom:1.5px solid var(--border); max-height:200px; }
+  .room-chat { height:calc(100vh - 320px); min-height:300px; }
+
+  /* الرسائل */
+  .msg-layout { height:calc(100vh - 140px); }
+  .msg-sidebar { width:68px; }
+  .msg-conv-name, .msg-conv-preview { display:none; }
+
+  /* الـ modal */
+  .modal { padding:22px 14px; }
+
+  /* الشريط السفلي */
+  .mobile-nav {
+    display:flex;
+    position:fixed; bottom:0; left:0; right:0;
+    height:58px;
+    background:#fff;
+    border-top:1.5px solid var(--border);
+    box-shadow:0 -2px 16px rgba(12,27,51,.08);
+    z-index:150;
+    align-items:stretch;
+    padding:0 4px;
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  .mobile-nav-item {
+    flex:1; display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    gap:3px; cursor:pointer; border-radius:var(--r8);
+    transition:all .15s; color:var(--text3);
+    padding:5px 2px; position:relative;
+    border:none; background:transparent; font-family:inherit;
+  }
+  .mobile-nav-item.active { color:var(--primary); }
+  .mobile-nav-item:active { background:var(--bg3); }
+  .mobile-nav-icon { font-size:19px; line-height:1; }
+  .mobile-nav-label { font-size:9.5px; font-weight:600; white-space:nowrap; }
+  .mobile-nav-badge {
+    position:absolute; top:3px; right:calc(50% - 16px);
+    background:var(--red); color:#fff; font-size:9px;
+    min-width:15px; height:15px; border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    font-weight:700; padding:0 3px; border:2px solid #fff;
+  }
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -1530,6 +1605,31 @@ body {
 <!-- ════ Toast Container ════ -->
 <div id="toast-container"></div>
 
+<!-- ════ Mobile Bottom Navigation ════ -->
+<nav class="mobile-nav" id="mobile-nav">
+  <button class="mobile-nav-item active" id="mnav-home" onclick="navigate('home');setMobileNav('home')">
+    <span class="mobile-nav-icon">🏠</span>
+    <span class="mobile-nav-label">الرئيسية</span>
+  </button>
+  <button class="mobile-nav-item" id="mnav-explore" onclick="navigate('explore');setMobileNav('explore')">
+    <span class="mobile-nav-icon">🔥</span>
+    <span class="mobile-nav-label">استكشاف</span>
+  </button>
+  <button class="mobile-nav-item" id="mnav-rooms" onclick="navigate('rooms');setMobileNav('rooms')">
+    <span class="mobile-nav-icon">🎙️</span>
+    <span class="mobile-nav-label">رومات</span>
+  </button>
+  <button class="mobile-nav-item" id="mnav-messages" onclick="navigate('messages');setMobileNav('messages')" style="position:relative">
+    <span class="mobile-nav-icon">💬</span>
+    <span class="mobile-nav-label">رسائل</span>
+    <span class="mobile-nav-badge" id="mnav-msg-badge" style="display:none"></span>
+  </button>
+  <button class="mobile-nav-item" id="mnav-profile" onclick="navigate('profile');setMobileNav('profile')">
+    <span class="mobile-nav-icon">👤</span>
+    <span class="mobile-nav-label">حسابي</span>
+  </button>
+</nav>
+
 <script>
 // ══════════════════════════════════════════════════════════════════
 // STATE
@@ -1796,6 +1896,25 @@ async function togglePin(postId, currentlyPinned) {
 // NAVIGATION
 // ══════════════════════════════════════════════════════════════════
 // ── مساعد: ارجع لأعلى الفيد دائماً ─────────────────────────
+// ── Mobile Bottom Nav ────────────────────────────────────────
+function setMobileNav(page) {
+  document.querySelectorAll('.mobile-nav-item').forEach(el => el.classList.remove('active'));
+  const active = document.getElementById('mnav-' + page);
+  if (active) active.classList.add('active');
+}
+
+// مزامنة الـ badge مع الرسائل
+function syncMobileNavBadges() {
+  const msgBadge = document.getElementById('msg-badge');
+  const mnavBadge = document.getElementById('mnav-msg-badge');
+  if (!msgBadge || !mnavBadge) return;
+  const count = msgBadge.textContent;
+  const show = msgBadge.style.display !== 'none' && count;
+  mnavBadge.style.display = show ? 'flex' : 'none';
+  mnavBadge.textContent = count;
+}
+setInterval(syncMobileNavBadges, 3000);
+
 function scrollFeedTop() {
   window.scrollTo(0,0);
   document.documentElement.scrollTop = 0;
@@ -1806,6 +1925,7 @@ function navigate(page, param = '', pushHistory = true) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   currentPage = page;
+  setMobileNav(page);
   const nav = document.getElementById('nav-' + page);
   if (nav) nav.classList.add('active');
 
