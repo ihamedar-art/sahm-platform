@@ -2760,7 +2760,14 @@ async function loadProfile(username) {
       </div>
     </div>
     <h3 style="margin-bottom:16px">منشورات @${u.username}</h3>
-    <div id="user-posts"></div>`;
+    <!-- تابات البروفايل -->
+    <div style="display:flex;gap:4px;margin-bottom:16px;background:#fff;border:1.5px solid var(--border);border-radius:var(--radius);padding:5px">
+      <button class="feed-tab active" id="ptab-posts" onclick="switchProfileTab('posts','${u.username}','${u.id}')">📝 المنشورات</button>
+      <button class="feed-tab" id="ptab-portfolio" onclick="switchProfileTab('portfolio','${u.username}','${u.id}')">📊 المحفظة</button>
+    </div>
+    <div id="profile-tab-content">
+      <div id="user-posts"></div>
+    </div>`;
 
   const postsRes = await fetch(`/api/posts?user_id=${u.id}`);
   const postsData = await postsRes.json();
@@ -2769,6 +2776,206 @@ async function loadProfile(username) {
     up.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">لا توجد منشورات بعد</div></div>`;
   } else {
     postsData.posts.forEach(p => up.insertAdjacentHTML('beforeend', createPostCard(p)));
+  }
+  window._portfolioUsername = u.username;
+  window._portfolioUserId = u.id;
+}
+
+// ── Profile Tabs ─────────────────────────────────────────────
+async function switchProfileTab(tab, username, userId) {
+  document.querySelectorAll('[id^="ptab-"]').forEach(b => b.classList.remove('active'));
+  const activeTab = document.getElementById('ptab-' + tab);
+  if (activeTab) activeTab.classList.add('active');
+
+  const el = document.getElementById('profile-tab-content');
+  if (tab === 'posts') {
+    el.innerHTML = '<div id="user-posts"></div>';
+    const r = await fetch(`/api/posts?user_id=${userId}`);
+    const d = await r.json();
+    const up = document.getElementById('user-posts');
+    if (!d.posts?.length) {
+      up.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">لا توجد منشورات بعد</div></div>`;
+    } else {
+      d.posts.forEach(p => up.insertAdjacentHTML('beforeend', createPostCard(p)));
+    }
+  } else if (tab === 'portfolio') {
+    await loadPortfolio(username, userId);
+  }
+}
+
+// ── Portfolio ─────────────────────────────────────────────────
+async function loadPortfolio(username, userId) {
+  const el = document.getElementById('profile-tab-content');
+  el.innerHTML = `<div class="skeleton" style="height:120px;border-radius:var(--radius);margin-bottom:12px"></div>
+                  <div class="skeleton" style="height:200px;border-radius:var(--radius)"></div>`;
+
+  try {
+    const r = await fetch(`/api/portfolio/${username}`);
+    const d = await r.json();
+    if (d.error) { el.innerHTML = `<div class="empty-state"><div class="empty-title">${d.error}</div></div>`; return; }
+
+    const isMe = currentUser && currentUser.username === username;
+    const isPositive = d.total_pnl >= 0;
+    const color = isPositive ? 'var(--green)' : 'var(--red)';
+    const arrow = isPositive ? '▲' : '▼';
+
+    el.innerHTML = `
+      <!-- بطاقة الملخص -->
+      <div style="background:linear-gradient(135deg,var(--primary),var(--purple));border-radius:var(--radius);padding:18px;margin-bottom:14px;color:#fff">
+        <div style="font-size:12px;opacity:.8;margin-bottom:6px;font-weight:600">📊 المحفظة الافتراضية</div>
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <div>
+            <div style="font-size:11px;opacity:.7">إجمالي القيمة</div>
+            <div style="font-size:28px;font-weight:700">${d.total_value.toLocaleString('en',{maximumFractionDigits:2})} <span style="font-size:14px;opacity:.8">ريال</span></div>
+            <div style="font-size:13px;margin-top:4px;color:${isPositive?'#6EE7B7':'#FCA5A5'}">
+              ${arrow} ${Math.abs(d.total_pnl).toLocaleString('en',{maximumFractionDigits:2})} ريال (${Math.abs(d.total_return).toFixed(2)}%)
+            </div>
+          </div>
+          <div style="text-align:left">
+            <div style="font-size:11px;opacity:.7">الرصيد النقدي</div>
+            <div style="font-size:16px;font-weight:700">${d.cash.toLocaleString('en',{maximumFractionDigits:2})}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- الأسهم -->
+      <div style="background:#fff;border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:12px">
+        <div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:13px;font-weight:700">الأسهم المحتفظ بها</div>
+          ${isMe ? `<button class="btn btn-primary btn-sm" onclick="showBuyModal()">➕ شراء</button>` : ''}
+        </div>
+        ${d.holdings.length === 0 ? `
+          <div class="empty-state" style="padding:30px">
+            <div class="empty-icon">📭</div>
+            <div class="empty-title">لا توجد أسهم في المحفظة</div>
+            ${isMe ? `<button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="showBuyModal()">ابدأ بشراء سهم</button>` : ''}
+          </div>` : `
+          <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr style="background:var(--bg3);border-bottom:1px solid var(--border)">
+              <th style="padding:10px 12px;text-align:right">السهم</th>
+              <th style="padding:10px;text-align:center">الكمية</th>
+              <th style="padding:10px;text-align:center">متوسط الشراء</th>
+              <th style="padding:10px;text-align:center">السعر الحالي</th>
+              <th style="padding:10px;text-align:center">الربح/الخسارة</th>
+              ${isMe ? `<th style="padding:10px;text-align:center">بيع</th>` : ''}
+            </tr></thead>
+            <tbody>
+            ${d.holdings.map(h => {
+              const hColor = h.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+              const hArrow = h.pnl >= 0 ? '▲' : '▼';
+              return `<tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:10px 12px">
+                  <div style="font-weight:700;color:var(--primary)">${h.symbol}</div>
+                  <div style="font-size:11px;color:var(--text3)">${h.name}</div>
+                </td>
+                <td style="padding:10px;text-align:center">${h.quantity}</td>
+                <td style="padding:10px;text-align:center">${h.avg_price.toFixed(2)}</td>
+                <td style="padding:10px;text-align:center;font-weight:600">${h.current_price.toFixed(2)}</td>
+                <td style="padding:10px;text-align:center;color:${hColor};font-weight:600">
+                  ${hArrow} ${Math.abs(h.pnl).toFixed(2)}<br>
+                  <span style="font-size:11px">${Math.abs(h.pnl_pct).toFixed(2)}%</span>
+                </td>
+                ${isMe ? `<td style="padding:10px;text-align:center">
+                  <button class="btn btn-danger btn-sm" onclick="showSellModal('${h.symbol}','${h.name}',${h.quantity},${h.current_price})">بيع</button>
+                </td>` : ''}
+              </tr>`;
+            }).join('')}
+            </tbody>
+          </table></div>`}
+      </div>
+
+      ${isMe ? `
+      <div style="text-align:center;margin-top:8px">
+        <button class="btn btn-ghost btn-sm" onclick="resetPortfolio()" style="color:var(--red);border-color:var(--red)">🔄 إعادة تعيين المحفظة</button>
+      </div>` : ''}`;
+
+    window._portfolioUsername = username;
+    window._portfolioUserId = userId;
+  } catch(e) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-title">خطأ في تحميل المحفظة</div></div>`;
+  }
+}
+
+function showBuyModal() {
+  if (!currentUser) { showLoginModal(); return; }
+  document.getElementById('auth-modal-content').innerHTML = `
+    <div class="modal-title">➕ شراء سهم</div>
+    <div class="modal-subtitle">أدخل رمز السهم والكمية</div>
+    <div class="form-group">
+      <label class="form-label">رمز السهم</label>
+      <input class="form-input" id="buy-symbol" placeholder="مثال: 2222 أو AAPL" style="direction:ltr">
+    </div>
+    <div class="form-group">
+      <label class="form-label">الكمية</label>
+      <input class="form-input" id="buy-qty" type="number" placeholder="عدد الأسهم" min="1">
+    </div>
+    <div id="buy-error" class="form-error"></div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;padding:12px" onclick="submitBuy()">شراء ✅</button>`;
+  showModal('auth-modal');
+}
+
+async function submitBuy() {
+  const symbol = '$' + document.getElementById('buy-symbol').value.trim().toUpperCase().replace('$','');
+  const qty = parseFloat(document.getElementById('buy-qty').value);
+  const errEl = document.getElementById('buy-error');
+  if (!symbol || symbol === '$') { errEl.textContent = 'أدخل رمز السهم'; return; }
+  if (!qty || qty <= 0) { errEl.textContent = 'أدخل كمية صحيحة'; return; }
+  errEl.textContent = '';
+  const btn = document.querySelector('#auth-modal-content .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'جاري الشراء...'; }
+  try {
+    const r = await fetch('/api/portfolio/buy', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ symbol, name: symbol, quantity: qty })
+    });
+    const d = await r.json();
+    if (d.error) { errEl.textContent = d.error; if(btn){btn.disabled=false;btn.textContent='شراء ✅';} return; }
+    toast(`✅ تم شراء ${qty} سهم بسعر ${d.price.toFixed(2)}`, 'success');
+    closeModal('auth-modal');
+    if (window._portfolioUsername) await loadPortfolio(window._portfolioUsername, window._portfolioUserId);
+  } catch(e) { errEl.textContent = 'حدث خطأ'; if(btn){btn.disabled=false;btn.textContent='شراء ✅';} }
+}
+
+function showSellModal(symbol, name, maxQty, currentPrice) {
+  document.getElementById('auth-modal-content').innerHTML = `
+    <div class="modal-title">📤 بيع سهم</div>
+    <div class="modal-subtitle">${symbol} — السعر الحالي: ${currentPrice.toFixed(2)}</div>
+    <div class="form-group">
+      <label class="form-label">الكمية (الحد الأقصى: ${maxQty})</label>
+      <input class="form-input" id="sell-qty" type="number" placeholder="عدد الأسهم" min="1" max="${maxQty}" value="${maxQty}">
+    </div>
+    <div id="sell-error" class="form-error"></div>
+    <button class="btn btn-danger" style="width:100%;justify-content:center;margin-top:8px;padding:12px" onclick="submitSell('${symbol}')">بيع 📤</button>`;
+  showModal('auth-modal');
+}
+
+async function submitSell(symbol) {
+  const qty = parseFloat(document.getElementById('sell-qty').value);
+  const errEl = document.getElementById('sell-error');
+  if (!qty || qty <= 0) { errEl.textContent = 'أدخل كمية صحيحة'; return; }
+  const btn = document.querySelector('#auth-modal-content .btn-danger');
+  if (btn) { btn.disabled = true; btn.textContent = 'جاري البيع...'; }
+  try {
+    const r = await fetch('/api/portfolio/sell', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ symbol, quantity: qty })
+    });
+    const d = await r.json();
+    if (d.error) { errEl.textContent = d.error; if(btn){btn.disabled=false;btn.textContent='بيع 📤';} return; }
+    toast(`✅ تم بيع ${qty} سهم بسعر ${d.price.toFixed(2)}`, 'success');
+    closeModal('auth-modal');
+    if (window._portfolioUsername) await loadPortfolio(window._portfolioUsername, window._portfolioUserId);
+  } catch(e) { errEl.textContent = 'حدث خطأ'; if(btn){btn.disabled=false;btn.textContent='بيع 📤';} }
+}
+
+async function resetPortfolio() {
+  if (!confirm('إعادة تعيين المحفظة؟ سيتم حذف كل الأسهم والعودة لـ 100,000 ريال')) return;
+  const r = await fetch('/api/portfolio/reset', { method:'POST' });
+  const d = await r.json();
+  if (d.success) {
+    toast('✅ تمت إعادة تعيين المحفظة', 'success');
+    if (window._portfolioUsername) await loadPortfolio(window._portfolioUsername, window._portfolioUserId);
   }
 }
 

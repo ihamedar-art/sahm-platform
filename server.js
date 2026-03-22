@@ -2896,6 +2896,212 @@ app.get('/api/messages/:convId', requireAuth, (req, res) => {
   res.json({ messages: msgs.map(m => ({ ...m, time_ago: formatTime(m.created_at) })) });
 });
 
+// ══════════════════════════════════════════════════════════════════
+// VIRTUAL PORTFOLIO — المحفظة الافتراضية
+// ══════════════════════════════════════════════════════════════════
+
+try { db.exec(`
+  CREATE TABLE IF NOT EXISTS portfolios (
+    user_id TEXT PRIMARY KEY,
+    cash REAL DEFAULT 100000,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS portfolio_holdings (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    name TEXT DEFAULT '',
+    quantity REAL NOT NULL,
+    avg_price REAL NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, symbol)
+  );
+  CREATE TABLE IF NOT EXISTS portfolio_transactions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    name TEXT DEFAULT '',
+    type TEXT NOT NULL,
+    quantity REAL NOT NULL,
+    price REAL NOT NULL,
+    total REAL NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`); } catch(e) {}
+
+const PORTFOLIO_INITIAL_CASH = 100000;
+
+// جلب أو إنشاء محفظة المستخدم
+function getOrCreatePortfolio(userId) {
+  let p = db.prepare('SELECT * FROM portfolios WHERE user_id=?').get(userId);
+  if (!p) {
+    db.prepare('INSERT INTO portfolios (user_id,cash) VALUES (?,?)').run(userId, PORTFOLIO_INITIAL_CASH);
+    p = db.prepare('SELECT * FROM portfolios WHERE user_id=?').get(userId);
+  }
+  return p;
+}
+
+// جلب المحفظة مع الأسهم
+app.get('/api/portfolio/:username', async (req, res) => {
+  const user = db.prepare('SELECT id FROM users WHERE username=?').get(req.params.username);
+  if (!user) return res.json({ error: 'المستخدم غير موجود' });
+
+  const portfolio = getOrCreatePortfolio(user.id);
+  const holdings = db.prepare('SELECT * FROM portfolio_holdings WHERE user_id=? ORDER BY created_at DESC').all(user.id);
+
+  // جلب الأسعار الحالية
+  let totalValue = portfolio.cash;
+  const holdingsWithPrice = await Promise.all(holdings.map(async (h) => {
+    try {
+      const sym = h.symbol.replace('$','').toUpperCase();
+      const upper = sym;
+      const yahooSym = sym.match(/^\d+$/) ? `${sym}.SR` : (YAHOO_SYMBOL_MAP[upper] || sym);
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSym)}?interval=1d&range=2d`;
+      const price = await new Promise((resolve) => {
+        const req2 = https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (r) => {
+          let d = '';
+          r.on('data', chunk => d += chunk);
+          r.on('end', () => {
+            try {
+              const json = JSON.parse(d);
+              resolve(json?.chart?.result?.[0]?.meta?.regularMarketPrice || h.avg_price);
+            } catch(e) { resolve(h.avg_price); }
+          });
+        });
+        req2.on('error', () => resolve(h.avg_price));
+        req2.setTimeout(5000, () => { req2.destroy(); resolve(h.avg_price); });
+      });
+      const currentValue = price * h.quantity;
+      const costValue = h.avg_price * h.quantity;
+      const pnl = currentValue - costValue;
+      const pnlPct = costValue ? (pnl / costValue) * 100 : 0;
+      totalValue += currentValue;
+      return { ...h, current_price: price, current_value: currentValue, pnl, pnl_pct: pnlPct };
+    } catch(e) {
+      totalValue += h.avg_price * h.quantity;
+      return { ...h, current_price: h.avg_price, current_value: h.avg_price * h.quantity, pnl: 0, pnl_pct: 0 };
+    }
+  }));
+
+  const totalCost = holdings.reduce((s, h) => s + h.avg_price * h.quantity, 0);
+  const totalPnl = totalValue - portfolio.cash - totalCost;
+  const totalReturn = PORTFOLIO_INITIAL_CASH ? ((totalValue - PORTFOLIO_INITIAL_CASH) / PORTFOLIO_INITIAL_CASH) * 100 : 0;
+
+  res.json({
+    cash: portfolio.cash,
+    total_value: totalValue,
+    total_pnl: totalValue - PORTFOLIO_INITIAL_CASH,
+    total_return: totalReturn,
+    holdings: holdingsWithPrice,
+  });
+});
+
+// شراء سهم
+app.post('/api/portfolio/buy', requireAuth, async (req, res) => {
+  const { symbol, name, quantity } = req.body;
+  if (!symbol || !quantity || quantity <= 0) return res.json({ error: 'بيانات غير صحيحة' });
+
+  const portfolio = getOrCreatePortfolio(req.session.userId);
+
+  // جلب السعر الحالي
+  const sym = symbol.replace('$','').toUpperCase();
+  const yahooSym = sym.match(/^\d+$/) ? `${sym}.SR` : (YAHOO_SYMBOL_MAP[sym] || sym);
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSym)}?interval=1d&range=2d`;
+
+  let price = 0;
+  try {
+    price = await new Promise((resolve) => {
+      const req2 = https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (r) => {
+        let d = '';
+        r.on('data', chunk => d += chunk);
+        r.on('end', () => {
+          try { resolve(JSON.parse(d)?.chart?.result?.[0]?.meta?.regularMarketPrice || 0); }
+          catch(e) { resolve(0); }
+        });
+      });
+      req2.on('error', () => resolve(0));
+      req2.setTimeout(5000, () => { req2.destroy(); resolve(0); });
+    });
+  } catch(e) {}
+
+  if (!price) return res.json({ error: 'تعذر جلب سعر السهم' });
+
+  const total = price * quantity;
+  if (total > portfolio.cash) return res.json({ error: `رصيدك غير كافٍ — تحتاج ${total.toFixed(2)} ريال، رصيدك ${portfolio.cash.toFixed(2)}` });
+
+  // تحديث الرصيد
+  db.prepare('UPDATE portfolios SET cash=cash-? WHERE user_id=?').run(total, req.session.userId);
+
+  // إضافة أو تحديث الحيازة
+  const existing = db.prepare('SELECT * FROM portfolio_holdings WHERE user_id=? AND symbol=?').get(req.session.userId, symbol);
+  if (existing) {
+    const newQty = existing.quantity + quantity;
+    const newAvg = ((existing.avg_price * existing.quantity) + total) / newQty;
+    db.prepare('UPDATE portfolio_holdings SET quantity=?, avg_price=? WHERE user_id=? AND symbol=?').run(newQty, newAvg, req.session.userId, symbol);
+  } else {
+    db.prepare('INSERT INTO portfolio_holdings (id,user_id,symbol,name,quantity,avg_price) VALUES (?,?,?,?,?,?)').run(uuidv4(), req.session.userId, symbol, name||symbol, quantity, price);
+  }
+
+  // تسجيل المعاملة
+  db.prepare('INSERT INTO portfolio_transactions (id,user_id,symbol,name,type,quantity,price,total) VALUES (?,?,?,?,?,?,?,?)').run(uuidv4(), req.session.userId, symbol, name||symbol, 'buy', quantity, price, total);
+
+  res.json({ success: true, price, total });
+});
+
+// بيع سهم
+app.post('/api/portfolio/sell', requireAuth, async (req, res) => {
+  const { symbol, quantity } = req.body;
+  if (!symbol || !quantity || quantity <= 0) return res.json({ error: 'بيانات غير صحيحة' });
+
+  const holding = db.prepare('SELECT * FROM portfolio_holdings WHERE user_id=? AND symbol=?').get(req.session.userId, symbol);
+  if (!holding) return res.json({ error: 'لا تملك هذا السهم' });
+  if (quantity > holding.quantity) return res.json({ error: `لا تملك سوى ${holding.quantity} سهم` });
+
+  // جلب السعر الحالي
+  const sym = symbol.replace('$','').toUpperCase();
+  const yahooSym = sym.match(/^\d+$/) ? `${sym}.SR` : (YAHOO_SYMBOL_MAP[sym] || sym);
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSym)}?interval=1d&range=2d`;
+
+  let price = 0;
+  try {
+    price = await new Promise((resolve) => {
+      const req2 = https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (r) => {
+        let d = '';
+        r.on('data', chunk => d += chunk);
+        r.on('end', () => {
+          try { resolve(JSON.parse(d)?.chart?.result?.[0]?.meta?.regularMarketPrice || 0); }
+          catch(e) { resolve(0); }
+        });
+      });
+      req2.on('error', () => resolve(0));
+      req2.setTimeout(5000, () => { req2.destroy(); resolve(0); });
+    });
+  } catch(e) {}
+
+  if (!price) return res.json({ error: 'تعذر جلب سعر السهم' });
+
+  const total = price * quantity;
+  db.prepare('UPDATE portfolios SET cash=cash+? WHERE user_id=?').run(total, req.session.userId);
+
+  if (quantity === holding.quantity) {
+    db.prepare('DELETE FROM portfolio_holdings WHERE user_id=? AND symbol=?').run(req.session.userId, symbol);
+  } else {
+    db.prepare('UPDATE portfolio_holdings SET quantity=quantity-? WHERE user_id=? AND symbol=?').run(quantity, req.session.userId, symbol);
+  }
+
+  db.prepare('INSERT INTO portfolio_transactions (id,user_id,symbol,name,type,quantity,price,total) VALUES (?,?,?,?,?,?,?,?)').run(uuidv4(), req.session.userId, symbol, holding.name, 'sell', quantity, price, total);
+
+  res.json({ success: true, price, total });
+});
+
+// إعادة تعيين المحفظة
+app.post('/api/portfolio/reset', requireAuth, (req, res) => {
+  db.prepare('UPDATE portfolios SET cash=? WHERE user_id=?').run(PORTFOLIO_INITIAL_CASH, req.session.userId);
+  db.prepare('DELETE FROM portfolio_holdings WHERE user_id=?').run(req.session.userId);
+  db.prepare('DELETE FROM portfolio_transactions WHERE user_id=?').run(req.session.userId);
+  res.json({ success: true });
+});
+
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
