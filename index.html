@@ -3249,7 +3249,7 @@ async function loadWatchlistPage() {
       return `
         <div style="background:#fff;border:1.5px solid var(--border);border-radius:var(--r12);padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all .18s"
           onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--border)'"
-          onclick="navigateToStock('${item.symbol}')">
+          onclick="navigateToStock('$${item.symbol}')">
           <div style="flex:1">
             <div style="font-weight:700;font-size:15px;color:var(--primary)">${item.symbol}</div>
             ${p && !p.error ? `<div style="font-size:12px;color:var(--text3);margin-top:2px">${p.name||''}</div>` : ''}
