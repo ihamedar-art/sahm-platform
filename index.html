@@ -6608,6 +6608,15 @@ function calcMACD(data, fast = 12, slow = 26, signal = 9) {
   return { macdLine, signalLine, histogram };
 }
 
+function onMAPeriodChange() {
+  // لو في بيانات محملة → أعد التحميل للحصول على عدد شمعات كافٍ
+  if (chartCandles.length > 0) {
+    loadChartData();
+  } else {
+    drawChart();
+  }
+}
+
 function toggleIndicator(name) {
   chartIndicators[name] = !chartIndicators[name];
   const btn = document.getElementById('ind-' + name);
@@ -6708,7 +6717,7 @@ function openChartDrawer() {
       <div style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid var(--border);background:#f8fafc;flex-wrap:wrap">
         <span style="font-size:12px;font-weight:600;color:var(--text2)">مؤشرات:</span>
         <button class="chart-tool-btn" id="ind-ma" onclick="toggleIndicator('ma')">MA</button>
-        <select id="ind-ma-period" onchange="drawChart()" style="padding:3px 6px;border-radius:6px;border:1px solid var(--border);font-size:12px;background:#fff">
+        <select id="ind-ma-period" onchange="onMAPeriodChange()" style="padding:3px 6px;border-radius:6px;border:1px solid var(--border);font-size:12px;background:#fff">
           <option value="10">10</option>
           <option value="20" selected>20</option>
           <option value="50">50</option>
@@ -6838,8 +6847,19 @@ async function loadChartData() {
   if (exchange === 'SR') yahooSymbol = `${symbolInput}.SR`;
 
   // تحديد الـ range بناءً على الفريم
-  const rangeMap = { '5m':'1d', '15m':'5d', '30m':'5d', '1h':'1mo', '4h':'3mo', '1d':'3mo', '1wk':'1y', '1mo':'5y' };
-  const range = rangeMap[interval] || '3mo';
+  // نختار الـ range بناءً على MA period المختار — لضمان كفاية الشمعات
+  const maPeriod = parseInt(document.getElementById('ind-ma-period')?.value || 20);
+  const rangeMap = {
+    '5m':  '5d',
+    '15m': '1mo',
+    '30m': '1mo',
+    '1h':  '3mo',
+    '4h':  '6mo',
+    '1d':  maPeriod >= 200 ? '2y' : maPeriod >= 50 ? '1y' : '6mo',
+    '1wk': '5y',
+    '1mo': '10y'
+  };
+  const range = rangeMap[interval] || '6mo';
 
   document.getElementById('cd-status').textContent = '⏳ جاري التحميل...';
   try {
@@ -6977,11 +6997,21 @@ function drawChart() {
       s ? ctx.lineTo(cx(i), px(v)) : (ctx.moveTo(cx(i), px(v)), s = true);
     });
     ctx.stroke();
-    // Label
-    const last = maData.filter(v => v !== null).pop();
-    if (last) {
-      ctx.fillStyle = '#f59e0b'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'left';
-      ctx.fillText(`MA${period}`, W - PAD.right + 4, px(last));
+    // Label على يمين الشارت مع القيمة
+    const lastMA = maData[maData.length - 1];
+    if (lastMA !== null) {
+      const ly = px(lastMA);
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(W - PAD.right + 2, ly - 9, PAD.right - 4, 18);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'left';
+      ctx.fillText(`MA${period}`, W - PAD.right + 4, ly + 3);
+    } else {
+      // MA مش مكتمل — أظهر label مع آخر قيمة متوفرة
+      const lastValid = [...maData].reverse().find(v => v !== null);
+      if (lastValid) {
+        ctx.fillStyle = '#f59e0b'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'left';
+        ctx.fillText(`MA${period}: ${lastValid.toFixed(2)} (ناقص بيانات)`, PAD.left + 60, PAD.top + 16);
+      }
     }
   }
 
@@ -6996,10 +7026,13 @@ function drawChart() {
       s ? ctx.lineTo(cx(i), px(v)) : (ctx.moveTo(cx(i), px(v)), s = true);
     });
     ctx.stroke();
-    const last = emaData.filter(v => v !== null).pop();
-    if (last) {
-      ctx.fillStyle = '#10b981'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'left';
-      ctx.fillText(`EMA${period}`, W - PAD.right + 4, px(last) + 12);
+    const lastEMA = emaData[emaData.length - 1];
+    if (lastEMA !== null) {
+      const ly = px(lastEMA);
+      ctx.fillStyle = '#10b981';
+      ctx.fillRect(W - PAD.right + 2, ly - 9, PAD.right - 4, 18);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'left';
+      ctx.fillText(`EMA${period}`, W - PAD.right + 4, ly + 3);
     }
   }
 
