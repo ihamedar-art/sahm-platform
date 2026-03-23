@@ -6355,6 +6355,109 @@ let chartLineWidth = 2;
 let chartDrawings = [];
 let chartIsDrawing = false;
 let chartStartX, chartStartY;
+let chartIndicators = { ma: false, ema: false, bb: false, rsi: false, macd: false, vol: false };
+
+// ── حساب المؤشرات التقنية ─────────────────────────────────
+function calcMA(data, period) {
+  return data.map((_, i) => {
+    if (i < period - 1) return null;
+    const slice = data.slice(i - period + 1, i + 1);
+    return slice.reduce((s, v) => s + v, 0) / period;
+  });
+}
+
+function calcEMA(data, period) {
+  const k = 2 / (period + 1);
+  const result = [];
+  let ema = null;
+  for (let i = 0; i < data.length; i++) {
+    if (ema === null) {
+      if (i < period - 1) { result.push(null); continue; }
+      ema = data.slice(0, period).reduce((s, v) => s + v, 0) / period;
+    } else {
+      ema = data[i] * k + ema * (1 - k);
+    }
+    result.push(ema);
+  }
+  return result;
+}
+
+function calcBollinger(data, period = 20, mult = 2) {
+  const ma = calcMA(data, period);
+  return data.map((_, i) => {
+    if (ma[i] === null) return { mid: null, upper: null, lower: null };
+    const slice = data.slice(i - period + 1, i + 1);
+    const mean = ma[i];
+    const std = Math.sqrt(slice.reduce((s, v) => s + (v - mean) ** 2, 0) / period);
+    return { mid: mean, upper: mean + mult * std, lower: mean - mult * std };
+  });
+}
+
+function calcRSI(data, period = 14) {
+  const result = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i < period) { result.push(null); continue; }
+    let gains = 0, losses = 0;
+    for (let j = i - period + 1; j <= i; j++) {
+      const diff = data[j] - data[j - 1];
+      if (diff > 0) gains += diff; else losses -= diff;
+    }
+    const rs = losses === 0 ? 100 : gains / losses;
+    result.push(100 - 100 / (1 + rs));
+  }
+  return result;
+}
+
+function calcMACD(data, fast = 12, slow = 26, signal = 9) {
+  const emaFast = calcEMA(data, fast);
+  const emaSlow = calcEMA(data, slow);
+  const macdLine = data.map((_, i) =>
+    emaFast[i] !== null && emaSlow[i] !== null ? emaFast[i] - emaSlow[i] : null
+  );
+  const validMacd = macdLine.map(v => v !== null ? v : 0);
+  const signalLine = calcEMA(validMacd, signal);
+  const histogram = macdLine.map((v, i) =>
+    v !== null && signalLine[i] !== null ? v - signalLine[i] : null
+  );
+  return { macdLine, signalLine, histogram };
+}
+
+function toggleIndicator(name) {
+  chartIndicators[name] = !chartIndicators[name];
+  const btn = document.getElementById('ind-' + name);
+  if (btn) {
+    btn.style.background = chartIndicators[name] ? 'var(--primary)' : '';
+    btn.style.color = chartIndicators[name] ? '#fff' : '';
+    btn.style.borderColor = chartIndicators[name] ? 'var(--primary)' : '';
+  }
+  // إظهار/إخفاء الـ panel
+  const rsiCanvas = document.getElementById('chart-rsi');
+  const macdCanvas = document.getElementById('chart-macd');
+  const volCanvas = document.getElementById('chart-vol');
+  if (rsiCanvas) rsiCanvas.style.display = chartIndicators.rsi ? 'block' : 'none';
+  if (macdCanvas) macdCanvas.style.display = chartIndicators.macd ? 'block' : 'none';
+  if (volCanvas) volCanvas.style.display = chartIndicators.vol ? 'block' : 'none';
+  resizeChartCanvases();
+  drawChart();
+}
+
+function resizeChartCanvases() {
+  const wrap = document.getElementById('chart-canvas-wrap');
+  if (!wrap) return;
+  const main = document.getElementById('chart-canvas');
+  const rsi = document.getElementById('chart-rsi');
+  const macd = document.getElementById('chart-macd');
+  const vol = document.getElementById('chart-vol');
+  const totalH = wrap.clientHeight;
+  const rsiH = (chartIndicators.rsi && rsi) ? 100 : 0;
+  const macdH = (chartIndicators.macd && macd) ? 100 : 0;
+  const volH = (chartIndicators.vol && vol) ? 80 : 0;
+  const mainH = totalH - rsiH - macdH - volH;
+  if (main) { main.width = wrap.clientWidth; main.height = Math.max(200, mainH); }
+  if (rsi && chartIndicators.rsi) { rsi.width = wrap.clientWidth; rsi.height = rsiH; }
+  if (macd && chartIndicators.macd) { macd.width = wrap.clientWidth; macd.height = macdH; }
+  if (vol && chartIndicators.vol) { vol.width = wrap.clientWidth; vol.height = volH; }
+}
 
 function openChartDrawer() {
   if (document.getElementById('chart-drawer-overlay')) return;
@@ -6405,8 +6508,33 @@ function openChartDrawer() {
         <button class="chart-tool-btn" onclick="clearAllDrawings()">🗑 مسح</button>
         <span id="cd-status" style="font-size:12px;color:var(--text3);margin-right:auto;padding-right:8px"></span>
       </div>
-      <div class="chart-canvas-wrap" id="chart-canvas-wrap">
-        <canvas id="chart-canvas"></canvas>
+      <!-- شريط المؤشرات التقنية -->
+      <div style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid var(--border);background:#f8fafc;flex-wrap:wrap">
+        <span style="font-size:12px;font-weight:600;color:var(--text2)">مؤشرات:</span>
+        <button class="chart-tool-btn" id="ind-ma" onclick="toggleIndicator('ma')">MA</button>
+        <select id="ind-ma-period" onchange="drawChart()" style="padding:3px 6px;border-radius:6px;border:1px solid var(--border);font-size:12px;background:#fff">
+          <option value="10">10</option>
+          <option value="20" selected>20</option>
+          <option value="50">50</option>
+          <option value="200">200</option>
+        </select>
+        <button class="chart-tool-btn" id="ind-ema" onclick="toggleIndicator('ema')">EMA</button>
+        <select id="ind-ema-period" onchange="drawChart()" style="padding:3px 6px;border-radius:6px;border:1px solid var(--border);font-size:12px;background:#fff">
+          <option value="9">9</option>
+          <option value="21" selected>21</option>
+          <option value="55">55</option>
+        </select>
+        <button class="chart-tool-btn" id="ind-bb" onclick="toggleIndicator('bb')">Bollinger</button>
+        <div style="width:1px;height:20px;background:var(--border);margin:0 2px"></div>
+        <button class="chart-tool-btn" id="ind-rsi" onclick="toggleIndicator('rsi')">RSI</button>
+        <button class="chart-tool-btn" id="ind-macd" onclick="toggleIndicator('macd')">MACD</button>
+        <button class="chart-tool-btn" id="ind-vol" onclick="toggleIndicator('vol')">حجم</button>
+      </div>
+      <div class="chart-canvas-wrap" id="chart-canvas-wrap" style="display:flex;flex-direction:column">
+        <canvas id="chart-canvas" style="flex:1"></canvas>
+        <canvas id="chart-vol" style="display:none;border-top:1px solid #e2e8f0;background:#fff;height:80px"></canvas>
+        <canvas id="chart-rsi" style="display:none;border-top:1px solid #e2e8f0;background:#fff;height:100px"></canvas>
+        <canvas id="chart-macd" style="display:none;border-top:1px solid #e2e8f0;background:#fff;height:100px"></canvas>
       </div>
       <div class="chart-footer">
         <span style="font-size:12px;color:var(--text3)">ارسم على الشارت ثم احفظه في المنشور</span>
@@ -6443,6 +6571,10 @@ function initChartCanvas() {
   canvas.addEventListener('mousemove', onChartMouseMove);
   canvas.addEventListener('mouseup', onChartMouseUp);
   canvas.addEventListener('mouseleave', onChartMouseUp);
+  // touch support
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); onChartMouseDown(e.touches[0]); }, { passive: false });
+  canvas.addEventListener('touchmove', e => { e.preventDefault(); onChartMouseMove(e.touches[0]); }, { passive: false });
+  canvas.addEventListener('touchend', e => { e.preventDefault(); onChartMouseUp(e.changedTouches[0]); }, { passive: false });
 }
 
 async function loadChartData() {
@@ -6474,6 +6606,7 @@ async function loadChartData() {
 }
 
 function drawChart() {
+  resizeChartCanvases();
   const canvas = document.getElementById('chart-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -6488,15 +6621,27 @@ function drawChart() {
     ctx.font = '15px Arial';
     ctx.textAlign = 'center';
     ctx.fillText('أدخل رمز السهم واضغط تحميل 📥', W/2, H/2);
+    drawSubPanels();
     return;
   }
 
   const candles = chartCandles;
   const n = candles.length;
+  const closes = candles.map(c => c.close);
   const prices = candles.flatMap(c => [c.high, c.low]).filter(Boolean);
   const minP = Math.min(...prices), maxP = Math.max(...prices);
-  const padP = (maxP - minP) * 0.06;
-  const pMin = minP - padP, pMax = maxP + padP;
+
+  // ── حساب Bollinger لتوسيع النطاق إن لزم ──
+  let bbData = null;
+  if (chartIndicators.bb) {
+    bbData = calcBollinger(closes);
+    const bbPrices = bbData.flatMap(b => b.upper && b.lower ? [b.upper, b.lower] : []).filter(Boolean);
+    if (bbPrices.length) {
+      prices.push(...bbPrices);
+    }
+  }
+  const pMin = Math.min(...prices) - (maxP - minP) * 0.04;
+  const pMax = Math.max(...prices) + (maxP - minP) * 0.04;
 
   const chartW = W - PAD.left - PAD.right;
   const chartH = H - PAD.top - PAD.bottom;
@@ -6514,6 +6659,84 @@ function drawChart() {
     const price = pMax - ((pMax - pMin) / 5) * i;
     ctx.fillStyle = '#94a3b8'; ctx.font = '11px Arial'; ctx.textAlign = 'left';
     ctx.fillText(price.toFixed(2), W - PAD.right + 4, y + 4);
+  }
+
+  // ── Bollinger Bands ──
+  if (chartIndicators.bb && bbData) {
+    ctx.lineWidth = 1;
+    // Upper
+    ctx.strokeStyle = 'rgba(99,102,241,0.7)';
+    ctx.beginPath();
+    let started = false;
+    bbData.forEach((b, i) => {
+      if (b.upper === null) { started = false; return; }
+      started ? ctx.lineTo(cx(i), px(b.upper)) : (ctx.moveTo(cx(i), px(b.upper)), started = true);
+    });
+    ctx.stroke();
+    // Lower
+    ctx.strokeStyle = 'rgba(99,102,241,0.7)';
+    ctx.beginPath(); started = false;
+    bbData.forEach((b, i) => {
+      if (b.lower === null) { started = false; return; }
+      started ? ctx.lineTo(cx(i), px(b.lower)) : (ctx.moveTo(cx(i), px(b.lower)), started = true);
+    });
+    ctx.stroke();
+    // Mid (dashed)
+    ctx.strokeStyle = 'rgba(99,102,241,0.4)';
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath(); started = false;
+    bbData.forEach((b, i) => {
+      if (b.mid === null) { started = false; return; }
+      started ? ctx.lineTo(cx(i), px(b.mid)) : (ctx.moveTo(cx(i), px(b.mid)), started = true);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Fill between bands
+    ctx.beginPath();
+    const upperPts = bbData.filter(b => b.upper !== null);
+    const lowerPts = [...bbData].reverse().filter(b => b.lower !== null);
+    bbData.forEach((b, i) => { if (b.upper !== null) { if (i === bbData.findIndex(x => x.upper !== null)) ctx.moveTo(cx(i), px(b.upper)); else ctx.lineTo(cx(i), px(b.upper)); } });
+    [...bbData].reverse().forEach((b, ri) => { if (b.lower !== null) ctx.lineTo(cx(bbData.length - 1 - ri), px(b.lower)); });
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(99,102,241,0.05)';
+    ctx.fill();
+  }
+
+  // ── MA ──
+  if (chartIndicators.ma) {
+    const period = parseInt(document.getElementById('ind-ma-period')?.value || 20);
+    const maData = calcMA(closes, period);
+    ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); let s = false;
+    maData.forEach((v, i) => {
+      if (v === null) { s = false; return; }
+      s ? ctx.lineTo(cx(i), px(v)) : (ctx.moveTo(cx(i), px(v)), s = true);
+    });
+    ctx.stroke();
+    // Label
+    const last = maData.filter(v => v !== null).pop();
+    if (last) {
+      ctx.fillStyle = '#f59e0b'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'left';
+      ctx.fillText(`MA${period}`, W - PAD.right + 4, px(last));
+    }
+  }
+
+  // ── EMA ──
+  if (chartIndicators.ema) {
+    const period = parseInt(document.getElementById('ind-ema-period')?.value || 21);
+    const emaData = calcEMA(closes, period);
+    ctx.strokeStyle = '#10b981'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); let s = false;
+    emaData.forEach((v, i) => {
+      if (v === null) { s = false; return; }
+      s ? ctx.lineTo(cx(i), px(v)) : (ctx.moveTo(cx(i), px(v)), s = true);
+    });
+    ctx.stroke();
+    const last = emaData.filter(v => v !== null).pop();
+    if (last) {
+      ctx.fillStyle = '#10b981'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'left';
+      ctx.fillText(`EMA${period}`, W - PAD.right + 4, px(last) + 12);
+    }
   }
 
   // شمعات
@@ -6540,9 +6763,9 @@ function drawChart() {
     }
   });
 
-  // عنوان الفريم على الشارت
+  // عنوان الفريم
   const intervalEl = document.getElementById('cd-interval');
-  const intervalLabel = intervalEl ? { '5m':'5د', '15m':'15د', '30m':'30د', '1h':'1س', '4h':'4س', '1d':'يومي', '1wk':'أسبوعي', '1mo':'شهري' }[intervalEl.value] || '' : '';
+  const intervalLabel = intervalEl ? { '5m':'5د','15m':'15د','30m':'30د','1h':'1س','4h':'4س','1d':'يومي','1wk':'أسبوعي','1mo':'شهري' }[intervalEl.value] || '' : '';
   if (intervalLabel) {
     ctx.fillStyle = 'rgba(29,78,216,0.8)';
     ctx.fillRect(PAD.left + 8, PAD.top + 4, 52, 20);
@@ -6550,8 +6773,137 @@ function drawChart() {
     ctx.fillText(intervalLabel, PAD.left + 34, PAD.top + 16);
   }
 
-  // رسومات
+  // رسومات المستخدم
   chartDrawings.forEach(d => renderDrawing(ctx, d, pMin, pMax, W, H, PAD));
+
+  // رسم الـ sub panels
+  drawSubPanels();
+}
+
+function drawSubPanels() {
+  const candles = chartCandles;
+  if (!candles.length) return;
+  const closes = candles.map(c => c.close);
+  const n = candles.length;
+
+  // ── Volume Panel ──
+  if (chartIndicators.vol) {
+    const vc = document.getElementById('chart-vol');
+    if (vc) {
+      const ctx = vc.getContext('2d');
+      const W = vc.width, H = vc.height;
+      const PAD = { top: 8, right: 65, bottom: 16, left: 10 };
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#94a3b8'; ctx.font = '10px Arial'; ctx.textAlign = 'right';
+      ctx.fillText('Volume', W - PAD.right + 60, PAD.top + 10);
+      const vols = candles.map(c => c.volume || 0);
+      const maxVol = Math.max(...vols);
+      const gap = (W - PAD.left - PAD.right) / n;
+      const bw = Math.max(1, gap * 0.7);
+      candles.forEach((c, i) => {
+        const x = PAD.left + i * gap + gap / 2;
+        const bh = ((c.volume || 0) / maxVol) * (H - PAD.top - PAD.bottom);
+        ctx.fillStyle = c.close >= c.open ? 'rgba(5,150,105,0.5)' : 'rgba(220,38,38,0.5)';
+        ctx.fillRect(x - bw/2, H - PAD.bottom - bh, bw, bh);
+      });
+      // max label
+      ctx.fillStyle = '#94a3b8'; ctx.font = '10px Arial'; ctx.textAlign = 'left';
+      ctx.fillText(maxVol > 1e6 ? (maxVol/1e6).toFixed(1)+'M' : maxVol > 1e3 ? (maxVol/1e3).toFixed(0)+'K' : maxVol, W - PAD.right + 4, PAD.top + 10);
+    }
+  }
+
+  // ── RSI Panel ──
+  if (chartIndicators.rsi) {
+    const rc = document.getElementById('chart-rsi');
+    if (rc) {
+      const ctx = rc.getContext('2d');
+      const W = rc.width, H = rc.height;
+      const PAD = { top: 8, right: 65, bottom: 16, left: 10 };
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+      const rsiData = calcRSI(closes);
+      const gap = (W - PAD.left - PAD.right) / n;
+      const ry = v => PAD.top + (H - PAD.top - PAD.bottom) * (1 - v / 100);
+      // zones
+      ctx.fillStyle = 'rgba(239,68,68,0.06)';
+      ctx.fillRect(PAD.left, ry(70), W - PAD.left - PAD.right, ry(100) - ry(70));
+      ctx.fillStyle = 'rgba(16,185,129,0.06)';
+      ctx.fillRect(PAD.left, ry(30), W - PAD.left - PAD.right, ry(0) - ry(30) - (H - PAD.bottom - ry(0)));
+      // lines 70/30/50
+      [70, 50, 30].forEach(lvl => {
+        ctx.strokeStyle = lvl === 50 ? '#cbd5e1' : (lvl === 70 ? 'rgba(239,68,68,0.4)' : 'rgba(16,185,129,0.4)');
+        ctx.lineWidth = 0.7; ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(PAD.left, ry(lvl)); ctx.lineTo(W - PAD.right, ry(lvl)); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#94a3b8'; ctx.font = '10px Arial'; ctx.textAlign = 'left';
+        ctx.fillText(lvl, W - PAD.right + 4, ry(lvl) + 4);
+      });
+      // RSI line
+      ctx.strokeStyle = '#8b5cf6'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); let s = false;
+      rsiData.forEach((v, i) => {
+        if (v === null) { s = false; return; }
+        const x = PAD.left + i * gap + gap / 2;
+        s ? ctx.lineTo(x, ry(v)) : (ctx.moveTo(x, ry(v)), s = true);
+      });
+      ctx.stroke();
+      // label
+      ctx.fillStyle = '#8b5cf6'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'right';
+      const lastRsi = rsiData.filter(v => v !== null).pop();
+      if (lastRsi) ctx.fillText(`RSI ${lastRsi.toFixed(1)}`, W - PAD.right + 60, ry(lastRsi) + 4);
+    }
+  }
+
+  // ── MACD Panel ──
+  if (chartIndicators.macd) {
+    const mc = document.getElementById('chart-macd');
+    if (mc) {
+      const ctx = mc.getContext('2d');
+      const W = mc.width, H = mc.height;
+      const PAD = { top: 8, right: 65, bottom: 16, left: 10 };
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+      const { macdLine, signalLine, histogram } = calcMACD(closes);
+      const gap = (W - PAD.left - PAD.right) / n;
+      const allVals = [...macdLine, ...signalLine, ...histogram].filter(v => v !== null);
+      if (!allVals.length) return;
+      const minV = Math.min(...allVals), maxV = Math.max(...allVals);
+      const range = maxV - minV || 1;
+      const my = v => PAD.top + (H - PAD.top - PAD.bottom) * (1 - (v - minV) / range);
+      const zero = my(0);
+      // zero line
+      ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 0.7;
+      ctx.beginPath(); ctx.moveTo(PAD.left, zero); ctx.lineTo(W - PAD.right, zero); ctx.stroke();
+      // histogram bars
+      histogram.forEach((v, i) => {
+        if (v === null) return;
+        const x = PAD.left + i * gap + gap / 2;
+        const bw = Math.max(1, gap * 0.6);
+        const y = my(v), h = Math.abs(y - zero);
+        ctx.fillStyle = v >= 0 ? 'rgba(16,185,129,0.5)' : 'rgba(239,68,68,0.5)';
+        ctx.fillRect(x - bw/2, Math.min(y, zero), bw, h);
+      });
+      // MACD line
+      ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); let s = false;
+      macdLine.forEach((v, i) => {
+        if (v === null) { s = false; return; }
+        s ? ctx.lineTo(PAD.left + i * gap + gap/2, my(v)) : (ctx.moveTo(PAD.left + i * gap + gap/2, my(v)), s = true);
+      });
+      ctx.stroke();
+      // Signal line
+      ctx.strokeStyle = '#f97316'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); s = false;
+      signalLine.forEach((v, i) => {
+        if (v === null) { s = false; return; }
+        s ? ctx.lineTo(PAD.left + i * gap + gap/2, my(v)) : (ctx.moveTo(PAD.left + i * gap + gap/2, my(v)), s = true);
+      });
+      ctx.stroke();
+      ctx.fillStyle = '#3b82f6'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'right';
+      ctx.fillText('MACD', W - PAD.right + 62, PAD.top + 10);
+    }
+  }
 }
 
 function renderDrawing(ctx, d, pMin, pMax, W, H, PAD) {
