@@ -204,130 +204,87 @@ app.use(session({
   cookie: { maxAge: 90 * 24 * 60 * 60 * 1000, httpOnly: true, sameSite: 'lax' }
 }));
 
-// ══════════════════════════════════════════════════════════════════
-// CLUSTER-SAFE: Rate Limiter + Visitor Tracker + Cache
-// كل البيانات في SQLite المشتركة بين الـ instances
-// ══════════════════════════════════════════════════════════════════
-
-// ── إنشاء جداول المشاركة بين الـ instances ──────────────────────
-sessionDb.exec(`
-  CREATE TABLE IF NOT EXISTS rate_limits (
-    ip TEXT NOT NULL,
-    window_start INTEGER NOT NULL,
-    count INTEGER DEFAULT 1,
-    PRIMARY KEY (ip, window_start)
-  );
-  CREATE TABLE IF NOT EXISTS active_visitors (
-    visitor_key TEXT PRIMARY KEY,
-    last_seen INTEGER NOT NULL,
-    is_logged_in INTEGER DEFAULT 0,
-    user_id TEXT DEFAULT NULL
-  );
-  CREATE TABLE IF NOT EXISTS shared_cache (
-    cache_key TEXT PRIMARY KEY,
-    data TEXT NOT NULL,
-    expires_at INTEGER NOT NULL
-  );
-`);
-
-// Prepared statements للأداء
-const stmtRateGet    = sessionDb.prepare('SELECT count FROM rate_limits WHERE ip=? AND window_start=?');
-const stmtRateUpsert = sessionDb.prepare(`
-  INSERT INTO rate_limits (ip, window_start, count) VALUES (?,?,1)
-  ON CONFLICT(ip, window_start) DO UPDATE SET count = count + 1
-`);
-const stmtRateClean  = sessionDb.prepare('DELETE FROM rate_limits WHERE window_start < ?');
-
-const stmtVisitorUpsert = sessionDb.prepare(`
-  INSERT INTO active_visitors (visitor_key, last_seen, is_logged_in, user_id) VALUES (?,?,?,?)
-  ON CONFLICT(visitor_key) DO UPDATE SET last_seen=excluded.last_seen, is_logged_in=excluded.is_logged_in, user_id=excluded.user_id
-`);
-const stmtVisitorCount  = sessionDb.prepare(`
-  SELECT
-    SUM(CASE WHEN is_logged_in=1 THEN 1 ELSE 0 END) as logged_in,
-    SUM(CASE WHEN is_logged_in=0 THEN 1 ELSE 0 END) as guests
-  FROM active_visitors WHERE last_seen > ?
-`);
-const stmtVisitorClean  = sessionDb.prepare('DELETE FROM active_visitors WHERE last_seen < ?');
-
-const stmtCacheGet   = sessionDb.prepare('SELECT data FROM shared_cache WHERE cache_key=? AND expires_at > ?');
-const stmtCacheSet   = sessionDb.prepare(`
-  INSERT INTO shared_cache (cache_key, data, expires_at) VALUES (?,?,?)
-  ON CONFLICT(cache_key) DO UPDATE SET data=excluded.data, expires_at=excluded.expires_at
-`);
-const stmtCacheClean = sessionDb.prepare('DELETE FROM shared_cache WHERE expires_at < ?');
-
-// ── Rate Limiter — Cluster-safe ────────────────────────────────────
+// ── Rate Limiter — 300 طلب/دقيقة لكل IP ─────────────────────────────────────
+const ipRequestMap = new Map();
+// طلبات القراءة السريعة — استثناء من الحد الصارم
 const READ_ONLY_PATHS = ['/api/me','/api/posts','/api/notifications/count',
   '/api/messages/unread','/api/rooms','/api/stocks','/api/news',
   '/api/poll','/api/leaderboard','/api/search','/api/markets'];
 
 app.use((req, res, next) => {
   if (req.path.startsWith('/uploads') || !req.path.startsWith('/api')) return next();
-  const ip = req.ip || req.connection.remoteAddress || 'unknown';
+  const ip = req.ip || req.connection.remoteAddress;
   const now = Date.now();
-  const windowStart = Math.floor(now / 60000) * 60000;
+  const windowMs = 60 * 1000;
+  // حد أعلى للقراءة، أقل للكتابة
   const isRead = READ_ONLY_PATHS.some(p => req.path.startsWith(p)) && req.method === 'GET';
   const maxRequests = isRead ? 500 : 300;
-
-  stmtRateUpsert.run(ip, windowStart);
-  const row = stmtRateGet.get(ip, windowStart);
-  const count = row ? row.count : 1;
-
-  if (count > maxRequests) {
+  if (!ipRequestMap.has(ip)) ipRequestMap.set(ip, []);
+  const requests = ipRequestMap.get(ip).filter(t => now - t < windowMs);
+  requests.push(now);
+  ipRequestMap.set(ip, requests);
+  if (requests.length > maxRequests) {
     return res.status(429).json({ error: 'طلبات كثيرة جداً، انتظر دقيقة وحاول مجدداً' });
   }
-
   trackVisitor(req);
   next();
 });
-
-// ── تنظيف Rate Limits كل 5 دقائق ────────────────────────────────
+// تنظيف الـ Map كل 5 دقائق
 setInterval(() => {
-  try { stmtRateClean.run(Date.now() - 2 * 60 * 1000); } catch(e) {}
+  const now = Date.now();
+  ipRequestMap.forEach((v, k) => {
+    const fresh = v.filter(t => now - t < 60000);
+    if (fresh.length === 0) ipRequestMap.delete(k);
+    else ipRequestMap.set(k, fresh);
+  });
 }, 5 * 60 * 1000);
 
-// ── Helper Functions ─────────────────────────────────────────────
+// ── Helper Functions ─────────────────────────────────────────────────────────
 
-// ── تتبع الزوار — Cluster-safe ────────────────────────────────────
-const VISITOR_TIMEOUT = 5 * 60 * 1000;
+// ── نظام تتبع الزوار النشطين ──────────────────────────────────────────────────
+const activeVisitors = new Map(); // userId/ip → lastSeen
+const VISITOR_TIMEOUT = 5 * 60 * 1000; // 5 دقائق
 
 function trackVisitor(req) {
-  try {
-    const key = req.session?.userId || ('guest_' + (req.ip || 'unknown'));
-    stmtVisitorUpsert.run(key, Date.now(), req.session?.userId ? 1 : 0, req.session?.userId || null);
-  } catch(e) {}
+  const key = req.session?.userId || ('guest_' + (req.ip || ''));
+  activeVisitors.set(key, {
+    lastSeen: Date.now(),
+    isLoggedIn: !!req.session?.userId,
+    userId: req.session?.userId || null,
+  });
 }
 
 function getActiveVisitors() {
-  try {
-    const since = Date.now() - VISITOR_TIMEOUT;
-    const row = stmtVisitorCount.get(since);
-    const loggedIn = row?.logged_in || 0;
-    const guests   = row?.guests   || 0;
-    return { total: loggedIn + guests, loggedIn, guests };
-  } catch(e) { return { total: 0, loggedIn: 0, guests: 0 }; }
+  const now = Date.now();
+  let loggedIn = 0, guests = 0;
+  activeVisitors.forEach((v, k) => {
+    if (now - v.lastSeen > VISITOR_TIMEOUT) { activeVisitors.delete(k); return; }
+    v.isLoggedIn ? loggedIn++ : guests++;
+  });
+  return { total: loggedIn + guests, loggedIn, guests };
 }
 
+// تنظيف الزوار المنتهية صلاحيتهم كل دقيقة
 setInterval(() => {
-  try { stmtVisitorClean.run(Date.now() - VISITOR_TIMEOUT); } catch(e) {}
+  const now = Date.now();
+  activeVisitors.forEach((v, k) => { if (now - v.lastSeen > VISITOR_TIMEOUT) activeVisitors.delete(k); });
 }, 60 * 1000);
 
-// ── كاش مشترك — Cluster-safe ─────────────────────────────────────
+// ── كاش ذكي للـ endpoints الثقيلة ────────────────────────────────────────────
+const apiCache = new Map();
 function setCache(key, data, ttlMs) {
-  try { stmtCacheSet.run(key, JSON.stringify(data), Date.now() + ttlMs); } catch(e) {}
+  apiCache.set(key, { data, expires: Date.now() + ttlMs });
 }
-
 function getCache(key) {
-  try {
-    const row = stmtCacheGet.get(key, Date.now());
-    return row ? JSON.parse(row.data) : null;
-  } catch(e) { return null; }
+  const entry = apiCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expires) { apiCache.delete(key); return null; }
+  return entry.data;
 }
-
-// تنظيف الكاش المنتهي كل 5 دقائق
+// تنظيف الكاش كل 5 دقائق
 setInterval(() => {
-  try { stmtCacheClean.run(Date.now()); } catch(e) {}
+  const now = Date.now();
+  apiCache.forEach((v, k) => { if (now > v.expires) apiCache.delete(k); });
 }, 5 * 60 * 1000);
 
 function requireAuth(req, res, next) {
@@ -2125,33 +2082,50 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
   const resetLink = `${process.env.SITE_URL || 'https://brzan.com'}/reset-password?token=${token}`;
 
-  // ── إرسال البريد (مُعطَّل حتى تُضاف بيانات SMTP) ──
-  // لتفعيله: npm install nodemailer ثم أضف SMTP_HOST, SMTP_USER, SMTP_PASS في .env
-  /*
-  const nodemailer = require('nodemailer');
-  const transporter = nodemailer.createTransporter({
-    host: process.env.SMTP_HOST,
-    port: 587,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-  });
-  await transporter.sendMail({
-    from: `"جلسة السوق" <${process.env.SMTP_USER}>`,
-    to: user.email,
-    subject: 'إعادة تعيين كلمة المرور — جلسة السوق',
-    html: `<div dir="rtl" style="font-family:Arial;max-width:500px;margin:auto">
-      <h2>مرحباً ${user.display_name}</h2>
-      <p>طلبت إعادة تعيين كلمة المرور. اضغط على الرابط أدناه:</p>
-      <a href="${resetLink}" style="background:#1D4ED8;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;margin:16px 0">إعادة تعيين كلمة المرور</a>
-      <p style="color:#666;font-size:13px">الرابط صالح لمدة ساعة واحدة فقط. إذا لم تطلب هذا، تجاهل الرسالة.</p>
-    </div>`
-  });
-  */
+  // ── إرسال البريد عبر Gmail SMTP ──
+  try {
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
+    await transporter.sendMail({
+      from: `"جلسة السوق" <${process.env.SMTP_USER}>`,
+      to: user.email,
+      subject: 'إعادة تعيين كلمة المرور — جلسة السوق',
+      html: `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:520px;margin:auto;background:#f8fafc;padding:24px;border-radius:12px">
+        <div style="text-align:center;margin-bottom:24px">
+          <h1 style="color:#1B4FD8;font-size:22px;margin:0">جلسة السوق 📊</h1>
+        </div>
+        <div style="background:#fff;border-radius:10px;padding:24px;border:1px solid #e3e8f0">
+          <h2 style="color:#0C1B33;font-size:18px;margin:0 0 12px">مرحباً ${user.display_name}</h2>
+          <p style="color:#3D5070;line-height:1.7;margin:0 0 20px">
+            تلقينا طلباً لإعادة تعيين كلمة المرور لحسابك. اضغط على الزر أدناه للمتابعة:
+          </p>
+          <div style="text-align:center;margin:24px 0">
+            <a href="${resetLink}" style="background:#1B4FD8;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:15px;font-weight:700;display:inline-block">
+              إعادة تعيين كلمة المرور
+            </a>
+          </div>
+          <p style="color:#8496B0;font-size:13px;margin:16px 0 0;text-align:center">
+            الرابط صالح لمدة ساعة واحدة فقط.<br>
+            إذا لم تطلب هذا، تجاهل الرسالة.
+          </p>
+        </div>
+        <p style="color:#B0BDD0;font-size:12px;text-align:center;margin-top:16px">jalsoq.com</p>
+      </div>`
+    });
+    console.log(`[SMTP] تم إرسال رابط إعادة التعيين لـ ${user.email}`);
+  } catch(emailErr) {
+    console.error('[SMTP ERROR]', emailErr.message);
+  }
 
-  console.log(`[RESET PASSWORD] رابط إعادة التعيين لـ ${user.email}: ${resetLink}`);
-  res.json({ success: true, message: 'إذا كان البريد مسجلاً، ستصلك رسالة قريباً',
-    // مؤقتاً للتطوير — أزل هذا في الإنتاج
-    _dev_link: process.env.NODE_ENV !== 'production' ? resetLink : undefined
-  });
+  res.json({ success: true, message: 'إذا كان البريد مسجلاً، ستصلك رسالة قريباً' });
 });
 
 // التحقق من token
