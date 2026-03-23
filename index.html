@@ -7080,6 +7080,14 @@ function drawChart() {
     ctx.fillText(intervalLabel, PAD.left + 34, PAD.top + 16);
   }
 
+  // ── Watermark © JALSOQ.COM ───────────────────────────────────
+  ctx.save();
+  ctx.font = '12px Arial';
+  ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(100,116,139,0.45)';
+  ctx.fillText('© JALSOQ.COM', W - PAD.right - 6, PAD.top + 14);
+  ctx.restore();
+
   // رسومات المستخدم
   chartDrawings.forEach(d => renderDrawing(ctx, d, pMin, pMax, W, H, PAD));
 
