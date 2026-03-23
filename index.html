@@ -1128,6 +1128,14 @@ body {
   background:#fff; border-radius:var(--radius); width:100%; max-width:900px;
   max-height:95vh; display:flex; flex-direction:column; overflow:hidden;
   box-shadow:0 20px 60px rgba(0,0,0,.4);
+  transition: all .25s ease;
+}
+.chart-drawer.fullscreen {
+  max-width:100vw; max-height:100vh; width:100vw; height:100vh;
+  border-radius:0;
+}
+.chart-drawer-overlay.fullscreen {
+  padding:0;
 }
 .chart-drawer-header {
   display:flex; align-items:center; gap:10px; padding:12px 16px;
@@ -6420,6 +6428,91 @@ function calcVolumeProfile(candles, bins = 20) {
   return { profile, pMin, pMax };
 }
 
+// ── Fullscreen state ─────────────────────────────────────────
+let chartIsFullscreen = false;
+
+function toggleChartFullscreen() {
+  chartIsFullscreen = !chartIsFullscreen;
+  const overlay = document.getElementById('chart-drawer-overlay');
+  const drawer  = overlay?.querySelector('.chart-drawer');
+  const btn     = document.getElementById('btn-fullscreen');
+  if (!overlay || !drawer) return;
+  if (chartIsFullscreen) {
+    overlay.classList.add('fullscreen');
+    drawer.classList.add('fullscreen');
+    if (btn) btn.textContent = '⛶';
+    // محاولة fullscreen API
+    if (overlay.requestFullscreen) overlay.requestFullscreen().catch(()=>{});
+  } else {
+    overlay.classList.remove('fullscreen');
+    drawer.classList.remove('fullscreen');
+    if (btn) btn.textContent = '⛶';
+    if (document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+  }
+  setTimeout(() => { resizeChartCanvases(); drawChart(); }, 100);
+}
+
+// ── حفظ وتحميل الرسومات ──────────────────────────────────────
+function getChartKey(symbol, interval) {
+  return `chart_${symbol}_${interval}`;
+}
+
+function saveChartState() {
+  const symbol   = document.getElementById('cd-symbol')?.value?.trim();
+  const interval = document.getElementById('cd-interval')?.value || '1d';
+  if (!symbol) { showChartToast('أدخل رمز السهم أولاً'); return; }
+  const key = getChartKey(symbol, interval);
+  const state = {
+    drawings:   chartDrawings,
+    indicators: chartIndicators,
+    viewOffset: chartViewOffset,
+    viewCount:  chartViewCount,
+    savedAt:    new Date().toISOString()
+  };
+  try {
+    localStorage.setItem(key, JSON.stringify(state));
+    showChartToast('✅ تم حفظ الرسومات');
+  } catch(e) {
+    showChartToast('❌ فشل الحفظ');
+  }
+}
+
+function loadChartState(symbol, interval) {
+  const key = getChartKey(symbol, interval);
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return false;
+    const state = JSON.parse(raw);
+    if (state.drawings)   chartDrawings   = state.drawings;
+    if (state.indicators) {
+      Object.assign(chartIndicators, state.indicators);
+      // تحديث أزرار المؤشرات
+      Object.keys(chartIndicators).forEach(name => {
+        const btn = document.getElementById('ind-' + name);
+        if (btn) {
+          btn.style.background   = chartIndicators[name] ? 'var(--primary)' : '';
+          btn.style.color        = chartIndicators[name] ? '#fff' : '';
+          btn.style.borderColor  = chartIndicators[name] ? 'var(--primary)' : '';
+        }
+        // إظهار/إخفاء الـ panels
+        const panels = { rsi:'chart-rsi', macd:'chart-macd', vol:'chart-vol', stoch:'chart-stoch' };
+        if (panels[name]) {
+          const el = document.getElementById(panels[name]);
+          if (el) el.style.display = chartIndicators[name] ? 'block' : 'none';
+        }
+      });
+    }
+    if (state.viewOffset !== undefined) chartViewOffset = state.viewOffset;
+    if (state.viewCount  !== undefined) chartViewCount  = state.viewCount;
+    return true;
+  } catch(e) { return false; }
+}
+
+function showChartToast(msg) {
+  const el = document.getElementById('cd-status');
+  if (el) { el.textContent = msg; setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 2500); }
+}
+
 // ── Pan + Zoom + Crosshair state ──────────────────────────────
 let chartViewOffset = 0;   // عدد الشمعات من اليمين
 let chartViewCount  = 80;  // عدد الشمعات المعروضة
@@ -6564,6 +6657,8 @@ function openChartDrawer() {
             <option value="1mo">شهري</option>
           </select>
           <button class="btn btn-primary btn-sm" onclick="loadChartData()">📥 تحميل</button>
+          <button class="btn btn-ghost btn-sm" id="btn-save-chart" onclick="saveChartState()" title="حفظ الرسومات">💾</button>
+          <button class="btn btn-ghost btn-sm" id="btn-fullscreen" onclick="toggleChartFullscreen()" title="شاشة كاملة">⛶</button>
           <button class="btn btn-ghost btn-sm" onclick="closeChartDrawer()">✕</button>
         </div>
       </div>
@@ -6634,9 +6729,12 @@ function openChartDrawer() {
 }
 
 function closeChartDrawer() {
+  if (document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+  chartIsFullscreen = false;
   document.getElementById('chart-drawer-overlay')?.remove();
   chartDrawings = [];
   chartCandles = [];
+  chartViewOffset = 0;
 }
 
 function setChartTool(tool) {
@@ -6729,9 +6827,14 @@ async function loadChartData() {
     const d = await r.json();
     if (d.error) { toast(d.error, 'error'); document.getElementById('cd-status').textContent = '❌ ' + d.error; return; }
     chartCandles = d.candles;
-    chartDrawings = [];
     chartViewOffset = 0;
     chartViewCount = Math.min(80, d.candles.length);
+    // تحميل الرسومات المحفوظة
+    const symbolInput = document.getElementById('cd-symbol')?.value?.trim();
+    const intervalVal = document.getElementById('cd-interval')?.value || '1d';
+    const hadSaved = loadChartState(symbolInput, intervalVal);
+    if (!hadSaved) chartDrawings = [];
+    if (hadSaved) showChartToast('📂 تم تحميل رسوماتك المحفوظة');
     const intervalLabel = { '5m':'5د', '15m':'15د', '30m':'30د', '1h':'1س', '4h':'4س', '1d':'يومي', '1wk':'أسبوعي', '1mo':'شهري' }[interval] || interval;
     document.getElementById('cd-status').textContent = `✅ ${d.name || yahooSymbol} | ${intervalLabel} — ${d.candles.length} شمعة`;
     drawChart();
