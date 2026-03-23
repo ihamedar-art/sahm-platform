@@ -204,87 +204,130 @@ app.use(session({
   cookie: { maxAge: 90 * 24 * 60 * 60 * 1000, httpOnly: true, sameSite: 'lax' }
 }));
 
-// ── Rate Limiter — 300 طلب/دقيقة لكل IP ─────────────────────────────────────
-const ipRequestMap = new Map();
-// طلبات القراءة السريعة — استثناء من الحد الصارم
+// ══════════════════════════════════════════════════════════════════
+// CLUSTER-SAFE: Rate Limiter + Visitor Tracker + Cache
+// كل البيانات في SQLite المشتركة بين الـ instances
+// ══════════════════════════════════════════════════════════════════
+
+// ── إنشاء جداول المشاركة بين الـ instances ──────────────────────
+sessionDb.exec(`
+  CREATE TABLE IF NOT EXISTS rate_limits (
+    ip TEXT NOT NULL,
+    window_start INTEGER NOT NULL,
+    count INTEGER DEFAULT 1,
+    PRIMARY KEY (ip, window_start)
+  );
+  CREATE TABLE IF NOT EXISTS active_visitors (
+    visitor_key TEXT PRIMARY KEY,
+    last_seen INTEGER NOT NULL,
+    is_logged_in INTEGER DEFAULT 0,
+    user_id TEXT DEFAULT NULL
+  );
+  CREATE TABLE IF NOT EXISTS shared_cache (
+    cache_key TEXT PRIMARY KEY,
+    data TEXT NOT NULL,
+    expires_at INTEGER NOT NULL
+  );
+`);
+
+// Prepared statements للأداء
+const stmtRateGet    = sessionDb.prepare('SELECT count FROM rate_limits WHERE ip=? AND window_start=?');
+const stmtRateUpsert = sessionDb.prepare(`
+  INSERT INTO rate_limits (ip, window_start, count) VALUES (?,?,1)
+  ON CONFLICT(ip, window_start) DO UPDATE SET count = count + 1
+`);
+const stmtRateClean  = sessionDb.prepare('DELETE FROM rate_limits WHERE window_start < ?');
+
+const stmtVisitorUpsert = sessionDb.prepare(`
+  INSERT INTO active_visitors (visitor_key, last_seen, is_logged_in, user_id) VALUES (?,?,?,?)
+  ON CONFLICT(visitor_key) DO UPDATE SET last_seen=excluded.last_seen, is_logged_in=excluded.is_logged_in, user_id=excluded.user_id
+`);
+const stmtVisitorCount  = sessionDb.prepare(`
+  SELECT
+    SUM(CASE WHEN is_logged_in=1 THEN 1 ELSE 0 END) as logged_in,
+    SUM(CASE WHEN is_logged_in=0 THEN 1 ELSE 0 END) as guests
+  FROM active_visitors WHERE last_seen > ?
+`);
+const stmtVisitorClean  = sessionDb.prepare('DELETE FROM active_visitors WHERE last_seen < ?');
+
+const stmtCacheGet   = sessionDb.prepare('SELECT data FROM shared_cache WHERE cache_key=? AND expires_at > ?');
+const stmtCacheSet   = sessionDb.prepare(`
+  INSERT INTO shared_cache (cache_key, data, expires_at) VALUES (?,?,?)
+  ON CONFLICT(cache_key) DO UPDATE SET data=excluded.data, expires_at=excluded.expires_at
+`);
+const stmtCacheClean = sessionDb.prepare('DELETE FROM shared_cache WHERE expires_at < ?');
+
+// ── Rate Limiter — Cluster-safe ────────────────────────────────────
 const READ_ONLY_PATHS = ['/api/me','/api/posts','/api/notifications/count',
   '/api/messages/unread','/api/rooms','/api/stocks','/api/news',
   '/api/poll','/api/leaderboard','/api/search','/api/markets'];
 
 app.use((req, res, next) => {
   if (req.path.startsWith('/uploads') || !req.path.startsWith('/api')) return next();
-  const ip = req.ip || req.connection.remoteAddress;
+  const ip = req.ip || req.connection.remoteAddress || 'unknown';
   const now = Date.now();
-  const windowMs = 60 * 1000;
-  // حد أعلى للقراءة، أقل للكتابة
+  const windowStart = Math.floor(now / 60000) * 60000;
   const isRead = READ_ONLY_PATHS.some(p => req.path.startsWith(p)) && req.method === 'GET';
   const maxRequests = isRead ? 500 : 300;
-  if (!ipRequestMap.has(ip)) ipRequestMap.set(ip, []);
-  const requests = ipRequestMap.get(ip).filter(t => now - t < windowMs);
-  requests.push(now);
-  ipRequestMap.set(ip, requests);
-  if (requests.length > maxRequests) {
+
+  stmtRateUpsert.run(ip, windowStart);
+  const row = stmtRateGet.get(ip, windowStart);
+  const count = row ? row.count : 1;
+
+  if (count > maxRequests) {
     return res.status(429).json({ error: 'طلبات كثيرة جداً، انتظر دقيقة وحاول مجدداً' });
   }
+
   trackVisitor(req);
   next();
 });
-// تنظيف الـ Map كل 5 دقائق
+
+// ── تنظيف Rate Limits كل 5 دقائق ────────────────────────────────
 setInterval(() => {
-  const now = Date.now();
-  ipRequestMap.forEach((v, k) => {
-    const fresh = v.filter(t => now - t < 60000);
-    if (fresh.length === 0) ipRequestMap.delete(k);
-    else ipRequestMap.set(k, fresh);
-  });
+  try { stmtRateClean.run(Date.now() - 2 * 60 * 1000); } catch(e) {}
 }, 5 * 60 * 1000);
 
-// ── Helper Functions ─────────────────────────────────────────────────────────
+// ── Helper Functions ─────────────────────────────────────────────
 
-// ── نظام تتبع الزوار النشطين ──────────────────────────────────────────────────
-const activeVisitors = new Map(); // userId/ip → lastSeen
-const VISITOR_TIMEOUT = 5 * 60 * 1000; // 5 دقائق
+// ── تتبع الزوار — Cluster-safe ────────────────────────────────────
+const VISITOR_TIMEOUT = 5 * 60 * 1000;
 
 function trackVisitor(req) {
-  const key = req.session?.userId || ('guest_' + (req.ip || ''));
-  activeVisitors.set(key, {
-    lastSeen: Date.now(),
-    isLoggedIn: !!req.session?.userId,
-    userId: req.session?.userId || null,
-  });
+  try {
+    const key = req.session?.userId || ('guest_' + (req.ip || 'unknown'));
+    stmtVisitorUpsert.run(key, Date.now(), req.session?.userId ? 1 : 0, req.session?.userId || null);
+  } catch(e) {}
 }
 
 function getActiveVisitors() {
-  const now = Date.now();
-  let loggedIn = 0, guests = 0;
-  activeVisitors.forEach((v, k) => {
-    if (now - v.lastSeen > VISITOR_TIMEOUT) { activeVisitors.delete(k); return; }
-    v.isLoggedIn ? loggedIn++ : guests++;
-  });
-  return { total: loggedIn + guests, loggedIn, guests };
+  try {
+    const since = Date.now() - VISITOR_TIMEOUT;
+    const row = stmtVisitorCount.get(since);
+    const loggedIn = row?.logged_in || 0;
+    const guests   = row?.guests   || 0;
+    return { total: loggedIn + guests, loggedIn, guests };
+  } catch(e) { return { total: 0, loggedIn: 0, guests: 0 }; }
 }
 
-// تنظيف الزوار المنتهية صلاحيتهم كل دقيقة
 setInterval(() => {
-  const now = Date.now();
-  activeVisitors.forEach((v, k) => { if (now - v.lastSeen > VISITOR_TIMEOUT) activeVisitors.delete(k); });
+  try { stmtVisitorClean.run(Date.now() - VISITOR_TIMEOUT); } catch(e) {}
 }, 60 * 1000);
 
-// ── كاش ذكي للـ endpoints الثقيلة ────────────────────────────────────────────
-const apiCache = new Map();
+// ── كاش مشترك — Cluster-safe ─────────────────────────────────────
 function setCache(key, data, ttlMs) {
-  apiCache.set(key, { data, expires: Date.now() + ttlMs });
+  try { stmtCacheSet.run(key, JSON.stringify(data), Date.now() + ttlMs); } catch(e) {}
 }
+
 function getCache(key) {
-  const entry = apiCache.get(key);
-  if (!entry) return null;
-  if (Date.now() > entry.expires) { apiCache.delete(key); return null; }
-  return entry.data;
+  try {
+    const row = stmtCacheGet.get(key, Date.now());
+    return row ? JSON.parse(row.data) : null;
+  } catch(e) { return null; }
 }
-// تنظيف الكاش كل 5 دقائق
+
+// تنظيف الكاش المنتهي كل 5 دقائق
 setInterval(() => {
-  const now = Date.now();
-  apiCache.forEach((v, k) => { if (now > v.expires) apiCache.delete(k); });
+  try { stmtCacheClean.run(Date.now()); } catch(e) {}
 }, 5 * 60 * 1000);
 
 function requireAuth(req, res, next) {
