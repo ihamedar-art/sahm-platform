@@ -6367,13 +6367,20 @@ let chartIndicators = { ma: false, ema: false, bb: false, rsi: false, macd: fals
 
 // ── Stochastic ────────────────────────────────────────────────
 function calcStochastic(candles, kPeriod = 14, dPeriod = 3) {
-  const k = candles.map((c, i) => {
+  // %K الخط الرئيسي
+  const rawK = candles.map((c, i) => {
     if (i < kPeriod - 1) return null;
     const slice = candles.slice(i - kPeriod + 1, i + 1);
     const highest = Math.max(...slice.map(x => x.high));
     const lowest  = Math.min(...slice.map(x => x.low));
     return highest === lowest ? 50 : ((c.close - lowest) / (highest - lowest)) * 100;
   });
+  // تنعيم %K بـ SMA(3) → يعطي Slow Stochastic
+  const k = rawK.map((_, i) => {
+    const vals = rawK.slice(Math.max(0, i - 2), i + 1).filter(v => v !== null);
+    return vals.length === 3 ? vals.reduce((s, v) => s + v, 0) / 3 : null;
+  });
+  // %D = SMA(3) من %K المنعّم
   const d = k.map((_, i) => {
     const vals = k.slice(Math.max(0, i - dPeriod + 1), i + 1).filter(v => v !== null);
     return vals.length === dPeriod ? vals.reduce((s, v) => s + v, 0) / dPeriod : null;
@@ -6385,21 +6392,22 @@ function calcStochastic(candles, kPeriod = 14, dPeriod = 3) {
 function calcIchimoku(candles) {
   const high = candles.map(c => c.high);
   const low  = candles.map(c => c.low);
-  const n = candles.length;
 
-  const midHL = (arr, i, period) => {
+  // دالة منتصف الـ high/low لفترة معينة
+  const midHL = (i, period) => {
     if (i < period - 1) return null;
-    const sl = arr.slice(i - period + 1, i + 1);
-    return (Math.max(...sl.map((_, j) => high[i - period + 1 + j])) + Math.min(...sl.map((_, j) => low[i - period + 1 + j]))) / 2;
+    const hSlice = high.slice(i - period + 1, i + 1);
+    const lSlice = low.slice(i - period + 1, i + 1);
+    return (Math.max(...hSlice) + Math.min(...lSlice)) / 2;
   };
 
-  const tenkan  = candles.map((_, i) => midHL(high, i, 9));
-  const kijun   = candles.map((_, i) => midHL(high, i, 26));
-  const senkouA = candles.map((_, i) => {
-    if (tenkan[i] === null || kijun[i] === null) return null;
-    return (tenkan[i] + kijun[i]) / 2;
-  });
-  const senkouB = candles.map((_, i) => midHL(high, i, 52));
+  const tenkan  = candles.map((_, i) => midHL(i, 9));   // Conversion Line
+  const kijun   = candles.map((_, i) => midHL(i, 26));  // Base Line
+  const senkouA = candles.map((_, i) =>
+    tenkan[i] !== null && kijun[i] !== null ? (tenkan[i] + kijun[i]) / 2 : null
+  );
+  const senkouB = candles.map((_, i) => midHL(i, 52));  // Leading Span B
+  // Chikou = سعر الإغلاق الحالي يُرسم 26 فترة للخلف
   const chikou  = candles.map((c, i) => i >= 26 ? candles[i - 26].close : null);
 
   return { tenkan, kijun, senkouA, senkouB, chikou };
@@ -6560,16 +6568,28 @@ function calcBollinger(data, period = 20, mult = 2) {
 }
 
 function calcRSI(data, period = 14) {
-  const result = [];
-  for (let i = 0; i < data.length; i++) {
-    if (i < period) { result.push(null); continue; }
-    let gains = 0, losses = 0;
-    for (let j = i - period + 1; j <= i; j++) {
-      const diff = data[j] - data[j - 1];
-      if (diff > 0) gains += diff; else losses -= diff;
-    }
-    const rs = losses === 0 ? 100 : gains / losses;
-    result.push(100 - 100 / (1 + rs));
+  // Wilder's Smoothed RSI — نفس طريقة TradingView والمعيار الصناعي
+  const result = new Array(data.length).fill(null);
+  if (data.length < period + 1) return result;
+
+  // أول متوسط
+  let avgGain = 0, avgLoss = 0;
+  for (let i = 1; i <= period; i++) {
+    const diff = data[i] - data[i - 1];
+    if (diff > 0) avgGain += diff; else avgLoss -= diff;
+  }
+  avgGain /= period;
+  avgLoss /= period;
+  result[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+
+  // Wilder's smoothing
+  for (let i = period + 1; i < data.length; i++) {
+    const diff = data[i] - data[i - 1];
+    const gain = Math.max(0, diff);
+    const loss = Math.max(0, -diff);
+    avgGain = (avgGain * (period - 1) + gain) / period;
+    avgLoss = (avgLoss * (period - 1) + loss) / period;
+    result[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
   }
   return result;
 }
