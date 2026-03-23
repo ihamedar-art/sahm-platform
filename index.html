@@ -6912,17 +6912,20 @@ function drawChart() {
   const candles = chartCandles.slice(startIdx, endIdx);
   const n = candles.length;
   const closes = candles.map(c => c.close);
+
+  // ── كل البيانات للمؤشرات — يضمن دقة MA/EMA/RSI على كامل التاريخ ──
+  const allCloses  = chartCandles.map(c => c.close);
+  const allCandles = chartCandles;
   const prices = candles.flatMap(c => [c.high, c.low]).filter(Boolean);
   const minP = Math.min(...prices), maxP = Math.max(...prices);
 
   // ── حساب Bollinger لتوسيع النطاق إن لزم ──
   let bbData = null;
   if (chartIndicators.bb) {
-    bbData = calcBollinger(closes);
+    const bbAll = calcBollinger(allCloses);
+    bbData = bbAll.slice(startIdx, endIdx);
     const bbPrices = bbData.flatMap(b => b.upper && b.lower ? [b.upper, b.lower] : []).filter(Boolean);
-    if (bbPrices.length) {
-      prices.push(...bbPrices);
-    }
+    if (bbPrices.length) prices.push(...bbPrices);
   }
   const pMin = Math.min(...prices) - (maxP - minP) * 0.04;
   const pMax = Math.max(...prices) + (maxP - minP) * 0.04;
@@ -6989,7 +6992,8 @@ function drawChart() {
   // ── MA ──
   if (chartIndicators.ma) {
     const period = parseInt(document.getElementById('ind-ma-period')?.value || 20);
-    const maData = calcMA(closes, period);
+    const maAll  = calcMA(allCloses, period);
+    const maData = maAll.slice(startIdx, endIdx);
     ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 1.5;
     ctx.beginPath(); let s = false;
     maData.forEach((v, i) => {
@@ -6997,7 +7001,6 @@ function drawChart() {
       s ? ctx.lineTo(cx(i), px(v)) : (ctx.moveTo(cx(i), px(v)), s = true);
     });
     ctx.stroke();
-    // Label على يمين الشارت مع القيمة
     const lastMA = maData[maData.length - 1];
     if (lastMA !== null) {
       const ly = px(lastMA);
@@ -7005,20 +7008,14 @@ function drawChart() {
       ctx.fillRect(W - PAD.right + 2, ly - 9, PAD.right - 4, 18);
       ctx.fillStyle = '#fff'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'left';
       ctx.fillText(`MA${period}`, W - PAD.right + 4, ly + 3);
-    } else {
-      // MA مش مكتمل — أظهر label مع آخر قيمة متوفرة
-      const lastValid = [...maData].reverse().find(v => v !== null);
-      if (lastValid) {
-        ctx.fillStyle = '#f59e0b'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'left';
-        ctx.fillText(`MA${period}: ${lastValid.toFixed(2)} (ناقص بيانات)`, PAD.left + 60, PAD.top + 16);
-      }
     }
   }
 
   // ── EMA ──
   if (chartIndicators.ema) {
     const period = parseInt(document.getElementById('ind-ema-period')?.value || 21);
-    const emaData = calcEMA(closes, period);
+    const emaAll  = calcEMA(allCloses, period);
+    const emaData = emaAll.slice(startIdx, endIdx);
     ctx.strokeStyle = '#10b981'; ctx.lineWidth = 1.5;
     ctx.beginPath(); let s = false;
     emaData.forEach((v, i) => {
@@ -7038,7 +7035,14 @@ function drawChart() {
 
   // ── Ichimoku Cloud (يُرسم تحت الشمعات) ───────────────────
   if (chartIndicators.ichimoku) {
-    const ichi = calcIchimoku(candles);
+    const ichiAll = calcIchimoku(allCandles);
+    const ichi = {
+      tenkan:  ichiAll.tenkan.slice(startIdx, endIdx),
+      kijun:   ichiAll.kijun.slice(startIdx, endIdx),
+      senkouA: ichiAll.senkouA.slice(startIdx, endIdx),
+      senkouB: ichiAll.senkouB.slice(startIdx, endIdx),
+      chikou:  ichiAll.chikou.slice(startIdx, endIdx),
+    };
     const drawLine = (data, color, width = 1) => {
       ctx.strokeStyle = color; ctx.lineWidth = width;
       ctx.beginPath(); let s = false;
@@ -7204,7 +7208,13 @@ function drawChart() {
 function drawSubPanels() {
   const candles = chartCandles;
   if (!candles.length) return;
-  const closes = candles.map(c => c.close);
+  const allClosesS = chartCandles.map(c => c.close);
+  const totalC = chartCandles.length;
+  const viewC  = Math.min(chartViewCount, totalC);
+  const sIdx   = Math.max(0, totalC - viewC - chartViewOffset);
+  const eIdx   = Math.max(viewC, totalC - chartViewOffset);
+  const closes = allClosesS.slice(sIdx, eIdx);
+  const candles = chartCandles.slice(sIdx, eIdx);
   const n = candles.length;
 
   // ── Volume Panel ──
@@ -7243,7 +7253,8 @@ function drawSubPanels() {
       const PAD = { top: 8, right: 65, bottom: 16, left: 10 };
       ctx.clearRect(0, 0, W, H);
       ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
-      const rsiData = calcRSI(closes);
+      const rsiDataAll = calcRSI(allClosesS);
+      const rsiData = rsiDataAll.slice(sIdx, eIdx);
       const gap = (W - PAD.left - PAD.right) / n;
       const ry = v => PAD.top + (H - PAD.top - PAD.bottom) * (1 - v / 100);
       // zones
@@ -7285,7 +7296,11 @@ function drawSubPanels() {
       const PAD = { top: 8, right: 65, bottom: 16, left: 10 };
       ctx.clearRect(0, 0, W, H);
       ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
-      const { k, d } = calcStochastic(candles);
+      const stochAll = calcStochastic(chartCandles);
+      const { k, d } = {
+        k: stochAll.k.slice(sIdx, eIdx),
+        d: stochAll.d.slice(sIdx, eIdx),
+      };
       const gap = (W - PAD.left - PAD.right) / n;
       const sy = v => PAD.top + (H - PAD.top - PAD.bottom) * (1 - v / 100);
       // zones 80/20
@@ -7338,7 +7353,12 @@ function drawSubPanels() {
       const PAD = { top: 8, right: 65, bottom: 16, left: 10 };
       ctx.clearRect(0, 0, W, H);
       ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
-      const { macdLine, signalLine, histogram } = calcMACD(closes);
+      const macdAll = calcMACD(allClosesS);
+      const { macdLine, signalLine, histogram } = {
+        macdLine:  macdAll.macdLine.slice(sIdx, eIdx),
+        signalLine: macdAll.signalLine.slice(sIdx, eIdx),
+        histogram:  macdAll.histogram.slice(sIdx, eIdx),
+      };
       const gap = (W - PAD.left - PAD.right) / n;
       const allVals = [...macdLine, ...signalLine, ...histogram].filter(v => v !== null);
       if (!allVals.length) return;
