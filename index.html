@@ -7206,8 +7206,7 @@ function drawChart() {
 }
 
 function drawSubPanels() {
-  const candles = chartCandles;
-  if (!candles.length) return;
+  if (!chartCandles.length) return;
   const allClosesS = chartCandles.map(c => c.close);
   const totalC = chartCandles.length;
   const viewC  = Math.min(chartViewCount, totalC);
