@@ -6355,7 +6355,70 @@ let chartLineWidth = 2;
 let chartDrawings = [];
 let chartIsDrawing = false;
 let chartStartX, chartStartY;
-let chartIndicators = { ma: false, ema: false, bb: false, rsi: false, macd: false, vol: false };
+let chartIndicators = { ma: false, ema: false, bb: false, rsi: false, macd: false, vol: false, stoch: false, ichimoku: false, vp: false };
+
+// ── Stochastic ────────────────────────────────────────────────
+function calcStochastic(candles, kPeriod = 14, dPeriod = 3) {
+  const k = candles.map((c, i) => {
+    if (i < kPeriod - 1) return null;
+    const slice = candles.slice(i - kPeriod + 1, i + 1);
+    const highest = Math.max(...slice.map(x => x.high));
+    const lowest  = Math.min(...slice.map(x => x.low));
+    return highest === lowest ? 50 : ((c.close - lowest) / (highest - lowest)) * 100;
+  });
+  const d = k.map((_, i) => {
+    const vals = k.slice(Math.max(0, i - dPeriod + 1), i + 1).filter(v => v !== null);
+    return vals.length === dPeriod ? vals.reduce((s, v) => s + v, 0) / dPeriod : null;
+  });
+  return { k, d };
+}
+
+// ── Ichimoku Cloud ────────────────────────────────────────────
+function calcIchimoku(candles) {
+  const high = candles.map(c => c.high);
+  const low  = candles.map(c => c.low);
+  const n = candles.length;
+
+  const midHL = (arr, i, period) => {
+    if (i < period - 1) return null;
+    const sl = arr.slice(i - period + 1, i + 1);
+    return (Math.max(...sl.map((_, j) => high[i - period + 1 + j])) + Math.min(...sl.map((_, j) => low[i - period + 1 + j]))) / 2;
+  };
+
+  const tenkan  = candles.map((_, i) => midHL(high, i, 9));
+  const kijun   = candles.map((_, i) => midHL(high, i, 26));
+  const senkouA = candles.map((_, i) => {
+    if (tenkan[i] === null || kijun[i] === null) return null;
+    return (tenkan[i] + kijun[i]) / 2;
+  });
+  const senkouB = candles.map((_, i) => midHL(high, i, 52));
+  const chikou  = candles.map((c, i) => i >= 26 ? candles[i - 26].close : null);
+
+  return { tenkan, kijun, senkouA, senkouB, chikou };
+}
+
+// ── Volume Profile ────────────────────────────────────────────
+function calcVolumeProfile(candles, bins = 20) {
+  const prices = candles.flatMap(c => [c.high, c.low]).filter(Boolean);
+  const pMin = Math.min(...prices), pMax = Math.max(...prices);
+  const binSize = (pMax - pMin) / bins;
+  const profile = Array.from({ length: bins }, (_, i) => ({
+    priceMin: pMin + i * binSize,
+    priceMax: pMin + (i + 1) * binSize,
+    priceMid: pMin + (i + 0.5) * binSize,
+    vol: 0, buyVol: 0, sellVol: 0
+  }));
+  candles.forEach(c => {
+    if (!c.volume) return;
+    const idx = Math.min(bins - 1, Math.floor((((c.high + c.low) / 2) - pMin) / binSize));
+    if (idx >= 0) {
+      profile[idx].vol += c.volume;
+      if (c.close >= c.open) profile[idx].buyVol += c.volume;
+      else profile[idx].sellVol += c.volume;
+    }
+  });
+  return { profile, pMin, pMax };
+}
 
 // ── Pan + Zoom + Crosshair state ──────────────────────────────
 let chartViewOffset = 0;   // عدد الشمعات من اليمين
@@ -6441,12 +6504,14 @@ function toggleIndicator(name) {
     btn.style.borderColor = chartIndicators[name] ? 'var(--primary)' : '';
   }
   // إظهار/إخفاء الـ panel
-  const rsiCanvas = document.getElementById('chart-rsi');
-  const macdCanvas = document.getElementById('chart-macd');
-  const volCanvas = document.getElementById('chart-vol');
-  if (rsiCanvas) rsiCanvas.style.display = chartIndicators.rsi ? 'block' : 'none';
-  if (macdCanvas) macdCanvas.style.display = chartIndicators.macd ? 'block' : 'none';
-  if (volCanvas) volCanvas.style.display = chartIndicators.vol ? 'block' : 'none';
+  const rsiCanvas   = document.getElementById('chart-rsi');
+  const macdCanvas  = document.getElementById('chart-macd');
+  const volCanvas   = document.getElementById('chart-vol');
+  const stochCanvas = document.getElementById('chart-stoch');
+  if (rsiCanvas)   rsiCanvas.style.display   = chartIndicators.rsi   ? 'block' : 'none';
+  if (macdCanvas)  macdCanvas.style.display  = chartIndicators.macd  ? 'block' : 'none';
+  if (volCanvas)   volCanvas.style.display   = chartIndicators.vol   ? 'block' : 'none';
+  if (stochCanvas) stochCanvas.style.display = chartIndicators.stoch ? 'block' : 'none';
   resizeChartCanvases();
   drawChart();
 }
@@ -6459,14 +6524,17 @@ function resizeChartCanvases() {
   const macd = document.getElementById('chart-macd');
   const vol = document.getElementById('chart-vol');
   const totalH = wrap.clientHeight;
-  const rsiH = (chartIndicators.rsi && rsi) ? 100 : 0;
-  const macdH = (chartIndicators.macd && macd) ? 100 : 0;
-  const volH = (chartIndicators.vol && vol) ? 80 : 0;
-  const mainH = totalH - rsiH - macdH - volH;
-  if (main) { main.width = wrap.clientWidth; main.height = Math.max(200, mainH); }
-  if (rsi && chartIndicators.rsi) { rsi.width = wrap.clientWidth; rsi.height = rsiH; }
-  if (macd && chartIndicators.macd) { macd.width = wrap.clientWidth; macd.height = macdH; }
-  if (vol && chartIndicators.vol) { vol.width = wrap.clientWidth; vol.height = volH; }
+  const stoch = document.getElementById('chart-stoch');
+  const rsiH   = (chartIndicators.rsi   && rsi)   ? 100 : 0;
+  const macdH  = (chartIndicators.macd  && macd)  ? 100 : 0;
+  const volH   = (chartIndicators.vol   && vol)   ? 80  : 0;
+  const stochH = (chartIndicators.stoch && stoch) ? 100 : 0;
+  const mainH  = totalH - rsiH - macdH - volH - stochH;
+  if (main)  { main.width  = wrap.clientWidth; main.height  = Math.max(200, mainH); }
+  if (rsi   && chartIndicators.rsi)   { rsi.width   = wrap.clientWidth; rsi.height   = rsiH; }
+  if (macd  && chartIndicators.macd)  { macd.width  = wrap.clientWidth; macd.height  = macdH; }
+  if (vol   && chartIndicators.vol)   { vol.width   = wrap.clientWidth; vol.height   = volH; }
+  if (stoch && chartIndicators.stoch) { stoch.width = wrap.clientWidth; stoch.height = stochH; }
 }
 
 function openChartDrawer() {
@@ -6541,6 +6609,9 @@ function openChartDrawer() {
         <div style="width:1px;height:20px;background:var(--border);margin:0 2px"></div>
         <button class="chart-tool-btn" id="ind-rsi" onclick="toggleIndicator('rsi')">RSI</button>
         <button class="chart-tool-btn" id="ind-macd" onclick="toggleIndicator('macd')">MACD</button>
+        <button class="chart-tool-btn" id="ind-stoch" onclick="toggleIndicator('stoch')">Stoch</button>
+        <button class="chart-tool-btn" id="ind-ichimoku" onclick="toggleIndicator('ichimoku')">Ichimoku</button>
+        <button class="chart-tool-btn" id="ind-vp" onclick="toggleIndicator('vp')">VP</button>
         <button class="chart-tool-btn" id="ind-vol" onclick="toggleIndicator('vol')">حجم</button>
       </div>
       <div class="chart-canvas-wrap" id="chart-canvas-wrap" style="display:flex;flex-direction:column">
@@ -6548,6 +6619,7 @@ function openChartDrawer() {
         <canvas id="chart-vol" style="display:none;border-top:1px solid #e2e8f0;background:#fff;height:80px"></canvas>
         <canvas id="chart-rsi" style="display:none;border-top:1px solid #e2e8f0;background:#fff;height:100px"></canvas>
         <canvas id="chart-macd" style="display:none;border-top:1px solid #e2e8f0;background:#fff;height:100px"></canvas>
+        <canvas id="chart-stoch" style="display:none;border-top:1px solid #e2e8f0;background:#fff;height:100px"></canvas>
       </div>
       <div class="chart-footer">
         <span style="font-size:12px;color:var(--text3)">ارسم على الشارت ثم احفظه في المنشور</span>
@@ -6808,6 +6880,69 @@ function drawChart() {
     }
   }
 
+  // ── Ichimoku Cloud (يُرسم تحت الشمعات) ───────────────────
+  if (chartIndicators.ichimoku) {
+    const ichi = calcIchimoku(candles);
+    const drawLine = (data, color, width = 1) => {
+      ctx.strokeStyle = color; ctx.lineWidth = width;
+      ctx.beginPath(); let s = false;
+      data.forEach((v, i) => {
+        if (v === null) { s = false; return; }
+        s ? ctx.lineTo(cx(i), px(v)) : (ctx.moveTo(cx(i), px(v)), s = true);
+      });
+      ctx.stroke();
+    };
+    // Cloud fill
+    for (let i = 0; i < n; i++) {
+      if (ichi.senkouA[i] === null || ichi.senkouB[i] === null) continue;
+      const a = px(ichi.senkouA[i]), b = px(ichi.senkouB[i]);
+      ctx.fillStyle = ichi.senkouA[i] > ichi.senkouB[i] ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)';
+      ctx.fillRect(cx(i) - candleW/2, Math.min(a, b), candleW, Math.abs(a - b));
+    }
+    drawLine(ichi.tenkan,  '#ef4444', 1.2);  // أحمر
+    drawLine(ichi.kijun,   '#3b82f6', 1.2);  // أزرق
+    drawLine(ichi.senkouA, '#22c55e', 1);    // أخضر
+    drawLine(ichi.senkouB, '#ef4444', 1);    // أحمر فاتح
+    // Chikou
+    ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 1; ctx.setLineDash([3,2]);
+    ctx.beginPath(); let s = false;
+    ichi.chikou.forEach((v, i) => {
+      if (v === null) { s = false; return; }
+      s ? ctx.lineTo(cx(i), px(v)) : (ctx.moveTo(cx(i), px(v)), s = true);
+    });
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  // ── Volume Profile (على يسار الشارت) ───────────────────────
+  if (chartIndicators.vp) {
+    const { profile, pMin: vpMin, pMax: vpMax } = calcVolumeProfile(candles);
+    const maxVol = Math.max(...profile.map(p => p.vol));
+    const vpWidth = 60; // عرض الـ VP على اليسار
+    const chartH2 = H - PAD.top - PAD.bottom;
+    profile.forEach(p => {
+      if (!p.vol) return;
+      const barW = (p.vol / maxVol) * vpWidth;
+      const y1 = PAD.top + chartH2 - ((p.priceMax - pMin) / (pMax - pMin)) * chartH2;
+      const y2 = PAD.top + chartH2 - ((p.priceMin - pMin) / (pMax - pMin)) * chartH2;
+      const barH = Math.max(1, y2 - y1);
+      // Buy vol
+      const buyW = (p.buyVol / p.vol) * barW;
+      ctx.fillStyle = 'rgba(34,197,94,0.35)';
+      ctx.fillRect(PAD.left, y1, buyW, barH);
+      // Sell vol
+      ctx.fillStyle = 'rgba(239,68,68,0.35)';
+      ctx.fillRect(PAD.left + buyW, y1, barW - buyW, barH);
+    });
+    // POC (Point of Control) — أعلى حجم
+    const poc = profile.reduce((max, p) => p.vol > max.vol ? p : max, profile[0]);
+    const pocY = PAD.top + (H - PAD.top - PAD.bottom) - ((poc.priceMid - pMin) / (pMax - pMin)) * (H - PAD.top - PAD.bottom);
+    ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(PAD.left, pocY); ctx.lineTo(W - PAD.right, pocY); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#f59e0b'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'left';
+    ctx.fillText('POC ' + poc.priceMid.toFixed(2), W - PAD.right + 4, pocY + 4);
+  }
+
   // شمعات
   candles.forEach((c, i) => {
     if (!c.open || !c.close) return;
@@ -6974,6 +7109,59 @@ function drawSubPanels() {
       ctx.fillStyle = '#8b5cf6'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'right';
       const lastRsi = rsiData.filter(v => v !== null).pop();
       if (lastRsi) ctx.fillText(`RSI ${lastRsi.toFixed(1)}`, W - PAD.right + 60, ry(lastRsi) + 4);
+    }
+  }
+
+  // ── Stochastic Panel ──
+  if (chartIndicators.stoch) {
+    const sc = document.getElementById('chart-stoch');
+    if (sc) {
+      const ctx = sc.getContext('2d');
+      const W = sc.width, H = sc.height;
+      const PAD = { top: 8, right: 65, bottom: 16, left: 10 };
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+      const { k, d } = calcStochastic(candles);
+      const gap = (W - PAD.left - PAD.right) / n;
+      const sy = v => PAD.top + (H - PAD.top - PAD.bottom) * (1 - v / 100);
+      // zones 80/20
+      [80, 50, 20].forEach(lvl => {
+        ctx.strokeStyle = lvl === 50 ? '#cbd5e1' : (lvl === 80 ? 'rgba(239,68,68,0.4)' : 'rgba(16,185,129,0.4)');
+        ctx.lineWidth = 0.7; ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(PAD.left, sy(lvl)); ctx.lineTo(W - PAD.right, sy(lvl)); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#94a3b8'; ctx.font = '10px Arial'; ctx.textAlign = 'left';
+        ctx.fillText(lvl, W - PAD.right + 4, sy(lvl) + 4);
+      });
+      // fill zones
+      ctx.fillStyle = 'rgba(239,68,68,0.05)';
+      ctx.fillRect(PAD.left, PAD.top, W - PAD.left - PAD.right, sy(100) - sy(80));
+      ctx.fillStyle = 'rgba(16,185,129,0.05)';
+      ctx.fillRect(PAD.left, sy(20), W - PAD.left - PAD.right, H - PAD.bottom - sy(20));
+      // K line
+      ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 1.3;
+      ctx.beginPath(); let s = false;
+      k.forEach((v, i) => {
+        if (v === null) { s = false; return; }
+        s ? ctx.lineTo(PAD.left + i * gap + gap/2, sy(v)) : (ctx.moveTo(PAD.left + i * gap + gap/2, sy(v)), s = true);
+      });
+      ctx.stroke();
+      // D line
+      ctx.strokeStyle = '#f97316'; ctx.lineWidth = 1.3;
+      ctx.beginPath(); s = false;
+      d.forEach((v, i) => {
+        if (v === null) { s = false; return; }
+        s ? ctx.lineTo(PAD.left + i * gap + gap/2, sy(v)) : (ctx.moveTo(PAD.left + i * gap + gap/2, sy(v)), s = true);
+      });
+      ctx.stroke();
+      // labels
+      const lastK = k.filter(v => v !== null).pop();
+      const lastD = d.filter(v => v !== null).pop();
+      ctx.font = 'bold 10px Arial'; ctx.textAlign = 'right';
+      ctx.fillStyle = '#3b82f6';
+      ctx.fillText(`K ${lastK?.toFixed(1) || ''}`, W - PAD.right + 60, PAD.top + 10);
+      ctx.fillStyle = '#f97316';
+      ctx.fillText(`D ${lastD?.toFixed(1) || ''}`, W - PAD.right + 60, PAD.top + 22);
     }
   }
 
