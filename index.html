@@ -6505,6 +6505,9 @@ function openChartDrawer() {
         <button class="chart-tool-btn" id="tool-rect" onclick="setChartTool('rect')">▭ مستطيل</button>
         <button class="chart-tool-btn" id="tool-arrow" onclick="setChartTool('arrow')">➜ سهم</button>
         <button class="chart-tool-btn" id="tool-text" onclick="setChartTool('text')">T نص</button>
+        <button class="chart-tool-btn" id="tool-fib" onclick="setChartTool('fib')" title="فيبوناتشي">🌀 فيب</button>
+        <button class="chart-tool-btn" id="tool-channel" onclick="setChartTool('channel')" title="قناة السعر">⫴ قناة</button>
+        <button class="chart-tool-btn" id="tool-sr" onclick="autoDetectSR()" title="دعم ومقاومة تلقائي" style="background:#f0fdf4;color:#15803d;border-color:#86efac">⚡ د/م</button>
         <div style="width:1px;height:24px;background:var(--border);margin:0 4px"></div>
         <input type="color" id="cd-color" value="#1D4ED8" onchange="chartColor=this.value" style="width:32px;height:28px;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:2px">
         <select id="cd-width" onchange="chartLineWidth=parseInt(this.value)" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-family:inherit;font-size:13px;background:var(--bg2)">
@@ -7027,8 +7030,10 @@ function drawSubPanels() {
 
 function renderDrawing(ctx, d, pMin, pMax, W, H, PAD) {
   ctx.strokeStyle = d.color; ctx.lineWidth = d.width; ctx.fillStyle = d.color;
+
   if (d.type === 'line') {
     ctx.beginPath(); ctx.moveTo(d.x1, d.y1); ctx.lineTo(d.x2, d.y2); ctx.stroke();
+
   } else if (d.type === 'arrow') {
     ctx.beginPath(); ctx.moveTo(d.x1, d.y1); ctx.lineTo(d.x2, d.y2); ctx.stroke();
     const angle = Math.atan2(d.y2 - d.y1, d.x2 - d.x1);
@@ -7037,6 +7042,7 @@ function renderDrawing(ctx, d, pMin, pMax, W, H, PAD) {
     ctx.lineTo(d.x2 - 14 * Math.cos(angle - 0.4), d.y2 - 14 * Math.sin(angle - 0.4));
     ctx.lineTo(d.x2 - 14 * Math.cos(angle + 0.4), d.y2 - 14 * Math.sin(angle + 0.4));
     ctx.closePath(); ctx.fill();
+
   } else if (d.type === 'hline') {
     ctx.setLineDash([6, 3]);
     ctx.beginPath(); ctx.moveTo(PAD.left, d.y1); ctx.lineTo(W - PAD.right, d.y1); ctx.stroke();
@@ -7044,16 +7050,159 @@ function renderDrawing(ctx, d, pMin, pMax, W, H, PAD) {
     const price = pMin + ((H - PAD.bottom - d.y1) / (H - PAD.top - PAD.bottom)) * (pMax - pMin);
     ctx.font = '11px Arial'; ctx.textAlign = 'left'; ctx.fillStyle = d.color;
     ctx.fillText(price.toFixed(2), W - PAD.right + 4, d.y1 + 4);
+
   } else if (d.type === 'rect') {
     ctx.globalAlpha = 0.12;
     ctx.fillRect(d.x1, d.y1, d.x2 - d.x1, d.y2 - d.y1);
     ctx.globalAlpha = 1;
     ctx.strokeRect(d.x1, d.y1, d.x2 - d.x1, d.y2 - d.y1);
+
   } else if (d.type === 'text') {
     ctx.font = `bold ${12 + d.width * 2}px IBM Plex Sans Arabic, Arial`;
     ctx.textAlign = 'right'; ctx.fillStyle = d.color;
     ctx.fillText(d.text, d.x1, d.y1);
+
+  } else if (d.type === 'fib') {
+    // فيبوناتشي — من y1 (قمة) إلى y2 (قاع) أو العكس
+    const fibLevels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
+    const fibColors = ['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ef4444'];
+    const fibLabels = ['0%','23.6%','38.2%','50%','61.8%','78.6%','100%'];
+    const chartH = H - PAD.top - PAD.bottom;
+    const p1 = pMin + ((H - PAD.bottom - d.y1) / chartH) * (pMax - pMin);
+    const p2 = pMin + ((H - PAD.bottom - d.y2) / chartH) * (pMax - pMin);
+    const priceRange = p1 - p2;
+
+    fibLevels.forEach((lvl, i) => {
+      const price = p1 - priceRange * lvl;
+      const y = PAD.top + chartH - ((price - pMin) / (pMax - pMin)) * chartH;
+      ctx.strokeStyle = fibColors[i];
+      ctx.lineWidth = lvl === 0.618 ? 1.5 : 1;
+      ctx.globalAlpha = 0.7;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath(); ctx.moveTo(Math.min(d.x1, d.x2), y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+      // تظليل بين المستويات
+      if (i > 0) {
+        const prevPrice = p1 - priceRange * fibLevels[i-1];
+        const prevY = PAD.top + chartH - ((prevPrice - pMin) / (pMax - pMin)) * chartH;
+        ctx.fillStyle = fibColors[i];
+        ctx.globalAlpha = 0.03;
+        ctx.fillRect(Math.min(d.x1, d.x2), Math.min(y, prevY), W - PAD.right - Math.min(d.x1, d.x2), Math.abs(y - prevY));
+        ctx.globalAlpha = 1;
+      }
+      // Labels
+      ctx.fillStyle = fibColors[i];
+      ctx.font = 'bold 10px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText(`${fibLabels[i]}  ${price.toFixed(2)}`, W - PAD.right + 4, y + 4);
+    });
+    // خط الاتجاه
+    ctx.strokeStyle = d.color; ctx.lineWidth = d.width; ctx.globalAlpha = 0.5;
+    ctx.beginPath(); ctx.moveTo(d.x1, d.y1); ctx.lineTo(d.x2, d.y2); ctx.stroke();
+    ctx.globalAlpha = 1;
+
+  } else if (d.type === 'channel') {
+    // قناة السعر — خطان متوازيان
+    ctx.strokeStyle = d.color; ctx.lineWidth = d.width;
+    // الخط الرئيسي
+    ctx.beginPath(); ctx.moveTo(d.x1, d.y1); ctx.lineTo(d.x2, d.y2); ctx.stroke();
+    // الخط الموازي (بفارق ثابت)
+    const offset = d.offset || 50;
+    ctx.setLineDash([5, 3]);
+    ctx.beginPath(); ctx.moveTo(d.x1, d.y1 + offset); ctx.lineTo(d.x2, d.y2 + offset); ctx.stroke();
+    ctx.setLineDash([]);
+    // تظليل القناة
+    ctx.globalAlpha = 0.06;
+    ctx.fillStyle = d.color;
+    ctx.beginPath();
+    ctx.moveTo(d.x1, d.y1); ctx.lineTo(d.x2, d.y2);
+    ctx.lineTo(d.x2, d.y2 + offset); ctx.lineTo(d.x1, d.y1 + offset);
+    ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1;
+
+  } else if (d.type === 'sr_zone') {
+    // منطقة دعم أو مقاومة
+    ctx.globalAlpha = d.isResistance ? 0.12 : 0.10;
+    ctx.fillStyle = d.isResistance ? '#ef4444' : '#22c55e';
+    ctx.fillRect(PAD.left, d.y1, W - PAD.left - PAD.right, d.y2 - d.y1);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = d.isResistance ? '#ef4444' : '#22c55e';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(PAD.left, d.y1); ctx.lineTo(W - PAD.right, d.y1); ctx.stroke();
+    ctx.setLineDash([]);
+    const price = pMin + ((H - PAD.bottom - d.y1) / (H - PAD.top - PAD.bottom)) * (pMax - pMin);
+    ctx.font = 'bold 10px Arial'; ctx.textAlign = 'left';
+    ctx.fillStyle = d.isResistance ? '#ef4444' : '#22c55e';
+    ctx.fillText((d.isResistance ? '▲ مقاومة ' : '▼ دعم ') + price.toFixed(2), W - PAD.right + 4, d.y1 + 4);
   }
+}
+
+// ── كشف الدعم والمقاومة التلقائي ─────────────────────────────
+function autoDetectSR() {
+  if (!chartCandles.length) { return; }
+  const totalCandles = chartCandles.length;
+  const viewCount = Math.min(chartViewCount, totalCandles);
+  const startIdx = Math.max(0, totalCandles - viewCount - chartViewOffset);
+  const endIdx = Math.max(viewCount, totalCandles - chartViewOffset);
+  const candles = chartCandles.slice(startIdx, endIdx);
+
+  const canvas = document.getElementById('chart-canvas');
+  const W = canvas.width, H = canvas.height;
+  const PAD = { top: 20, right: 65, bottom: 30, left: 10 };
+  const prices = candles.flatMap(c => [c.high, c.low]).filter(Boolean);
+  const pMin = Math.min(...prices), pMax = Math.max(...prices);
+
+  // إزالة مناطق الدعم/مقاومة القديمة
+  chartDrawings = chartDrawings.filter(d => d.type !== 'sr_zone');
+
+  const highs = candles.map(c => c.high);
+  const lows  = candles.map(c => c.low);
+  const n = candles.length;
+  const levels = [];
+
+  // إيجاد القمم والقيعان المحلية
+  for (let i = 2; i < n - 2; i++) {
+    // قمة محلية
+    if (highs[i] > highs[i-1] && highs[i] > highs[i-2] && highs[i] > highs[i+1] && highs[i] > highs[i+2]) {
+      levels.push({ price: highs[i], isResistance: true });
+    }
+    // قاع محلي
+    if (lows[i] < lows[i-1] && lows[i] < lows[i-2] && lows[i] < lows[i+1] && lows[i] < lows[i+2]) {
+      levels.push({ price: lows[i], isResistance: false });
+    }
+  }
+
+  // دمج المستويات المتقاربة (ضمن 0.8%)
+  const merged = [];
+  levels.sort((a, b) => a.price - b.price);
+  levels.forEach(lvl => {
+    const existing = merged.find(m => Math.abs(m.price - lvl.price) / lvl.price < 0.008 && m.isResistance === lvl.isResistance);
+    if (existing) { existing.count = (existing.count || 1) + 1; existing.price = (existing.price + lvl.price) / 2; }
+    else merged.push({ ...lvl, count: 1 });
+  });
+
+  // أقوى 5 مستويات فقط
+  const top = merged.sort((a, b) => b.count - a.count).slice(0, 5);
+
+  const chartH = H - PAD.top - PAD.bottom;
+  const zoneSize = chartH * 0.008; // حجم المنطقة
+
+  top.forEach(lvl => {
+    const y = PAD.top + chartH - ((lvl.price - pMin) / (pMax - pMin)) * chartH;
+    chartDrawings.push({
+      type: 'sr_zone',
+      y1: y - zoneSize,
+      y2: y + zoneSize,
+      isResistance: lvl.isResistance,
+      color: lvl.isResistance ? '#ef4444' : '#22c55e',
+      width: 1,
+      count: lvl.count
+    });
+  });
+
+  drawChart();
 }
 
 function onChartMouseDown(e) {
@@ -7132,6 +7281,11 @@ function onChartMouseMove(e) {
     ctx.fillRect(chartStartX, chartStartY, x - chartStartX, y - chartStartY);
     ctx.globalAlpha = 1;
     ctx.strokeRect(chartStartX, chartStartY, x - chartStartX, y - chartStartY);
+  } else if (chartTool === 'fib' || chartTool === 'channel') {
+    ctx.strokeStyle = chartColor; ctx.lineWidth = chartLineWidth; ctx.globalAlpha = 0.5;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(chartStartX, chartStartY); ctx.lineTo(x, y); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha = 1;
   }
 }
 
@@ -7149,7 +7303,13 @@ function onChartMouseUp(e) {
   const y = e.clientY - rect.top;
   // تجاهل النقرات الصغيرة جداً (أقل من 3px)
   if (Math.abs(x - chartStartX) < 3 && Math.abs(y - chartStartY) < 3 && chartTool !== 'hline') { drawChart(); return; }
-  chartDrawings.push({ type: chartTool, x1: chartStartX, y1: chartStartY, x2: x, y2: y, color: chartColor, width: chartLineWidth });
+
+  if (chartTool === 'channel') {
+    // القناة: الخط الرئيسي + offset افتراضي 60px
+    chartDrawings.push({ type: 'channel', x1: chartStartX, y1: chartStartY, x2: x, y2: y, color: chartColor, width: chartLineWidth, offset: 60 });
+  } else {
+    chartDrawings.push({ type: chartTool, x1: chartStartX, y1: chartStartY, x2: x, y2: y, color: chartColor, width: chartLineWidth });
+  }
   drawChart();
 }
 
