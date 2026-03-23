@@ -6357,6 +6357,16 @@ let chartIsDrawing = false;
 let chartStartX, chartStartY;
 let chartIndicators = { ma: false, ema: false, bb: false, rsi: false, macd: false, vol: false };
 
+// ── Pan + Zoom + Crosshair state ──────────────────────────────
+let chartViewOffset = 0;   // عدد الشمعات من اليمين
+let chartViewCount  = 80;  // عدد الشمعات المعروضة
+let chartIsPanning  = false;
+let chartPanStartX  = 0;
+let chartPanStartOffset = 0;
+let chartHoverIdx   = -1;
+let chartHoverX     = -1;
+let chartHoverY     = -1;
+
 // ── حساب المؤشرات التقنية ─────────────────────────────────
 function calcMA(data, period) {
   return data.map((_, i) => {
@@ -6566,15 +6576,64 @@ function initChartCanvas() {
   if (!canvas || !wrap) return;
   canvas.width = wrap.clientWidth;
   canvas.height = Math.max(360, wrap.clientHeight);
+
+  // reset view
+  chartViewCount  = Math.min(80, chartCandles.length || 80);
+  chartViewOffset = 0;
+
   drawChart();
+
+  // ── أدوات الرسم ──
   canvas.addEventListener('mousedown', onChartMouseDown);
   canvas.addEventListener('mousemove', onChartMouseMove);
-  canvas.addEventListener('mouseup', onChartMouseUp);
-  canvas.addEventListener('mouseleave', onChartMouseUp);
-  // touch support
-  canvas.addEventListener('touchstart', e => { e.preventDefault(); onChartMouseDown(e.touches[0]); }, { passive: false });
-  canvas.addEventListener('touchmove', e => { e.preventDefault(); onChartMouseMove(e.touches[0]); }, { passive: false });
-  canvas.addEventListener('touchend', e => { e.preventDefault(); onChartMouseUp(e.changedTouches[0]); }, { passive: false });
+  canvas.addEventListener('mouseup',   onChartMouseUp);
+  canvas.addEventListener('mouseleave', onChartMouseLeave);
+
+  // ── منع القائمة عند الضغط الأيمن ──
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+  // ── Zoom بعجلة الماوس ──
+  canvas.addEventListener('wheel', onChartWheel, { passive: false });
+
+  // ── touch ──
+  let lastTouchDist = 0;
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (e.touches.length === 2) {
+      lastTouchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    } else {
+      onChartMouseDown(e.touches[0]);
+    }
+  }, { passive: false });
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches.length === 2) {
+      const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      const delta = lastTouchDist - dist;
+      lastTouchDist = dist;
+      chartViewCount = Math.max(10, Math.min(chartCandles.length, chartViewCount + Math.round(delta / 5)));
+      drawChart();
+    } else {
+      onChartMouseMove(e.touches[0]);
+    }
+  }, { passive: false });
+  canvas.addEventListener('touchend', e => {
+    e.preventDefault();
+    onChartMouseUp(e.changedTouches[0]);
+  }, { passive: false });
+}
+
+function onChartWheel(e) {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? 5 : -5;
+  chartViewCount = Math.max(10, Math.min(chartCandles.length, chartViewCount + delta));
+  drawChart();
+}
+
+function onChartMouseLeave(e) {
+  chartHoverIdx = -1; chartHoverX = -1; chartHoverY = -1;
+  if (chartIsDrawing) onChartMouseUp(e);
+  else drawChart();
 }
 
 async function loadChartData() {
@@ -6596,6 +6655,8 @@ async function loadChartData() {
     if (d.error) { toast(d.error, 'error'); document.getElementById('cd-status').textContent = '❌ ' + d.error; return; }
     chartCandles = d.candles;
     chartDrawings = [];
+    chartViewOffset = 0;
+    chartViewCount = Math.min(80, d.candles.length);
     const intervalLabel = { '5m':'5د', '15m':'15د', '30m':'30د', '1h':'1س', '4h':'4س', '1d':'يومي', '1wk':'أسبوعي', '1mo':'شهري' }[interval] || interval;
     document.getElementById('cd-status').textContent = `✅ ${d.name || yahooSymbol} | ${intervalLabel} — ${d.candles.length} شمعة`;
     drawChart();
@@ -6625,7 +6686,12 @@ function drawChart() {
     return;
   }
 
-  const candles = chartCandles;
+  // ── نافذة العرض (pan/zoom) ──
+  const totalCandles = chartCandles.length;
+  const viewCount = Math.min(chartViewCount, totalCandles);
+  const startIdx = Math.max(0, totalCandles - viewCount - chartViewOffset);
+  const endIdx   = Math.max(viewCount, totalCandles - chartViewOffset);
+  const candles = chartCandles.slice(startIdx, endIdx);
   const n = candles.length;
   const closes = candles.map(c => c.close);
   const prices = candles.flatMap(c => [c.high, c.low]).filter(Boolean);
@@ -6775,6 +6841,59 @@ function drawChart() {
 
   // رسومات المستخدم
   chartDrawings.forEach(d => renderDrawing(ctx, d, pMin, pMax, W, H, PAD));
+
+  // ── Crosshair + Tooltip ──────────────────────────────────────
+  if (chartHoverIdx >= 0 && chartHoverIdx < n && chartHoverX >= PAD.left && chartHoverX <= W - PAD.right) {
+    const hx = cx(chartHoverIdx);
+    const hy = chartHoverY;
+    // خطوط الـ crosshair
+    ctx.save();
+    ctx.strokeStyle = 'rgba(100,116,139,0.6)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(hx, PAD.top); ctx.lineTo(hx, H - PAD.bottom); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(PAD.left, hy); ctx.lineTo(W - PAD.right, hy); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // السعر على المحور الأيمن
+    const hPrice = pMin + ((H - PAD.bottom - hy) / chartH) * (pMax - pMin);
+    ctx.fillStyle = '#1B4FD8';
+    ctx.fillRect(W - PAD.right + 2, hy - 9, PAD.right - 4, 18);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'left';
+    ctx.fillText(hPrice.toFixed(2), W - PAD.right + 5, hy + 4);
+
+    // Tooltip بيانات الشمعة
+    const c = candles[chartHoverIdx];
+    if (c) {
+      const isUp = c.close >= c.open;
+      const d = new Date(c.time);
+      const dateStr = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+      const lines = [
+        dateStr,
+        `ف: ${c.open?.toFixed(2)}  أ: ${c.high?.toFixed(2)}`,
+        `أد: ${c.low?.toFixed(2)}  إ: ${c.close?.toFixed(2)}`,
+        c.volume ? `ح: ${c.volume > 1e6 ? (c.volume/1e6).toFixed(1)+'M' : c.volume > 1e3 ? (c.volume/1e3).toFixed(0)+'K' : c.volume}` : ''
+      ].filter(Boolean);
+
+      const boxW = 148, lineH = 16, boxH = lines.length * lineH + 12;
+      let bx = hx + 10;
+      if (bx + boxW > W - PAD.right) bx = hx - boxW - 10;
+      let by = PAD.top + 4;
+
+      ctx.fillStyle = 'rgba(15,23,42,0.88)';
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(bx, by, boxW, boxH, 6) : ctx.rect(bx, by, boxW, boxH);
+      ctx.fill();
+
+      ctx.font = 'bold 11px IBM Plex Sans Arabic, Arial';
+      ctx.textAlign = 'right';
+      lines.forEach((line, i) => {
+        ctx.fillStyle = i === 0 ? '#94a3b8' : (i === lines.length - 1 && line.startsWith('ح') ? '#64748b' : (isUp ? '#34d399' : '#f87171'));
+        ctx.fillText(line, bx + boxW - 8, by + 14 + i * lineH);
+      });
+    }
+    ctx.restore();
+  }
 
   // رسم الـ sub panels
   drawSubPanels();
@@ -6942,6 +7061,16 @@ function onChartMouseDown(e) {
   const rect = canvas.getBoundingClientRect();
   chartStartX = e.clientX - rect.left;
   chartStartY = e.clientY - rect.top;
+
+  // زر يمين أو middle = تمرير (pan)
+  if (e.button === 1 || e.button === 2) {
+    chartIsPanning = true;
+    chartPanStartX = chartStartX;
+    chartPanStartOffset = chartViewOffset;
+    canvas.style.cursor = 'grabbing';
+    return;
+  }
+
   if (chartTool === 'text') {
     const text = prompt('أدخل النص:');
     if (text) {
@@ -6953,12 +7082,42 @@ function onChartMouseDown(e) {
   chartIsDrawing = true;
 }
 
+
+
 function onChartMouseMove(e) {
-  if (!chartIsDrawing) return;
   const canvas = document.getElementById('chart-canvas');
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
+
+  // ── Pan ──
+  if (chartIsPanning) {
+    const dx = x - chartPanStartX;
+    const W = canvas.width;
+    const PAD = { left: 10, right: 65 };
+    const chartW = W - PAD.left - PAD.right;
+    const gap = chartW / Math.min(chartViewCount, chartCandles.length);
+    const candlesDelta = Math.round(-dx / gap);
+    const maxOffset = Math.max(0, chartCandles.length - chartViewCount);
+    chartViewOffset = Math.max(0, Math.min(maxOffset, chartPanStartOffset + candlesDelta));
+    drawChart();
+    return;
+  }
+
+  // ── Crosshair hover ──
+  chartHoverX = x; chartHoverY = y;
+  if (chartCandles.length) {
+    const W = canvas.width;
+    const PAD = { left: 10, right: 65 };
+    const chartW = W - PAD.left - PAD.right;
+    const n = Math.min(chartViewCount, chartCandles.length);
+    const gap = chartW / n;
+    const idx = Math.round((x - PAD.left) / gap - 0.5);
+    chartHoverIdx = Math.max(0, Math.min(n - 1, idx));
+  }
+
+  if (!chartIsDrawing) { drawChart(); return; }
+
   drawChart();
   const ctx = canvas.getContext('2d');
   ctx.strokeStyle = chartColor; ctx.lineWidth = chartLineWidth; ctx.fillStyle = chartColor;
@@ -6977,12 +7136,19 @@ function onChartMouseMove(e) {
 }
 
 function onChartMouseUp(e) {
+  const canvas = document.getElementById('chart-canvas');
+  if (chartIsPanning) {
+    chartIsPanning = false;
+    if (canvas) canvas.style.cursor = 'crosshair';
+    return;
+  }
   if (!chartIsDrawing) return;
   chartIsDrawing = false;
-  const canvas = document.getElementById('chart-canvas');
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
+  // تجاهل النقرات الصغيرة جداً (أقل من 3px)
+  if (Math.abs(x - chartStartX) < 3 && Math.abs(y - chartStartY) < 3 && chartTool !== 'hline') { drawChart(); return; }
   chartDrawings.push({ type: chartTool, x1: chartStartX, y1: chartStartY, x2: x, y2: y, color: chartColor, width: chartLineWidth });
   drawChart();
 }
