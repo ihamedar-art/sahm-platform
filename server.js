@@ -2086,7 +2086,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   try {
     const nodemailer = require('nodemailer');
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      host: 'smtp-relay.gmail.com',
       port: 587,
       secure: false,
       auth: {
