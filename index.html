@@ -1390,6 +1390,12 @@ body {
   background-size: 200% 100%; animation: shimmer 1.4s infinite;
   flex-shrink: 0;
 }
+/* ── Calculators — إزالة أسهم input وتعريض الخط ── */
+#calc-content input[type=number]::-webkit-inner-spin-button,
+#calc-content input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+#calc-content input[type=number] { -moz-appearance: textfield; font-weight: 600; font-size: 15px !important; }
+#calc-content { font-weight: 500; }
+#calc-content .panel-card, #calc-content h2, #calc-content label { font-weight: 600; }
 </style>
 </head>
 <body>
@@ -6270,7 +6276,7 @@ function loadCalcPage() {
   calcOrder();
 }
 
-function calcFmt(n, d=2){ return n.toLocaleString('ar-SA', {minimumFractionDigits:d, maximumFractionDigits:d}); }
+function calcFmt(n, d=2){ return n.toLocaleString('en-US', {minimumFractionDigits:d, maximumFractionDigits:d}); }
 
 function calcShowTab(t){
   document.getElementById('calc-order-panel').style.display = t==='order'?'block':'none';
