@@ -6290,11 +6290,13 @@ function calcShowTab(t){
 }
 
 function calcFees(val, disc){
-  const full = val * 0.00155;
-  const da   = full * (disc/100);
-  const af   = full - da;
+  const cma  = val * 0.00030;
+  const rest = val * 0.00125;
+  const da   = rest * (disc/100);
+  const af   = rest - da;
   const vat  = af * 0.15;
-  return {full, da, af, vat, total: af+vat};
+  const full = cma + rest;
+  return {full, da, af, vat, total: cma + af + vat};
 }
 
 function calcToggleSL(){
