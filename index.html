@@ -1452,6 +1452,9 @@ body {
       <a class="nav-item" id="nav-calendar" onclick="navigate('calendar')">
         <span class="nav-icon">📅</span> مفكرة السوق
       </a>
+      <a class="nav-item" id="nav-calc" onclick="navigate('calc')">
+        <span class="nav-icon">🧮</span> الحاسبة
+      </a>
 
       <div class="nav-section-label" style="margin-top:4px">مجتمع</div>
       <a class="nav-item rooms-nav" id="nav-rooms" onclick="navigate('rooms')">
@@ -1519,7 +1522,10 @@ body {
       <div id="calendar-content"></div>
     </div>
 
-    <!-- Rooms Page -->
+    <!-- Calculators Page -->
+    <div class="page" id="page-calc">
+      <div id="calc-content"></div>
+    </div>
     <div class="page" id="page-rooms">
       <div id="rooms-content"></div>
     </div>
@@ -2007,6 +2013,9 @@ function navigate(page, param = '', pushHistory = true) {
   } else if (page === 'calendar') {
     document.getElementById('page-calendar').classList.add('active');
     loadCalendarPage();
+  } else if (page === 'calc') {
+    document.getElementById('page-calc').classList.add('active');
+    loadCalcPage();
   } else if (page === 'admin') {
     document.getElementById('page-admin').classList.add('active');
     loadAdminPage();
@@ -6159,6 +6168,249 @@ async function renderAdminLogs(el, page=0) {
 
 <script>
 // ══════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+// CALCULATORS PAGE — الحاسبة
+// ══════════════════════════════════════════════════════════════════════════════
+let calcTradeCount = 0;
+
+function loadCalcPage() {
+  const el = document.getElementById('calc-content');
+  el.innerHTML = `
+  <div style="max-width:640px;margin:0 auto;padding:20px 16px;" dir="rtl">
+    <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">🧮 الحاسبة</h2>
+    <p style="font-size:13px;color:var(--text3);margin-bottom:20px;">احسب تكاليف صفقاتك ومتوسط سعر التكلفة</p>
+
+    <div style="display:flex;gap:8px;margin-bottom:1.5rem;">
+      <button id="calc-tab-order" onclick="calcShowTab('order')" style="padding:8px 20px;border-radius:8px;border:1.5px solid var(--primary);background:var(--primary);color:#fff;font-size:14px;cursor:pointer;font-family:inherit;">حاسبة الأوامر</button>
+      <button id="calc-tab-avg" onclick="calcShowTab('avg')" style="padding:8px 20px;border-radius:8px;border:1.5px solid var(--border2);background:transparent;color:var(--text2);font-size:14px;cursor:pointer;font-family:inherit;">تعديل متوسط التكلفة</button>
+    </div>
+
+    <!-- حاسبة الأوامر -->
+    <div id="calc-order-panel">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div>
+          <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px;">السعر (ر.س)</label>
+          <input type="number" id="co-price" value="34.38" step="0.01" oninput="calcOrder()" style="width:100%;box-sizing:border-box;height:40px;border-radius:8px;border:1.5px solid var(--border2);background:var(--bg2);color:var(--text);padding:0 12px;font-size:14px;font-family:inherit;" />
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px;">الكمية (سهم)</label>
+          <input type="number" id="co-qty" value="1000" step="1" oninput="calcOrder()" style="width:100%;box-sizing:border-box;height:40px;border-radius:8px;border:1.5px solid var(--border2);background:var(--bg2);color:var(--text);padding:0 12px;font-size:14px;font-family:inherit;" />
+        </div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px;">خصم العمولة (%) <span style="font-size:11px;color:var(--text4);">اختياري</span></label>
+        <input type="number" id="co-disc" value="0" min="0" max="100" step="1" oninput="calcOrder()" placeholder="مثال: 50" style="width:100%;box-sizing:border-box;height:40px;border-radius:8px;border:1.5px solid var(--border2);background:var(--bg2);color:var(--text);padding:0 12px;font-size:14px;font-family:inherit;" />
+      </div>
+      <div style="margin-bottom:12px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <input type="checkbox" id="co-use-sl" onchange="calcToggleSL()" style="width:16px;height:16px;cursor:pointer;" />
+          <label for="co-use-sl" style="font-size:13px;color:var(--text);cursor:pointer;">إضافة وقف الخسارة والهدف <span style="font-size:11px;color:var(--text4);">اختياري</span></label>
+        </div>
+        <div id="co-sl-sec" style="display:none;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div>
+              <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px;">الهدف Take Profit (ر.س)</label>
+              <input type="number" id="co-tp" value="36.00" step="0.01" oninput="calcOrder()" style="width:100%;box-sizing:border-box;height:40px;border-radius:8px;border:1.5px solid var(--border2);background:var(--bg2);color:var(--text);padding:0 12px;font-size:14px;font-family:inherit;" />
+            </div>
+            <div>
+              <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px;">وقف الخسارة Stop Loss (ر.س)</label>
+              <input type="number" id="co-sl" value="33.00" step="0.01" oninput="calcOrder()" style="width:100%;box-sizing:border-box;height:40px;border-radius:8px;border:1.5px solid var(--border2);background:var(--bg2);color:var(--text);padding:0 12px;font-size:14px;font-family:inherit;" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:var(--bg2);border-radius:12px;padding:16px;border:1.5px solid var(--border);">
+        <div style="font-size:12px;font-weight:600;color:var(--text3);margin-bottom:10px;">تفاصيل الرسوم</div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;color:var(--text3);">قيمة الصفقة</span><span id="cor-val" style="font-size:15px;font-weight:600;color:var(--primary);">—</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;color:var(--text3);">الرسوم <span style="font-size:11px;color:var(--text4);">0.155%</span></span><span id="cor-fees" style="font-size:13px;color:var(--text);">—</span></div>
+        <div id="cor-disc-row" style="display:none;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;color:var(--text3);">خصم العمولة <span id="cor-disc-lbl" style="font-size:11px;color:var(--text4);"></span></span><span id="cor-disc-amt" style="font-size:13px;color:#16a34a;font-weight:500;">—</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;color:var(--text3);">VAT 15%</span><span id="cor-vat" style="font-size:13px;color:var(--text);">—</span></div>
+        <div style="border-top:1px solid var(--border2);margin:4px 0;"></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;font-weight:600;color:var(--text);">إجمالي الرسوم</span><span id="cor-tfees" style="font-size:15px;font-weight:600;color:#dc2626;">—</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;color:var(--text3);">إجمالي التكلفة</span><span id="cor-tcost" style="font-size:15px;font-weight:600;color:var(--primary);">—</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;"><span style="font-size:13px;color:var(--text3);">نقطة التعادل</span><span id="cor-be" style="font-size:14px;font-weight:600;color:var(--primary);">—</span></div>
+        <div id="cor-sltp-res" style="display:none;">
+          <div style="border-top:1px solid var(--border2);margin:4px 0;"></div>
+          <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;color:var(--text3);">الربح عند الهدف</span><span id="cor-profit" style="font-size:15px;font-weight:600;color:#16a34a;">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;color:var(--text3);">نسبة الربح</span><span id="cor-ppct" style="font-size:13px;font-weight:500;color:#16a34a;">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;color:var(--text3);">الخسارة عند الوقف</span><span id="cor-loss" style="font-size:15px;font-weight:600;color:#dc2626;">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;color:var(--text3);">نسبة الخسارة</span><span id="cor-lpct" style="font-size:13px;font-weight:500;color:#dc2626;">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding:6px 0;"><span style="font-size:13px;color:var(--text3);">نسبة الربح/المخاطرة</span><span id="cor-rr" style="font-size:14px;font-weight:600;color:var(--primary);">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- حاسبة تعديل المتوسط -->
+    <div id="calc-avg-panel" style="display:none;">
+      <div id="calc-trades-container"></div>
+      <button onclick="calcAddTrade()" style="background:transparent;border:1.5px solid var(--border2);color:var(--text2);border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-family:inherit;margin-bottom:12px;">+ إضافة صفقة</button>
+
+      <div style="background:var(--bg2);border-radius:12px;padding:16px;border:1.5px solid var(--border);">
+        <div style="font-size:12px;font-weight:600;color:var(--text3);margin-bottom:10px;">النتيجة</div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;color:var(--text3);">إجمالي الأسهم</span><span id="avr-qty" style="font-size:15px;font-weight:600;color:var(--primary);">—</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;color:var(--text3);">إجمالي التكلفة</span><span id="avr-cost" style="font-size:14px;color:var(--text);">—</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;font-weight:600;color:var(--text);">متوسط سعر السهم الجديد</span><span id="avr-avg" style="font-size:16px;font-weight:700;color:var(--primary);">—</span></div>
+        <div style="border-top:1px solid var(--border2);margin:8px 0 6px;"></div>
+        <div style="margin-bottom:8px;">
+          <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px;">السعر الحالي في السوق (ر.س) <span style="font-size:11px;color:var(--text4);">اختياري</span></label>
+          <input type="number" id="av-cur" step="0.01" oninput="calcAvgPnl()" placeholder="أدخل السعر الحالي لحساب الربح/الخسارة" style="width:100%;box-sizing:border-box;height:40px;border-radius:8px;border:1.5px solid var(--border2);background:var(--bg);color:var(--text);padding:0 12px;font-size:14px;font-family:inherit;" />
+        </div>
+        <div id="avr-pnl-sec" style="display:none;">
+          <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;color:var(--text3);">الربح/الخسارة الحالي</span><span id="avr-pnl" style="font-size:15px;font-weight:600;">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding:6px 0;"><span style="font-size:13px;color:var(--text3);">نسبة الربح/الخسارة</span><span id="avr-pnlpct" style="font-size:13px;font-weight:500;">—</span></div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+  calcTradeCount = 0;
+  calcAddTrade();
+  calcAddTrade();
+  calcOrder();
+}
+
+function calcFmt(n, d=2){ return n.toLocaleString('ar-SA', {minimumFractionDigits:d, maximumFractionDigits:d}); }
+
+function calcShowTab(t){
+  document.getElementById('calc-order-panel').style.display = t==='order'?'block':'none';
+  document.getElementById('calc-avg-panel').style.display   = t==='avg'?'block':'none';
+  document.getElementById('calc-tab-order').style.background = t==='order'?'var(--primary)':'transparent';
+  document.getElementById('calc-tab-order').style.color      = t==='order'?'#fff':'var(--text2)';
+  document.getElementById('calc-tab-order').style.borderColor= t==='order'?'var(--primary)':'var(--border2)';
+  document.getElementById('calc-tab-avg').style.background   = t==='avg'?'var(--primary)':'transparent';
+  document.getElementById('calc-tab-avg').style.color        = t==='avg'?'#fff':'var(--text2)';
+  document.getElementById('calc-tab-avg').style.borderColor  = t==='avg'?'var(--primary)':'var(--border2)';
+}
+
+function calcFees(val, disc){
+  const full = val * 0.00155;
+  const da   = full * (disc/100);
+  const af   = full - da;
+  const vat  = af * 0.15;
+  return {full, da, af, vat, total: af+vat};
+}
+
+function calcToggleSL(){
+  const s = document.getElementById('co-use-sl').checked;
+  document.getElementById('co-sl-sec').style.display    = s?'block':'none';
+  document.getElementById('cor-sltp-res').style.display = s?'block':'none';
+  calcOrder();
+}
+
+function calcOrder(){
+  const p    = parseFloat(document.getElementById('co-price')?.value)||0;
+  const q    = parseFloat(document.getElementById('co-qty')?.value)||0;
+  const disc = parseFloat(document.getElementById('co-disc')?.value)||0;
+  const val  = p*q;
+  const f    = calcFees(val, disc);
+  const cost = val + f.total;
+  const be   = q ? cost/q : 0;
+
+  document.getElementById('cor-val').textContent   = calcFmt(val)+' ر.س';
+  document.getElementById('cor-fees').textContent  = calcFmt(f.full)+' ر.س';
+  document.getElementById('cor-vat').textContent   = calcFmt(f.vat)+' ر.س';
+  document.getElementById('cor-tfees').textContent = calcFmt(f.total)+' ر.س';
+  document.getElementById('cor-tcost').textContent = calcFmt(cost)+' ر.س';
+  document.getElementById('cor-be').textContent    = calcFmt(be)+' ر.س';
+
+  if(disc>0){
+    document.getElementById('cor-disc-row').style.display='flex';
+    document.getElementById('cor-disc-lbl').textContent = disc+'% خصم';
+    document.getElementById('cor-disc-amt').textContent = '-'+calcFmt(f.da)+' ر.س';
+  } else document.getElementById('cor-disc-row').style.display='none';
+
+  if(document.getElementById('co-use-sl')?.checked){
+    const tp = parseFloat(document.getElementById('co-tp')?.value)||0;
+    const sl = parseFloat(document.getElementById('co-sl')?.value)||0;
+    if(tp&&sl){
+      const tf = calcFees(tp*q, disc); const pr = (tp*q)-tf.total-cost;
+      const sf = calcFees(sl*q, disc); const ls = (sl*q)-sf.total-cost;
+      const pp = cost?(pr/cost)*100:0; const lp = cost?(ls/cost)*100:0;
+      const rr = ls?Math.abs(pr/ls):0;
+      document.getElementById('cor-profit').textContent = (pr>=0?'+':'')+calcFmt(pr)+' ر.س';
+      document.getElementById('cor-profit').style.color = pr>=0?'#16a34a':'#dc2626';
+      document.getElementById('cor-ppct').textContent   = (pp>=0?'+':'')+calcFmt(pp)+'%';
+      document.getElementById('cor-ppct').style.color   = pp>=0?'#16a34a':'#dc2626';
+      document.getElementById('cor-loss').textContent   = calcFmt(ls)+' ر.س';
+      document.getElementById('cor-loss').style.color   = ls>=0?'#16a34a':'#dc2626';
+      document.getElementById('cor-lpct').textContent   = calcFmt(lp)+'%';
+      document.getElementById('cor-lpct').style.color   = lp>=0?'#16a34a':'#dc2626';
+      document.getElementById('cor-rr').textContent     = '1 : '+calcFmt(rr);
+    }
+  }
+}
+
+function calcAddTrade(){
+  calcTradeCount++;
+  const c = document.getElementById('calc-trades-container');
+  const div = document.createElement('div');
+  div.id = 'calc-trade-'+calcTradeCount;
+  div.style.cssText = 'background:var(--bg2);border-radius:12px;padding:14px;border:1.5px solid var(--border);margin-bottom:10px;';
+  div.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <span style="font-size:13px;font-weight:600;color:var(--text);">صفقة ${calcTradeCount}</span>
+      ${calcTradeCount>1?`<button onclick="calcRemoveTrade(${calcTradeCount})" style="background:transparent;border:none;color:#dc2626;font-size:20px;cursor:pointer;line-height:1;padding:0;">×</button>`:''}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div>
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px;">السعر (ر.س)</label>
+        <input type="number" id="atp-${calcTradeCount}" step="0.01" oninput="calcAvgResult()" placeholder="0.00"
+          style="width:100%;box-sizing:border-box;height:40px;border-radius:8px;border:1.5px solid var(--border2);background:var(--bg);color:var(--text);padding:0 12px;font-size:14px;font-family:inherit;" />
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px;">الكمية (سهم)</label>
+        <input type="number" id="atq-${calcTradeCount}" step="1" oninput="calcAvgResult()" placeholder="0"
+          style="width:100%;box-sizing:border-box;height:40px;border-radius:8px;border:1.5px solid var(--border2);background:var(--bg);color:var(--text);padding:0 12px;font-size:14px;font-family:inherit;" />
+      </div>
+    </div>`;
+  c.appendChild(div);
+  calcAvgResult();
+}
+
+function calcRemoveTrade(id){
+  const el = document.getElementById('calc-trade-'+id);
+  if(el) el.remove();
+  calcAvgResult();
+}
+
+function calcAvgResult(){
+  let totalQty=0, totalCost=0;
+  for(let i=1;i<=calcTradeCount;i++){
+    const pe = document.getElementById('atp-'+i);
+    const qe = document.getElementById('atq-'+i);
+    if(!pe||!qe) continue;
+    const p = parseFloat(pe.value)||0;
+    const q = parseFloat(qe.value)||0;
+    totalQty  += q;
+    totalCost += p*q;
+  }
+  const avg = totalQty ? totalCost/totalQty : 0;
+  document.getElementById('avr-qty').textContent  = calcFmt(totalQty,0)+' سهم';
+  document.getElementById('avr-cost').textContent = calcFmt(totalCost)+' ر.س';
+  document.getElementById('avr-avg').textContent  = avg ? calcFmt(avg)+' ر.س' : '—';
+  calcAvgPnl();
+}
+
+function calcAvgPnl(){
+  const cur = parseFloat(document.getElementById('av-cur')?.value)||0;
+  const avgEl = document.getElementById('avr-avg');
+  const qtyEl = document.getElementById('avr-qty');
+  if(!avgEl||!qtyEl) return;
+  const avg  = parseFloat(avgEl.textContent)||0;
+  const qty  = parseFloat(qtyEl.textContent)||0;
+  const cost = avg*qty;
+  if(cur&&qty&&avg){
+    const pnl    = (cur-avg)*qty;
+    const pnlPct = cost?(pnl/cost)*100:0;
+    document.getElementById('avr-pnl-sec').style.display='block';
+    document.getElementById('avr-pnl').textContent    = (pnl>=0?'+':'')+calcFmt(pnl)+' ر.س';
+    document.getElementById('avr-pnl').style.color    = pnl>=0?'#16a34a':'#dc2626';
+    document.getElementById('avr-pnlpct').textContent = (pnlPct>=0?'+':'')+calcFmt(pnlPct)+'%';
+    document.getElementById('avr-pnlpct').style.color = pnlPct>=0?'#16a34a':'#dc2626';
+  } else document.getElementById('avr-pnl-sec').style.display='none';
+}
+
 // مفكرة السوق — MARKET CALENDAR
 // ══════════════════════════════════════════════════════════════════
 
