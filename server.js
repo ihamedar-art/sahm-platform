@@ -3165,4 +3165,131 @@ app.post('/api/portfolio/reset', requireAuth, (req, res) => {
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
+// ══════════════════════════════════════════════════════════════════
+// SENTIMENT INDEX — مؤشر مشاعر السوق
+// ══════════════════════════════════════════════════════════════════
+try { db.exec(`
+  CREATE TABLE IF NOT EXISTS sentiment_votes (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    vote TEXT NOT NULL,
+    vote_date TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, vote_date)
+  );
+`); } catch(e) {}
+
+app.get('/api/sentiment', (req, res) => {
+  const today = new Date().toISOString().split('T')[0];
+  const rows = db.prepare(`SELECT vote, COUNT(*) as count FROM sentiment_votes WHERE vote_date=? GROUP BY vote`).all(today);
+  const result = { bullish: 0, neutral: 0, bearish: 0, my_vote: null };
+  rows.forEach(r => { result[r.vote] = r.count; });
+  if (req.session.userId) {
+    const my = db.prepare('SELECT vote FROM sentiment_votes WHERE user_id=? AND vote_date=?').get(req.session.userId, today);
+    result.my_vote = my?.vote || null;
+  }
+  res.json(result);
+});
+
+app.post('/api/sentiment/vote', requireAuth, (req, res) => {
+  const { vote } = req.body;
+  if (!['bullish','neutral','bearish'].includes(vote)) return res.json({ error: 'تصويت غير صالح' });
+  const today = new Date().toISOString().split('T')[0];
+  const existing = db.prepare('SELECT vote FROM sentiment_votes WHERE user_id=? AND vote_date=?').get(req.session.userId, today);
+  if (existing) {
+    if (existing.vote === vote) {
+      db.prepare('DELETE FROM sentiment_votes WHERE user_id=? AND vote_date=?').run(req.session.userId, today);
+      return res.json({ success: true, removed: true });
+    }
+    db.prepare('UPDATE sentiment_votes SET vote=? WHERE user_id=? AND vote_date=?').run(vote, req.session.userId, today);
+  } else {
+    db.prepare('INSERT INTO sentiment_votes (id,user_id,vote,vote_date) VALUES (?,?,?,?)').run(uuidv4(), req.session.userId, vote, today);
+  }
+  res.json({ success: true });
+});
+
+// ══════════════════════════════════════════════════════════════════
+// TRADING JOURNAL — مفكرة الصفقات
+// ══════════════════════════════════════════════════════════════════
+try { db.exec(`
+  CREATE TABLE IF NOT EXISTS trading_journal (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    direction TEXT DEFAULT 'long',
+    entry_price REAL NOT NULL,
+    exit_price REAL,
+    quantity REAL NOT NULL,
+    trade_date TEXT NOT NULL,
+    status TEXT DEFAULT 'open',
+    reason TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+`); } catch(e) {}
+
+// جلب كل الصفقات
+// إحصائيات المفكرة — يجب قبل /:id
+app.get('/api/journal/stats', requireAuth, (req, res) => {
+  const trades = db.prepare('SELECT * FROM trading_journal WHERE user_id=? AND status=?').all(req.session.userId, 'closed');
+  let wins = 0, total_pnl = 0, best_pnl = 0;
+  trades.forEach(t => {
+    if (!t.exit_price) return;
+    const pnl = (t.exit_price - t.entry_price) * t.quantity * (t.direction === 'short' ? -1 : 1);
+    total_pnl += pnl;
+    if (pnl > 0) wins++;
+    if (pnl > best_pnl) best_pnl = pnl;
+  });
+  res.json({ total: trades.length, wins, total_pnl, best_pnl });
+});
+
+app.get('/api/journal', requireAuth, (req, res) => {
+  const trades = db.prepare('SELECT * FROM trading_journal WHERE user_id=? ORDER BY trade_date DESC, created_at DESC').all(req.session.userId);
+  res.json({ trades });
+});
+
+// جلب صفقة واحدة
+app.get('/api/journal/:id', requireAuth, (req, res) => {
+  const trade = db.prepare('SELECT * FROM trading_journal WHERE id=? AND user_id=?').get(req.params.id, req.session.userId);
+  if (!trade) return res.json({ error: 'الصفقة غير موجودة' });
+  res.json({ trade });
+});
+
+// إضافة صفقة
+app.post('/api/journal', requireAuth, (req, res) => {
+  const { symbol, direction, entry_price, exit_price, quantity, trade_date, reason, notes } = req.body;
+  if (!symbol || !entry_price || !quantity || !trade_date) return res.json({ error: 'بيانات ناقصة' });
+  const id = uuidv4();
+  const status = exit_price ? 'closed' : 'open';
+  db.prepare('INSERT INTO trading_journal (id,user_id,symbol,direction,entry_price,exit_price,quantity,trade_date,status,reason,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(
+    id, req.session.userId, symbol.toUpperCase(), direction||'long',
+    parseFloat(entry_price), exit_price ? parseFloat(exit_price) : null,
+    parseFloat(quantity), trade_date, status, reason||'', notes||''
+  );
+  res.json({ success: true, id });
+});
+
+// تعديل صفقة
+app.put('/api/journal/:id', requireAuth, (req, res) => {
+  const trade = db.prepare('SELECT id FROM trading_journal WHERE id=? AND user_id=?').get(req.params.id, req.session.userId);
+  if (!trade) return res.json({ error: 'غير موجود' });
+  const { symbol, direction, entry_price, exit_price, quantity, trade_date, reason, notes } = req.body;
+  const status = exit_price ? 'closed' : 'open';
+  db.prepare('UPDATE trading_journal SET symbol=?,direction=?,entry_price=?,exit_price=?,quantity=?,trade_date=?,status=?,reason=?,notes=? WHERE id=?').run(
+    symbol.toUpperCase(), direction||'long',
+    parseFloat(entry_price), exit_price ? parseFloat(exit_price) : null,
+    parseFloat(quantity), trade_date, status, reason||'', notes||'', req.params.id
+  );
+  res.json({ success: true });
+});
+
+// حذف صفقة
+app.delete('/api/journal/:id', requireAuth, (req, res) => {
+  const trade = db.prepare('SELECT id FROM trading_journal WHERE id=? AND user_id=?').get(req.params.id, req.session.userId);
+  if (!trade) return res.json({ error: 'غير موجود' });
+  db.prepare('DELETE FROM trading_journal WHERE id=?').run(req.params.id);
+  res.json({ success: true });
+});
+
 app.listen(PORT, () => console.log(`✅ جلسة السوق تعمل على المنفذ ${PORT}`));

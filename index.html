@@ -1461,6 +1461,9 @@ body {
       <a class="nav-item" id="nav-calc" onclick="navigate('calc')">
         <span class="nav-icon">🧮</span> الحاسبة
       </a>
+      <a class="nav-item" id="nav-journal" onclick="navigate('journal')">
+        <span class="nav-icon">📒</span> مفكرة الصفقات
+      </a>
 
       <div class="nav-section-label" style="margin-top:4px">مجتمع</div>
       <a class="nav-item rooms-nav" id="nav-rooms" onclick="navigate('rooms')">
@@ -1571,6 +1574,11 @@ body {
       <div id="watchlist-content"></div>
     </div>
 
+    <!-- Trading Journal -->
+    <div class="page" id="page-journal">
+      <div id="journal-content"></div>
+    </div>
+
     <!-- Single Post Page -->
     <div class="page" id="page-post">
       <div id="post-page-content"></div>
@@ -1594,6 +1602,12 @@ body {
         🎙️ عرض كل الرومات
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
       </div>
+    </div>
+
+    <!-- Sentiment Index -->
+    <div class="panel-card" id="sentiment-panel">
+      <div class="panel-title">🌡️ مؤشر مشاعر السوق</div>
+      <div id="sentiment-widget"></div>
     </div>
 
     <!-- Trending Stocks -->
@@ -1705,6 +1719,7 @@ async function init() {
   renderFeed();
   loadPoll();
   loadHotPosts();
+  loadSentimentWidget();
   if (currentUser) pollNotifications();
   setTimeout(checkNewPosts, 15000);
   setInterval(loadHotPosts, 120000);
@@ -2047,6 +2062,9 @@ function navigate(page, param = '', pushHistory = true) {
   } else if (page === 'watchlist') {
     document.getElementById('page-watchlist').classList.add('active');
     loadWatchlistPage();
+  } else if (page === 'journal') {
+    document.getElementById('page-journal').classList.add('active');
+    loadJournalPage();
   }
 }
 
@@ -8355,6 +8373,248 @@ async function toggleMessagesOpen(open) {
   });
   const d = await r.json();
   if (d.success) toast(open ? '✅ الرسائل الخاصة مفتوحة' : '🔒 الرسائل الخاصة مغلقة', 'success');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// SENTIMENT INDEX — مؤشر مشاعر السوق
+// ══════════════════════════════════════════════════════════════════
+async function loadSentimentWidget() {
+  const el = document.getElementById('sentiment-widget');
+  if (!el) return;
+  try {
+    const r = await fetch('/api/sentiment');
+    const d = await r.json();
+    const total = (d.bullish||0) + (d.neutral||0) + (d.bearish||0);
+    const bp = total ? Math.round((d.bullish||0)/total*100) : 33;
+    const np = total ? Math.round((d.neutral||0)/total*100) : 34;
+    const brp = total ? Math.round((d.bearish||0)/total*100) : 33;
+    const score = total ? Math.round(bp - brp + 50) : 50;
+    const label = score >= 70 ? 'جشع شديد 🤑' : score >= 55 ? 'جشع 😊' : score >= 45 ? 'محايد 😐' : score >= 30 ? 'خوف 😨' : 'خوف شديد 😱';
+    const color = score >= 60 ? 'var(--green)' : score >= 40 ? 'var(--gold)' : 'var(--red)';
+    const myVote = d.my_vote || '';
+
+    el.innerHTML = `
+      <div style="text-align:center;margin-bottom:12px">
+        <div style="font-size:28px;font-weight:700;color:${color}">${score}</div>
+        <div style="font-size:13px;font-weight:600;color:${color}">${label}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">${total} صوت اليوم</div>
+      </div>
+      <div style="height:8px;border-radius:4px;overflow:hidden;display:flex;margin-bottom:10px">
+        <div style="width:${bp}%;background:var(--green)"></div>
+        <div style="width:${np}%;background:var(--gold)"></div>
+        <div style="width:${brp}%;background:var(--red)"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:12px">
+        <span style="color:var(--green)">📈 ${bp}%</span>
+        <span style="color:var(--gold)">➡️ ${np}%</span>
+        <span style="color:var(--red)">📉 ${brp}%</span>
+      </div>
+      ${currentUser ? `
+      <div style="display:flex;gap:6px">
+        <button onclick="voteSentiment('bullish')" style="flex:1;padding:7px;border-radius:8px;border:1.5px solid ${myVote==='bullish'?'var(--green)':'var(--border2)'};background:${myVote==='bullish'?'var(--green-bg)':'transparent'};color:${myVote==='bullish'?'var(--green)':'var(--text2)'};font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📈 صاعد</button>
+        <button onclick="voteSentiment('neutral')" style="flex:1;padding:7px;border-radius:8px;border:1.5px solid ${myVote==='neutral'?'var(--gold)':'var(--border2)'};background:${myVote==='neutral'?'var(--gold-bg)':'transparent'};color:${myVote==='neutral'?'var(--gold)':'var(--text2)'};font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">➡️ محايد</button>
+        <button onclick="voteSentiment('bearish')" style="flex:1;padding:7px;border-radius:8px;border:1.5px solid ${myVote==='bearish'?'var(--red)':'var(--border2)'};background:${myVote==='bearish'?'var(--red-bg)':'transparent'};color:${myVote==='bearish'?'var(--red)':'var(--text2)'};font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📉 هابط</button>
+      </div>` : `<div style="font-size:12px;color:var(--text3);text-align:center">سجّل دخولك للتصويت</div>`}`;
+  } catch(e) {}
+}
+
+async function voteSentiment(vote) {
+  if (!currentUser) { showLoginModal(); return; }
+  const r = await fetch('/api/sentiment/vote', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ vote })
+  });
+  const d = await r.json();
+  if (d.error) { toast(d.error, 'error'); return; }
+  toast('✅ تم تسجيل تصويتك', 'success');
+  loadSentimentWidget();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// TRADING JOURNAL — مفكرة الصفقات
+// ══════════════════════════════════════════════════════════════════
+let journalEditId = null;
+
+async function loadJournalPage() {
+  if (!currentUser) { showLoginModal(); return; }
+  const el = document.getElementById('journal-content');
+  el.innerHTML = `<div style="max-width:860px;margin:0 auto;padding:20px 16px" dir="rtl">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+      <div>
+        <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">📒 مفكرة الصفقات</h2>
+        <p style="font-size:13px;color:var(--text3)">سجّل صفقاتك وحلّل أداءك</p>
+      </div>
+      <button onclick="openJournalForm()" class="btn btn-primary">+ إضافة صفقة</button>
+    </div>
+    <div id="journal-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px"></div>
+    <div id="journal-form-wrap" style="display:none;margin-bottom:20px"></div>
+    <div id="journal-list"></div>
+  </div>`;
+  loadJournalStats();
+  loadJournalList();
+}
+
+async function loadJournalStats() {
+  const r = await fetch('/api/journal/stats');
+  const d = await r.json();
+  const el = document.getElementById('journal-stats');
+  if (!el) return;
+  const winRate = d.total > 0 ? Math.round((d.wins/d.total)*100) : 0;
+  const pnlColor = d.total_pnl >= 0 ? 'var(--green)' : 'var(--red)';
+  el.innerHTML = `
+    <div style="background:var(--bg2);border-radius:12px;padding:14px;border:1.5px solid var(--border);text-align:center">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px">إجمالي الصفقات</div>
+      <div style="font-size:22px;font-weight:700;color:var(--primary)">${d.total||0}</div>
+    </div>
+    <div style="background:var(--bg2);border-radius:12px;padding:14px;border:1.5px solid var(--border);text-align:center">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px">نسبة الفوز</div>
+      <div style="font-size:22px;font-weight:700;color:${winRate>=50?'var(--green)':'var(--red)'}">${winRate}%</div>
+    </div>
+    <div style="background:var(--bg2);border-radius:12px;padding:14px;border:1.5px solid var(--border);text-align:center">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px">صافي الربح/الخسارة</div>
+      <div style="font-size:18px;font-weight:700;color:${pnlColor}">${d.total_pnl>=0?'+':''}${(d.total_pnl||0).toFixed(2)} ر.س</div>
+    </div>
+    <div style="background:var(--bg2);border-radius:12px;padding:14px;border:1.5px solid var(--border);text-align:center">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px">أفضل صفقة</div>
+      <div style="font-size:18px;font-weight:700;color:var(--green)">+${(d.best_pnl||0).toFixed(2)} ر.س</div>
+    </div>`;
+}
+
+async function loadJournalList() {
+  const el = document.getElementById('journal-list');
+  if (!el) return;
+  el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text3)">جاري التحميل...</div>`;
+  const r = await fetch('/api/journal');
+  const d = await r.json();
+  if (!d.trades || d.trades.length === 0) {
+    el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3)">
+      <div style="font-size:36px;margin-bottom:12px">📒</div>
+      <div style="font-size:15px;font-weight:600;margin-bottom:6px">لا توجد صفقات بعد</div>
+      <div style="font-size:13px">ابدأ بتسجيل أول صفقة لتتبع أدائك</div>
+    </div>`;
+    return;
+  }
+  el.innerHTML = d.trades.map(t => {
+    const pnl = t.exit_price ? (t.exit_price - t.entry_price) * t.quantity * (t.direction==='short'?-1:1) : null;
+    const pnlColor = pnl === null ? 'var(--text3)' : pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    const statusLabel = t.status === 'open' ? `<span style="background:var(--primary-l);color:var(--primary);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">مفتوحة</span>` :
+      pnl >= 0 ? `<span style="background:var(--green-l);color:var(--green);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">رابحة ✅</span>` :
+      `<span style="background:var(--red-l);color:var(--red);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">خاسرة ❌</span>`;
+    return `
+    <div style="background:var(--bg2);border-radius:12px;padding:16px;border:1.5px solid var(--border);margin-bottom:10px;border-right:3px solid ${pnl===null?'var(--primary)':pnl>=0?'var(--green)':'var(--red)'}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="font-size:15px;font-weight:700;color:var(--primary)">${t.symbol}</div>
+          ${statusLabel}
+          <div style="font-size:11px;color:var(--text3)">${t.trade_date}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button onclick="editJournal('${t.id}')" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text2)">✏️ تعديل</button>
+          <button onclick="deleteJournal('${t.id}')" style="background:var(--red-bg);border:1px solid var(--red);border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--red)">🗑️</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-top:12px">
+        <div><div style="font-size:11px;color:var(--text3)">سعر الدخول</div><div style="font-weight:600;font-size:13px">${t.entry_price} ر.س</div></div>
+        <div><div style="font-size:11px;color:var(--text3)">سعر الخروج</div><div style="font-weight:600;font-size:13px">${t.exit_price ? t.exit_price+' ر.س' : '—'}</div></div>
+        <div><div style="font-size:11px;color:var(--text3)">الكمية</div><div style="font-weight:600;font-size:13px">${t.quantity} سهم</div></div>
+        <div><div style="font-size:11px;color:var(--text3)">الربح/الخسارة</div><div style="font-weight:700;font-size:14px;color:${pnlColor}">${pnl===null?'—':(pnl>=0?'+':'')+pnl.toFixed(2)+' ر.س'}</div></div>
+      </div>
+      ${t.reason ? `<div style="margin-top:10px;padding:8px 12px;background:var(--bg3);border-radius:8px;font-size:12px;color:var(--text2)"><span style="font-weight:600;color:var(--text3)">سبب الدخول:</span> ${t.reason}</div>` : ''}
+      ${t.notes ? `<div style="margin-top:6px;padding:8px 12px;background:var(--bg3);border-radius:8px;font-size:12px;color:var(--text2)"><span style="font-weight:600;color:var(--text3)">ملاحظات:</span> ${t.notes}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function openJournalForm(trade = null) {
+  journalEditId = trade ? trade.id : null;
+  const wrap = document.getElementById('journal-form-wrap');
+  if (!wrap) return;
+  wrap.style.display = 'block';
+  wrap.innerHTML = `
+    <div style="background:var(--bg2);border-radius:14px;padding:20px;border:1.5px solid var(--border);border-top:3px solid var(--primary)">
+      <div style="font-size:15px;font-weight:700;margin-bottom:16px">${trade ? '✏️ تعديل الصفقة' : '➕ إضافة صفقة جديدة'}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div>
+          <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">رمز السهم *</label>
+          <input id="jf-symbol" class="form-input" placeholder="مثال: 2222" value="${trade?.symbol||''}" style="text-align:center;font-weight:700">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">تاريخ الصفقة *</label>
+          <input id="jf-date" class="form-input" type="date" value="${trade?.trade_date||new Date().toISOString().split('T')[0]}">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">سعر الدخول (ر.س) *</label>
+          <input id="jf-entry" class="form-input" type="number" step="0.01" placeholder="0.00" value="${trade?.entry_price||''}">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">سعر الخروج (ر.س)</label>
+          <input id="jf-exit" class="form-input" type="number" step="0.01" placeholder="اتركه فارغاً إذا مفتوحة" value="${trade?.exit_price||''}">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">الكمية (سهم) *</label>
+          <input id="jf-qty" class="form-input" type="number" step="1" placeholder="0" value="${trade?.quantity||''}">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">الاتجاه</label>
+          <select id="jf-dir" class="form-input">
+            <option value="long" ${trade?.direction==='long'?'selected':''}>شراء (Long)</option>
+            <option value="short" ${trade?.direction==='short'?'selected':''}>بيع (Short)</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">سبب الدخول</label>
+        <textarea id="jf-reason" class="form-input" rows="2" placeholder="لماذا دخلت هذه الصفقة؟">${trade?.reason||''}</textarea>
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">ملاحظات</label>
+        <textarea id="jf-notes" class="form-input" rows="2" placeholder="ماذا تعلمت؟ ما الأخطاء؟">${trade?.notes||''}</textarea>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="submitJournal()" class="btn btn-primary">💾 حفظ</button>
+        <button onclick="document.getElementById('journal-form-wrap').style.display='none'" class="btn btn-ghost">إلغاء</button>
+      </div>
+    </div>`;
+  wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function submitJournal() {
+  const symbol = document.getElementById('jf-symbol')?.value.trim().toUpperCase();
+  const entry = parseFloat(document.getElementById('jf-entry')?.value);
+  const qty = parseFloat(document.getElementById('jf-qty')?.value);
+  const exit = parseFloat(document.getElementById('jf-exit')?.value) || null;
+  const date = document.getElementById('jf-date')?.value;
+  const dir = document.getElementById('jf-dir')?.value;
+  const reason = document.getElementById('jf-reason')?.value.trim();
+  const notes = document.getElementById('jf-notes')?.value.trim();
+  if (!symbol || !entry || !qty || !date) { toast('يرجى ملء الحقول المطلوبة', 'error'); return; }
+  const url = journalEditId ? `/api/journal/${journalEditId}` : '/api/journal';
+  const method = journalEditId ? 'PUT' : 'POST';
+  const r = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify({ symbol, entry_price: entry, exit_price: exit, quantity: qty, trade_date: date, direction: dir, reason, notes }) });
+  const d = await r.json();
+  if (d.error) { toast(d.error, 'error'); return; }
+  toast(journalEditId ? '✅ تم التعديل' : '✅ تم إضافة الصفقة', 'success');
+  document.getElementById('journal-form-wrap').style.display = 'none';
+  journalEditId = null;
+  loadJournalStats();
+  loadJournalList();
+}
+
+async function editJournal(id) {
+  const r = await fetch(`/api/journal/${id}`);
+  const d = await r.json();
+  if (d.error) { toast(d.error, 'error'); return; }
+  openJournalForm(d.trade);
+}
+
+async function deleteJournal(id) {
+  if (!confirm('حذف هذه الصفقة؟')) return;
+  const r = await fetch(`/api/journal/${id}`, { method: 'DELETE' });
+  const d = await r.json();
+  if (d.error) { toast(d.error, 'error'); return; }
+  toast('تم الحذف', 'info');
+  loadJournalStats();
+  loadJournalList();
 }
 </script>
 
