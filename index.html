@@ -1579,6 +1579,11 @@ body {
       <div id="journal-content"></div>
     </div>
 
+    <!-- Legal Pages -->
+    <div class="page" id="page-terms"><div id="terms-content"></div></div>
+    <div class="page" id="page-privacy"><div id="privacy-content"></div></div>
+    <div class="page" id="page-disclaimer"><div id="disclaimer-content"></div></div>
+
     <!-- Single Post Page -->
     <div class="page" id="page-post">
       <div id="post-page-content"></div>
@@ -1632,6 +1637,16 @@ body {
     </div>
 
     <div id="leaderboard-panel" style="display:none"></div>
+
+    <!-- Legal Footer -->
+    <div style="padding:14px 14px 10px;border-top:1px solid var(--border);margin-top:8px">
+      <div style="display:flex;flex-wrap:wrap;gap:6px 10px;margin-bottom:8px">
+        <a onclick="navigate('terms')" style="font-size:11px;color:var(--text3);cursor:pointer;transition:color .15s" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text3)'">شروط الاستخدام</a>
+        <a onclick="navigate('privacy')" style="font-size:11px;color:var(--text3);cursor:pointer;transition:color .15s" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text3)'">سياسة الخصوصية</a>
+        <a onclick="navigate('disclaimer')" style="font-size:11px;color:var(--text3);cursor:pointer;transition:color .15s" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text3)'">إخلاء المسؤولية</a>
+      </div>
+      <div style="font-size:10px;color:var(--text4)">© 2026 جلسة السوق. المحتوى لأغراض تعليمية فقط وليس توصية استثمارية.</div>
+    </div>
 
   </aside>
 </div>
@@ -2065,6 +2080,15 @@ function navigate(page, param = '', pushHistory = true) {
   } else if (page === 'journal') {
     document.getElementById('page-journal').classList.add('active');
     loadJournalPage();
+  } else if (page === 'terms') {
+    document.getElementById('page-terms').classList.add('active');
+    loadLegalPage('terms');
+  } else if (page === 'privacy') {
+    document.getElementById('page-privacy').classList.add('active');
+    loadLegalPage('privacy');
+  } else if (page === 'disclaimer') {
+    document.getElementById('page-disclaimer').classList.add('active');
+    loadLegalPage('disclaimer');
   }
 }
 
@@ -8376,8 +8400,87 @@ async function toggleMessagesOpen(open) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// SENTIMENT INDEX — مؤشر مشاعر السوق
+// LEGAL PAGES — الصفحات القانونية
 // ══════════════════════════════════════════════════════════════════
+function loadLegalPage(type) {
+  const titles = { terms: 'شروط الاستخدام', privacy: 'سياسة الخصوصية', disclaimer: 'إخلاء المسؤولية المالية' };
+  const el = document.getElementById(type + '-content');
+  if (!el) return;
+
+  const content = {
+    terms: `
+      <h2>١. طبيعة المنصة وإخلاء المسؤولية المالية</h2>
+      <p>جلسة السوق هي منصة تواصل اجتماعي تعليمية. جميع المحتوى المنشور يمثل آراءً شخصية للمستخدمين ولا يُشكّل توصية استثمارية أو مالية أو استشارة قانونية أو ضماناً لتحقيق أي عوائد مالية.</p>
+      <p>لا تحمل المنصة أي ترخيص من هيئة السوق المالية السعودية لتقديم الاستشارات الاستثمارية. قرارات التداول مسؤوليتك الكاملة.</p>
+      <h2>٢. أهلية الاستخدام</h2>
+      <p>يُشترط لاستخدام المنصة أن يكون عمرك 18 سنة أو أكثر، وأن تكون أهلاً قانونياً لإبرام العقود في بلدك.</p>
+      <h2>٣. حساب المستخدم</h2>
+      <p>تتعهد بتقديم معلومات دقيقة وصحيحة، والحفاظ على سرية كلمة المرور، وتحمّل المسؤولية الكاملة عن جميع الأنشطة تحت حسابك.</p>
+      <h2>٤. قواعد المحتوى</h2>
+      <p>يحظر نشر أي محتوى مخالف للشريعة أو القوانين السعودية، أو يتضمن توصيات استثمارية مضللة، أو يحتوي على معلومات داخلية، أو يُشكّل تلاعباً بالسوق، أو ينتهك حقوق الملكية الفكرية.</p>
+      <h2>٥. المحفظة الافتراضية</h2>
+      <p>خاصية المحفظة الافتراضية لأغراض تعليمية وترفيهية بحتة، ولا تتضمن أموالاً حقيقية.</p>
+      <h2>٦. الملكية الفكرية</h2>
+      <p>جميع حقوق الملكية الفكرية مملوكة حصرياً لجلسة السوق. يُحظر نسخ أو تعديل أي جزء من المنصة دون إذن كتابي مسبق.</p>
+      <h2>٧. إخلاء المسؤولية العام</h2>
+      <p>لن تكون جلسة السوق مسؤولةً عن أي خسائر مالية تنجم عن الاعتماد على المحتوى، أو انقطاع الخدمة، أو فقدان البيانات.</p>
+      <h2>٨. القانون الواجب التطبيق</h2>
+      <p>تخضع هذه الشروط لأنظمة المملكة العربية السعودية. أي نزاع يُحال إلى المحاكم السعودية المختصة.</p>
+      <p style="margin-top:20px"><strong>للتواصل:</strong> support@jalsoq.com</p>`,
+
+    privacy: `
+      <h2>١. البيانات التي نجمعها</h2>
+      <p>نجمع البيانات التي تقدّمها مباشرةً (اسم المستخدم، البريد الإلكتروني، المنشورات) وبيانات تلقائية (عنوان IP، المتصفح، سلوك التصفح، الكوكيز).</p>
+      <h2>٢. كيف نستخدم بياناتك</h2>
+      <p>نستخدم البيانات لتشغيل المنصة، التحقق من الهوية، إرسال الإشعارات، تحليل الاستخدام وتطويره، والامتثال للمتطلبات القانونية.</p>
+      <h2>٣. مشاركة البيانات</h2>
+      <p>لا نبيع بياناتك لأي طرف ثالث. قد نشاركها مع مزودي الخدمات التقنية الملزمين بحمايتها، أو بموجب أمر قانوني ملزم.</p>
+      <h2>٤. حماية البيانات</h2>
+      <p>نستخدم تشفير bcrypt لكلمات المرور، واتصالات HTTPS مشفرة، مع نسخ احتياطية منتظمة لقاعدة البيانات.</p>
+      <h2>٥. الكوكيز</h2>
+      <p>نستخدم كوكيز الجلسة للحفاظ على تسجيل دخولك وكوكيز التفضيلات لتذكّر إعداداتك. يمكنك تعطيلها من إعدادات متصفحك.</p>
+      <h2>٦. حقوقك</h2>
+      <p>لك الحق في الوصول لبياناتك وتصحيحها وحذفها. للممارسة هذه الحقوق: support@jalsoq.com</p>
+      <h2>٧. خصوصية القاصرين</h2>
+      <p>المنصة للمستخدمين الذين يبلغون 18 عاماً أو أكثر. نحذف أي حساب لقاصر فور اكتشافه.</p>
+      <p style="margin-top:20px"><strong>للتواصل:</strong> support@jalsoq.com</p>`,
+
+    disclaimer: `
+      <div style="background:var(--red-l);border:1px solid var(--red);border-radius:12px;padding:16px;margin-bottom:20px">
+        <div style="font-size:16px;font-weight:700;color:var(--red);margin-bottom:8px">⚠️ تنبيه مهم</div>
+        <div style="font-size:14px;color:var(--text)">يُرجى قراءة هذا الإخلاء بعناية قبل استخدام المنصة أو الاعتماد على أي محتوى فيها.</div>
+      </div>
+      <h2>١. ليست توصيات استثمارية</h2>
+      <p>جلسة السوق منصة تواصل اجتماعي تعليمية. جميع المحتوى — بما فيه التحليلات والآراء والتوقعات — هو محتوى تعليمي بحت، ولا يُشكّل توصيةً استثمارية أو عرضاً لشراء أو بيع أي أوراق مالية.</p>
+      <h2>٢. غياب الترخيص المالي</h2>
+      <p>لا تحمل جلسة السوق أي ترخيص من هيئة السوق المالية السعودية (CMA). المستخدمون يتحدثون بصفتهم الشخصية وليس بصفة مستشارين ماليين مرخصين.</p>
+      <h2>٣. مخاطر الاستثمار</h2>
+      <p>ينطوي التداول على مخاطر جوهرية تشمل احتمال خسارة رأس المال كله، وتقلبات حادة في الأسعار، ومخاطر السيولة والعملة والتنظيم. الأداء السابق لا يضمن الأداء المستقبلي.</p>
+      <h2>٤. المسؤولية الشخصية</h2>
+      <p>أنت وحدك المسؤول عن قراراتك الاستثمارية، والتحقق المستقل من المعلومات، واستشارة مستشار مالي مرخص عند الحاجة.</p>
+      <h2>٥. حد المسؤولية</h2>
+      <p>لن تتحمل جلسة السوق ولا إدارتها أي مسؤولية عن أي خسائر مالية تنجم عن الاعتماد على المحتوى المنشور في المنصة.</p>
+      <h2>٦. الامتثال لهيئة السوق المالية</h2>
+      <p>يُحظر في نظام السوق المالية السعودي التداول بناءً على معلومات داخلية، والتلاعب بالسوق، ونشر معلومات مضللة. يتحمل المستخدم كامل المسؤولية عن امتثاله للأنظمة.</p>
+      <p style="margin-top:20px"><strong>للتواصل:</strong> support@jalsoq.com | jalsoq.com</p>`
+  };
+
+  el.innerHTML = `
+    <div style="max-width:760px;margin:0 auto;padding:24px 16px" dir="rtl">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+        <button onclick="history.back()" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 14px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--text2)">← رجوع</button>
+        <h1 style="font-size:22px;font-weight:700">${titles[type]}</h1>
+      </div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">آخر تحديث: 28 مارس 2026</div>
+      <div style="background:var(--bg2);border-radius:14px;padding:24px;border:1.5px solid var(--border);font-size:14px;line-height:1.9;color:var(--text)">
+        <style>
+          #${type}-content h2 { font-size:15px;font-weight:700;margin:20px 0 8px;color:var(--primary); }
+          #${type}-content p { margin-bottom:10px;color:var(--text2); }
+        </style>
+        ${content[type]}
+      </div>
+    </div>`;
+}
 async function loadSentimentWidget() {
   const el = document.getElementById('sentiment-widget');
   if (!el) return;
