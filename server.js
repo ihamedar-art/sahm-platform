@@ -2080,22 +2080,14 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // ساعة واحدة
   db.prepare('INSERT INTO password_reset_tokens (id,user_id,token,expires_at) VALUES (?,?,?,?)').run(uuidv4(), user.id, token, expiresAt);
 
-  const resetLink = `${process.env.SITE_URL || 'https://brzan.com'}/reset-password?token=${token}`;
+  const resetLink = `${process.env.SITE_URL || 'https://jalsoq.com'}/reset-password?token=${token}`;
 
-  // ── إرسال البريد عبر Gmail SMTP ──
+  // ── إرسال البريد عبر Resend ──
   try {
-    const nodemailer = require('nodemailer');
-    const transporter = nodemailer.createTransport({
-      host: 'smtp-relay.gmail.com',
-      port: 465,
-      secure: true,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      }
-    });
-    await transporter.sendMail({
-      from: `"جلسة السوق" <${process.env.SMTP_USER}>`,
+    const { Resend } = require('resend');
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    await resend.emails.send({
+      from: 'جلسة السوق <no-reply@jalsoq.com>',
       to: user.email,
       subject: 'إعادة تعيين كلمة المرور — جلسة السوق',
       html: `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:520px;margin:auto;background:#f8fafc;padding:24px;border-radius:12px">
@@ -2120,9 +2112,9 @@ app.post('/api/auth/forgot-password', async (req, res) => {
         <p style="color:#B0BDD0;font-size:12px;text-align:center;margin-top:16px">jalsoq.com</p>
       </div>`
     });
-    console.log(`[SMTP] تم إرسال رابط إعادة التعيين لـ ${user.email}`);
+    console.log(`[RESEND] تم إرسال رابط إعادة التعيين لـ ${user.email}`);
   } catch(emailErr) {
-    console.error('[SMTP ERROR]', emailErr.message);
+    console.error('[RESEND ERROR]', emailErr.message);
   }
 
   res.json({ success: true, message: 'إذا كان البريد مسجلاً، ستصلك رسالة قريباً' });
