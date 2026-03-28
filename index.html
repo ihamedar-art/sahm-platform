@@ -4239,6 +4239,17 @@ function showRegisterModal() {
       <input class="form-input" id="reg-pass" type="password" placeholder="8 أحرف على الأقل" autocomplete="new-password"
         onkeydown="if(event.key==='Enter')submitRegister()">
     </div>
+    <div style="margin:12px 0;display:flex;align-items:flex-start;gap:10px;direction:rtl">
+      <input type="checkbox" id="reg-terms" style="width:17px;height:17px;margin-top:2px;accent-color:var(--primary);cursor:pointer;flex-shrink:0">
+      <label for="reg-terms" style="font-size:13px;color:var(--text2);cursor:pointer;line-height:1.6">
+        أوافق على
+        <a onclick="event.preventDefault();navigate('terms')" style="color:var(--primary);text-decoration:underline;cursor:pointer">شروط الاستخدام</a>
+        و
+        <a onclick="event.preventDefault();navigate('privacy')" style="color:var(--primary);text-decoration:underline;cursor:pointer">سياسة الخصوصية</a>
+        و
+        <a onclick="event.preventDefault();navigate('disclaimer')" style="color:var(--primary);text-decoration:underline;cursor:pointer">إخلاء المسؤولية المالية</a>
+      </label>
+    </div>
     <div id="reg-error" class="form-error"></div>
     <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;padding:12px" onclick="submitRegister()">إنشاء الحساب</button>
     <div class="form-switch">لديك حساب؟ <a onclick="showLoginModal()">سجّل الدخول</a></div>`;
@@ -4329,7 +4340,9 @@ async function submitRegister() {
   const username = document.getElementById('reg-username').value;
   const email = document.getElementById('reg-email').value;
   const password = document.getElementById('reg-pass').value;
+  const terms = document.getElementById('reg-terms')?.checked;
   if (!display_name || !username || !email || !password) { document.getElementById('reg-error').textContent = 'يرجى ملء جميع الحقول'; return; }
+  if (!terms) { document.getElementById('reg-error').textContent = 'يجب الموافقة على شروط الاستخدام وسياسة الخصوصية وإخلاء المسؤولية للمتابعة'; return; }
   const res = await fetch('/api/register', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username,display_name,email,password}) });
   const data = await res.json();
   if (data.error) { document.getElementById('reg-error').textContent = data.error; return; }
