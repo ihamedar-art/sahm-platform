@@ -1583,6 +1583,7 @@ body {
     <div class="page" id="page-terms"><div id="terms-content"></div></div>
     <div class="page" id="page-privacy"><div id="privacy-content"></div></div>
     <div class="page" id="page-disclaimer"><div id="disclaimer-content"></div></div>
+    <div class="page" id="page-contact"><div id="contact-content"></div></div>
 
     <!-- Single Post Page -->
     <div class="page" id="page-post">
@@ -1644,6 +1645,7 @@ body {
         <a onclick="navigate('terms')" style="font-size:11px;color:var(--text3);cursor:pointer;transition:color .15s" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text3)'">شروط الاستخدام</a>
         <a onclick="navigate('privacy')" style="font-size:11px;color:var(--text3);cursor:pointer;transition:color .15s" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text3)'">سياسة الخصوصية</a>
         <a onclick="navigate('disclaimer')" style="font-size:11px;color:var(--text3);cursor:pointer;transition:color .15s" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text3)'">إخلاء المسؤولية</a>
+        <a onclick="navigate('contact')" style="font-size:11px;color:var(--text3);cursor:pointer;transition:color .15s" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text3)'">اتصل بنا</a>
       </div>
       <div style="font-size:10px;color:var(--text4)">© 2026 جلسة السوق. المحتوى لأغراض تعليمية فقط وليس توصية استثمارية.</div>
     </div>
@@ -2089,6 +2091,9 @@ function navigate(page, param = '', pushHistory = true) {
   } else if (page === 'disclaimer') {
     document.getElementById('page-disclaimer').classList.add('active');
     loadLegalPage('disclaimer');
+  } else if (page === 'contact') {
+    document.getElementById('page-contact').classList.add('active');
+    loadContactPage();
   }
 }
 
@@ -8481,6 +8486,96 @@ function loadLegalPage(type) {
       </div>
     </div>`;
 }
+
+// ══════════════════════════════════════════════════════════════════
+// CONTACT PAGE — اتصل بنا
+// ══════════════════════════════════════════════════════════════════
+function loadContactPage() {
+  const el = document.getElementById('contact-content');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="max-width:640px;margin:0 auto;padding:24px 16px" dir="rtl">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+        <button onclick="history.back()" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 14px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--text2)">← رجوع</button>
+        <h1 style="font-size:22px;font-weight:700">📬 اتصل بنا</h1>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+        <div style="background:var(--bg2);border-radius:12px;padding:16px;border:1.5px solid var(--border);text-align:center">
+          <div style="font-size:24px;margin-bottom:8px">📧</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:4px">البريد الإلكتروني</div>
+          <div style="font-size:13px;font-weight:600;color:var(--primary)">support@jalsoq.com</div>
+        </div>
+        <div style="background:var(--bg2);border-radius:12px;padding:16px;border:1.5px solid var(--border);text-align:center">
+          <div style="font-size:24px;margin-bottom:8px">⏱️</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:4px">وقت الرد</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text)">خلال 24-48 ساعة</div>
+        </div>
+      </div>
+      <div style="background:var(--bg2);border-radius:14px;padding:24px;border:1.5px solid var(--border);border-top:3px solid var(--primary)">
+        <div style="font-size:16px;font-weight:700;margin-bottom:16px">أرسل رسالتك</div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:13px;color:var(--text3);display:block;margin-bottom:6px">الاسم *</label>
+          <input id="ct-name" class="form-input" placeholder="اسمك الكامل" value="${currentUser?.display_name||''}">
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:13px;color:var(--text3);display:block;margin-bottom:6px">البريد الإلكتروني *</label>
+          <input id="ct-email" class="form-input" type="email" placeholder="email@example.com" value="${currentUser?.email||''}">
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:13px;color:var(--text3);display:block;margin-bottom:6px">الموضوع *</label>
+          <select id="ct-subject" class="form-input">
+            <option value="">اختر الموضوع</option>
+            <option value="مشكلة تقنية">مشكلة تقنية</option>
+            <option value="اقتراح أو ملاحظة">اقتراح أو ملاحظة</option>
+            <option value="بلاغ عن محتوى مخالف">بلاغ عن محتوى مخالف</option>
+            <option value="طلب حذف الحساب">طلب حذف الحساب</option>
+            <option value="استفسار عام">استفسار عام</option>
+            <option value="أخرى">أخرى</option>
+          </select>
+        </div>
+        <div style="margin-bottom:16px">
+          <label style="font-size:13px;color:var(--text3);display:block;margin-bottom:6px">الرسالة *</label>
+          <textarea id="ct-message" class="form-input" rows="5" placeholder="اكتب رسالتك هنا..." style="resize:vertical;min-height:120px"></textarea>
+        </div>
+        <div id="ct-result" style="display:none;padding:12px;border-radius:8px;margin-bottom:12px;font-size:13px"></div>
+        <button onclick="submitContact()" id="ct-btn" class="btn btn-primary" style="width:100%;justify-content:center;padding:12px">إرسال الرسالة 📤</button>
+      </div>
+    </div>`;
+}
+
+async function submitContact() {
+  const name    = document.getElementById('ct-name')?.value.trim();
+  const email   = document.getElementById('ct-email')?.value.trim();
+  const subject = document.getElementById('ct-subject')?.value;
+  const message = document.getElementById('ct-message')?.value.trim();
+  const result  = document.getElementById('ct-result');
+  const btn     = document.getElementById('ct-btn');
+  if (!name || !email || !subject || !message) {
+    result.style.cssText = 'display:block;padding:12px;border-radius:8px;margin-bottom:12px;font-size:13px;background:var(--red-l);color:var(--red)';
+    result.textContent = 'يرجى ملء جميع الحقول المطلوبة'; return;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    result.style.cssText = 'display:block;padding:12px;border-radius:8px;margin-bottom:12px;font-size:13px;background:var(--red-l);color:var(--red)';
+    result.textContent = 'البريد الإلكتروني غير صحيح'; return;
+  }
+  btn.disabled = true; btn.textContent = 'جاري الإرسال...';
+  result.style.display = 'none';
+  try {
+    const r = await fetch('/api/contact', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, email, subject, message }) });
+    const d = await r.json();
+    if (d.success) {
+      result.style.cssText = 'display:block;padding:12px;border-radius:8px;margin-bottom:12px;font-size:13px;background:var(--green-l);color:var(--green)';
+      result.textContent = '✅ تم إرسال رسالتك بنجاح! سنرد عليك خلال 24-48 ساعة.';
+      document.getElementById('ct-message').value = '';
+      btn.textContent = '✅ تم الإرسال';
+    } else { throw new Error(d.error || 'خطأ في الإرسال'); }
+  } catch(e) {
+    result.style.cssText = 'display:block;padding:12px;border-radius:8px;margin-bottom:12px;font-size:13px;background:var(--red-l);color:var(--red)';
+    result.textContent = '❌ ' + e.message;
+    btn.disabled = false; btn.textContent = 'إرسال الرسالة 📤';
+  }
+}
+
 async function loadSentimentWidget() {
   const el = document.getElementById('sentiment-widget');
   if (!el) return;
