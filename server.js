@@ -888,7 +888,7 @@ app.get('/api/stock-price/:symbol', async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════
-// MARKETS TICKER — شريط المؤشرات العالمية مع كاش دقيقة
+// MARKETS TICKER — شريط المؤشرات العالمية مع كاش ذكي
 // ══════════════════════════════════════════════════════════════════
 // كل رمز مع fallback بديل في حال فشل الأول
 const TICKER_SYMBOLS = [
@@ -905,6 +905,33 @@ const TICKER_SYMBOLS = [
 let tickerCache = null;
 let tickerCacheTime = 0;
 const TICKER_CACHE_MS = 60 * 1000;
+let tickerRefreshing = false; // 🔐 منع التحديث المتزامن
+
+// ══════════════════════════════════════════════════════════════════
+// 🚀 تحديث المؤشرات في الخلفية — يشتغل كل دقيقة تلقائياً
+// ══════════════════════════════════════════════════════════════════
+async function refreshTickerCache() {
+  if (tickerRefreshing) return; // لا تحدث لو التحديث جاري
+  tickerRefreshing = true;
+  try {
+    const results = await Promise.all(TICKER_SYMBOLS.map(s => fetchOneTicker(s)));
+    const markets = results.filter(Boolean);
+    if (markets.length > 0) {
+      tickerCache = markets;
+      tickerCacheTime = Date.now();
+      console.log(`✅ Ticker cache refreshed: ${markets.length} symbols`);
+    }
+  } catch(e) {
+    console.log('⚠️ Ticker refresh failed:', e.message);
+  }
+  tickerRefreshing = false;
+}
+
+// 🔄 حدّث المؤشرات فور بدء السيرفر، ثم كل دقيقة
+setTimeout(() => {
+  refreshTickerCache();
+  setInterval(refreshTickerCache, 60 * 1000);
+}, 5000); // انتظر 5 ثواني بعد بدء السيرفر
 
 // دالة مساعدة تجلب رمزاً واحداً مع timeout
 function fetchYahooSymbol(yahooSym, useQuery2 = false) {
@@ -1051,18 +1078,22 @@ async function fetchOneTicker(sym) {
 }
 
 app.get('/api/markets/ticker', async (req, res) => {
-  const now = Date.now();
-  if (tickerCache && (now - tickerCacheTime) < TICKER_CACHE_MS) {
+  // 🚀 إذا فيه cache، ارجعه فوراً بدون انتظار
+  if (tickerCache && tickerCache.length > 0) {
     return res.json({ markets: tickerCache, cached: true });
   }
+  
+  // لو ما فيه cache، جرب تجيب البيانات (مرة واحدة فقط)
   try {
     const results = await Promise.all(TICKER_SYMBOLS.map(s => fetchOneTicker(s)));
     const markets = results.filter(Boolean);
-    tickerCache = markets;
-    tickerCacheTime = now;
-    res.json({ markets, cached: false });
+    if (markets.length > 0) {
+      tickerCache = markets;
+      tickerCacheTime = Date.now();
+    }
+    res.json({ markets: markets, cached: false });
   } catch(e) {
-    res.json({ markets: tickerCache || [], cached: true, error: e.message });
+    res.json({ markets: [], cached: true, error: e.message });
   }
 });
 
