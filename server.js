@@ -1,4 +1,5 @@
 require('dotenv').config();
+const crypto = require('crypto');
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
@@ -10,8 +11,43 @@ const path = require('path');
 const fs = require('fs');
 let helmet; try { helmet = require('helmet'); } catch(e) { helmet = null; }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// 🔐 إصلاح أمني #1: Session Secret إجباري
+// ══════════════════════════════════════════════════════════════════════════════
+if (!process.env.SESSION_SECRET) {
+  console.error('╔════════════════════════════════════════════════════════════╗');
+  console.error('║  ⛔ خطأ أمني: SESSION_SECRET غير موجود!                    ║');
+  console.error('║                                                            ║');
+  console.error('║  الحل: أضف في ملف .env:                                    ║');
+  console.error('║  SESSION_SECRET=your-secret-key-here                       ║');
+  console.error('║                                                            ║');
+  console.error('║  لتوليد مفتاح آمن:                                         ║');
+  console.error('║  node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
+  console.error('╚════════════════════════════════════════════════════════════╝');
+  process.exit(1);
+}
+
+if (process.env.SESSION_SECRET.length < 32) {
+  console.error('⛔ SESSION_SECRET قصير جداً! يجب أن يكون 32 حرف على الأقل');
+  process.exit(1);
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🔐 إصلاح أمني #2: HTTPS Enforcement في Production
+// ══════════════════════════════════════════════════════════════════════════════
+if (IS_PRODUCTION) {
+  app.set('trust proxy', 1);
+  app.use((req, res, next) => {
+    if (req.headers['x-forwarded-proto'] !== 'https') {
+      return res.redirect(301, `https://${req.headers.host}${req.url}`);
+    }
+    next();
+  });
+}
 
 // ── قاعدة البيانات ──────────────────────────────────────────────────────────
 const db = new Database('./sahm.db');
@@ -19,7 +55,7 @@ db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
 // ── تثبيت صلاحيات السوبر أدمن ───────────────────────────────────────────────
-const SUPER_ADMIN_USERNAME = 'Hamed';
+const SUPER_ADMIN_USERNAME = process.env.SUPER_ADMIN_USERNAME || 'Ham';
 setTimeout(() => {
   try {
     const u = db.prepare('SELECT id FROM users WHERE username=?').get(SUPER_ADMIN_USERNAME);
@@ -140,7 +176,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB قبل الضغط
+  limits: { fileSize: 5 * 1024 * 1024 }, // 🔐 5MB بدلاً من 20MB
   fileFilter: (req, file, cb) => {
     const allowed = /jpeg|jpg|png|gif|webp|heic|heif/;
     const mimeAllowed = /image\/(jpeg|jpg|png|gif|webp|heic|heif)/;
@@ -184,24 +220,99 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
-// ── Helmet — HTTP Security Headers ───────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// 🔐 إصلاح أمني #3: Helmet مع CSP مفعّل
+// ══════════════════════════════════════════════════════════════════════════════
 if (helmet) {
   app.use(helmet({
-    contentSecurityPolicy: false, // نعطله لأن الموقع يستخدم inline scripts
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "'unsafe-eval'",
+          "https://cdn.jsdelivr.net",
+          "https://cdnjs.cloudflare.com",
+          "https://www.tradingview.com",
+          "https://s3.tradingview.com",
+          "https://s.tradingview.com",
+        ],
+        styleSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "https://fonts.googleapis.com",
+        ],
+        fontSrc: [
+          "'self'",
+          "https://fonts.gstatic.com",
+        ],
+        imgSrc: [
+          "'self'",
+          "data:",
+          "blob:",
+          "https:",
+        ],
+        connectSrc: [
+          "'self'",
+          "https://query1.finance.yahoo.com",
+          "https://query2.finance.yahoo.com",
+          "wss://*.livekit.cloud",
+          "https://*.livekit.cloud",
+          "wss://jalsoq.com",
+          "https://jalsoq.com",
+        ],
+        frameSrc: [
+          "'self'",
+          "https://www.tradingview.com",
+          "https://s.tradingview.com",
+        ],
+        mediaSrc: [
+          "'self'",
+          "https://*.livekit.cloud",
+        ],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'self'"],
+        upgradeInsecureRequests: IS_PRODUCTION ? [] : null,
+      },
+    },
     crossOriginEmbedderPolicy: false,
+    hsts: IS_PRODUCTION ? {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true,
+    } : false,
   }));
 }
+
+// 🔐 Security Headers إضافية
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(self), camera=()');
+  next();
+});
 // ── Session Store في SQLite — يضمن مشاركة الـ session بين كل الـ instances ──
 const SqliteStore = require('better-sqlite3-session-store')(session);
 const sessionDb = new Database('./sessions.db');
 
 app.use(session({
   store: new SqliteStore({ client: sessionDb, expired: { clear: true, intervalMs: 900000 } }),
-  secret: process.env.SESSION_SECRET || 'sahm-secret-2026-very-long-key-do-not-change',
+  secret: process.env.SESSION_SECRET, // 🔐 إجباري الآن
   resave: false,
   saveUninitialized: false,
   rolling: true,
-  cookie: { maxAge: 90 * 24 * 60 * 60 * 1000, httpOnly: true, sameSite: 'lax' }
+  name: 'jalsat.sid', // 🔐 اسم مخصص بدل الافتراضي
+  cookie: {
+    maxAge: 90 * 24 * 60 * 60 * 1000,
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: IS_PRODUCTION, // 🔐 HTTPS only في production
+  }
 }));
 
 // ── Rate Limiter — 300 طلب/دقيقة لكل IP ─────────────────────────────────────
@@ -3307,11 +3418,30 @@ app.post('/api/contact', async (req, res) => {
     });
     res.json({ success: true });
   } catch(e) {
-    res.json({ error: 'خطأ في الإرسال: ' + e.message });
+    console.error('Contact form error:', e.message); // 🔐 سجّل الخطأ في السيرفر فقط
+    res.json({ error: 'حدث خطأ في الإرسال، يرجى المحاولة لاحقاً' }); // 🔐 رسالة عامة للمستخدم
   }
 });
 
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
-app.listen(PORT, () => console.log(`✅ جلسة السوق تعمل على المنفذ ${PORT}`));
+// ══════════════════════════════════════════════════════════════════════════════
+// 🔐 Error Handler آمن — لا يكشف معلومات حساسة
+// ══════════════════════════════════════════════════════════════════════════════
+app.use((err, req, res, next) => {
+  console.error('Server Error:', err.stack);
+  res.status(err.status || 500).json({
+    error: IS_PRODUCTION 
+      ? 'حدث خطأ في الخادم، يرجى المحاولة لاحقاً'
+      : err.message
+  });
+});
+
+app.listen(PORT, () => {
+  console.log('╔════════════════════════════════════════════════════════════╗');
+  console.log(`║  ✅ جلسة السوق تعمل على المنفذ ${PORT}                        ║`);
+  console.log(`║  🔐 الوضع: ${IS_PRODUCTION ? 'Production (HTTPS مفعّل)' : 'Development'}              ║`);
+  console.log(`║  🛡️  CSP: مفعّل | HSTS: ${IS_PRODUCTION ? 'مفعّل' : 'معطّل'}                         ║`);
+  console.log('╚════════════════════════════════════════════════════════════╝');
+});
