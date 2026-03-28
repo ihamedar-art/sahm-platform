@@ -1733,23 +1733,33 @@ async function init() {
   const initParam = urlParams.get('param') || '';
   history.replaceState({ page: initPage, param: initParam }, '', window.location.href);
 
-  await checkAuth();
+  // ═══════════════════════════════════════════════════════════════
+  // 🚀 تحميل المحتوى فوراً بدون انتظار (Non-blocking)
+  // ═══════════════════════════════════════════════════════════════
+  
+  // 1. حمّل المحتوى الأساسي فوراً (بدون await)
+  renderFeed();
   loadPopularStocks();
+  loadHotPosts();
+  loadPoll();
+  loadSentimentWidget();
   loadLeaderboardPanel();
   loadTrendingStocks();
-  renderFeed();
-  loadPoll();
-  loadHotPosts();
-  loadSentimentWidget();
-  if (currentUser) pollNotifications();
+  loadRoomsWidget();
+  
+  // 2. شريط المؤشرات في الخلفية (بدون await)
+  loadTickerBar();
+  
+  // 3. فحص المستخدم في الخلفية (بدون await)
+  checkAuth().then(() => {
+    renderSidebarUserCard();
+    if (currentUser) pollNotifications();
+  }).catch(e => console.log('Auth check failed:', e));
+
+  // 4. التحديثات الدورية
   setTimeout(checkNewPosts, 15000);
   setInterval(loadHotPosts, 120000);
-  // ── New UI helpers ──
-  loadRoomsWidget();
   setInterval(loadRoomsWidget, 20000);
-  renderSidebarUserCard();
-  // شريط المؤشرات
-  loadTickerBar();
   setInterval(loadTickerBar, 60000);
 
   // ── تسجيل Service Worker (PWA) ──
@@ -1778,8 +1788,14 @@ const TICKER_STOCK_MAP = {
 async function loadTickerBar() {
   const bar = document.getElementById('ticker-bar');
   if (!bar) return;
+  
+  // ⏱️ Timeout: إذا أخذ أكثر من 5 ثواني، تجاهل
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  
   try {
-    const r = await fetch('/api/markets/ticker');
+    const r = await fetch('/api/markets/ticker', { signal: controller.signal });
+    clearTimeout(timeoutId);
     const d = await r.json();
     if (!d.markets || !d.markets.length) return;
 
@@ -1801,7 +1817,13 @@ async function loadTickerBar() {
 
     bar.innerHTML = '<div class="ticker-track">' + itemsHtml + '</div>';
   } catch(e) {
-    console.error('Ticker error:', e);
+    clearTimeout(timeoutId);
+    // إذا فشل التحميل، اعرض رسالة بسيطة
+    if (e.name === 'AbortError') {
+      console.log('Ticker timeout - skipped');
+    } else {
+      console.error('Ticker error:', e);
+    }
   }
 }
 
