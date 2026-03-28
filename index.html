@@ -8600,7 +8600,7 @@ async function loadSentimentWidget() {
     const np = total ? Math.round((d.neutral||0)/total*100) : 34;
     const brp = total ? Math.round((d.bearish||0)/total*100) : 33;
     const score = total ? Math.round(bp - brp + 50) : 50;
-    const label = score >= 70 ? 'جشع شديد 🤑' : score >= 55 ? 'جشع 😊' : score >= 45 ? 'محايد 😐' : score >= 30 ? 'خوف 😨' : 'خوف شديد 😱';
+    const label = score >= 70 ? 'إيجابية عالية 🚀' : score >= 55 ? 'نظرة إيجابية 😊' : score >= 45 ? 'محايد 😐' : score >= 30 ? 'تخوف 😨' : 'تخوف عالي 😱';
     const color = score >= 60 ? 'var(--green)' : score >= 40 ? 'var(--gold)' : 'var(--red)';
     const myVote = d.my_vote || '';
 
