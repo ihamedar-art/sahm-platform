@@ -3292,4 +3292,34 @@ app.delete('/api/journal/:id', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
+// ══════════════════════════════════════════════════════════════════
+// CONTACT — اتصل بنا
+// ══════════════════════════════════════════════════════════════════
+app.post('/api/contact', async (req, res) => {
+  const { name, email, subject, message } = req.body;
+  if (!name || !email || !subject || !message) return res.json({ error: 'بيانات ناقصة' });
+  try {
+    const { Resend } = require('resend');
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    await resend.emails.send({
+      from: 'جلسة السوق <no-reply@jalsoq.com>',
+      to: 'support@jalsoq.com',
+      replyTo: email,
+      subject: `[اتصل بنا] ${subject} — من ${name}`,
+      html: `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px">
+        <h2 style="color:#1B4FD8">رسالة جديدة من اتصل بنا</h2>
+        <table style="width:100%;border-collapse:collapse">
+          <tr><td style="padding:8px;background:#f5f7fa;font-weight:bold;width:130px">الاسم</td><td style="padding:8px">${name}</td></tr>
+          <tr><td style="padding:8px;background:#f5f7fa;font-weight:bold">البريد</td><td style="padding:8px"><a href="mailto:${email}">${email}</a></td></tr>
+          <tr><td style="padding:8px;background:#f5f7fa;font-weight:bold">الموضوع</td><td style="padding:8px">${subject}</td></tr>
+          <tr><td style="padding:8px;background:#f5f7fa;font-weight:bold;vertical-align:top">الرسالة</td><td style="padding:8px">${message.replace(/\n/g,'<br>')}</td></tr>
+        </table>
+      </div>`
+    });
+    res.json({ success: true });
+  } catch(e) {
+    res.json({ error: 'خطأ في الإرسال: ' + e.message });
+  }
+});
+
 app.listen(PORT, () => console.log(`✅ جلسة السوق تعمل على المنفذ ${PORT}`));
