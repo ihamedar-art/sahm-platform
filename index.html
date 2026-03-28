@@ -81,6 +81,47 @@
   --header-h: 96px; /* nav + ticker */
 }
 
+/* ══ Dark Mode ══ */
+[data-theme="dark"] {
+  --bg:        #0D1117;
+  --bg2:       #161B22;
+  --bg3:       #1C2230;
+  --bg4:       #21283A;
+
+  --border:    #2A3548;
+  --border2:   #3D4F6B;
+
+  --text:      #E6EDF3;
+  --text2:     #B0BDD0;
+  --text3:     #6B7A99;
+  --text4:     #445070;
+
+  --primary:      #4D7FE8;
+  --primary2:     #3A6DD8;
+  --primary-l:    rgba(77,127,232,.12);
+  --primary-m:    rgba(77,127,232,.20);
+
+  --green:     #2EA878;
+  --green-l:   rgba(46,168,120,.12);
+  --green-bg:  rgba(46,168,120,.10);
+  --red:       #E85555;
+  --red-l:     rgba(232,85,85,.12);
+  --red-bg:    rgba(232,85,85,.10);
+  --gold:      #E8A830;
+  --gold-l:    rgba(232,168,48,.12);
+  --gold-bg:   rgba(232,168,48,.10);
+  --teal:      #2AA8D0;
+  --teal-bg:   rgba(42,168,208,.10);
+  --purple:    #9B6FE8;
+  --purple-bg: rgba(155,111,232,.10);
+
+  --shadow-xs:  0 1px 3px rgba(0,0,0,.3);
+  --shadow-sm:  0 2px 8px rgba(0,0,0,.4);
+  --shadow:     0 4px 16px rgba(0,0,0,.5);
+  --shadow-lg:  0 8px 32px rgba(0,0,0,.6);
+  --shadow-blue: 0 4px 20px rgba(77,127,232,.3);
+}
+
 /* ══ Reset ══ */
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 a { text-decoration:none; color:inherit; }
@@ -1420,6 +1461,7 @@ body {
   </div>
 
   <div class="navbar-actions">
+    <button id="theme-toggle" onclick="toggleTheme()" style="background:none;border:none;cursor:pointer;font-size:20px;padding:6px;border-radius:8px;transition:background .2s;color:var(--text2)" title="تبديل الوضع" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='none'">🌙</button>
     <div id="auth-actions"></div>
   </div>
 </nav>
@@ -8588,6 +8630,29 @@ async function submitContact() {
     btn.disabled = false; btn.textContent = 'إرسال الرسالة 📤';
   }
 }
+
+// ══════════════════════════════════════════════════════════════════
+// DARK / LIGHT MODE
+// ══════════════════════════════════════════════════════════════════
+function toggleTheme() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const newTheme = isDark ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', newTheme);
+  localStorage.setItem('theme', newTheme);
+  document.getElementById('theme-toggle').textContent = newTheme === 'dark' ? '☀️' : '🌙';
+}
+
+function initTheme() {
+  const saved = localStorage.getItem('theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = saved || (prefersDark ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+}
+
+// تشغيل عند التحميل
+initTheme();
 
 async function loadSentimentWidget() {
   const el = document.getElementById('sentiment-widget');
