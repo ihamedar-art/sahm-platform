@@ -1586,6 +1586,7 @@ body {
     <div class="page" id="page-privacy"><div id="privacy-content"></div></div>
     <div class="page" id="page-disclaimer"><div id="disclaimer-content"></div></div>
     <div class="page" id="page-contact"><div id="contact-content"></div></div>
+    <div class="page" id="page-about"><div id="about-content"></div></div>
 
     <!-- Single Post Page -->
     <div class="page" id="page-post">
@@ -1644,6 +1645,7 @@ body {
     <!-- Legal Footer -->
     <div style="padding:14px 14px 10px;border-top:1px solid var(--border);margin-top:8px">
       <div style="display:flex;flex-wrap:wrap;gap:6px 10px;margin-bottom:8px">
+        <a onclick="navigate('about')" style="font-size:11px;color:var(--text3);cursor:pointer;transition:color .15s" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text3)'">عن المنصة</a>
         <a onclick="navigate('terms')" style="font-size:11px;color:var(--text3);cursor:pointer;transition:color .15s" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text3)'">شروط الاستخدام</a>
         <a onclick="navigate('privacy')" style="font-size:11px;color:var(--text3);cursor:pointer;transition:color .15s" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text3)'">سياسة الخصوصية</a>
         <a onclick="navigate('disclaimer')" style="font-size:11px;color:var(--text3);cursor:pointer;transition:color .15s" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text3)'">إخلاء المسؤولية</a>
@@ -2096,6 +2098,9 @@ function navigate(page, param = '', pushHistory = true) {
   } else if (page === 'contact') {
     document.getElementById('page-contact').classList.add('active');
     loadContactPage();
+  } else if (page === 'about') {
+    document.getElementById('page-about').classList.add('active');
+    loadAboutPage();
   }
 }
 
@@ -8589,6 +8594,90 @@ async function submitContact() {
     result.textContent = '❌ ' + e.message;
     btn.disabled = false; btn.textContent = 'إرسال الرسالة 📤';
   }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ABOUT PAGE — عن المنصة
+// ══════════════════════════════════════════════════════════════════
+function loadAboutPage() {
+  const el = document.getElementById('about-content');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="max-width:720px;margin:0 auto;padding:24px 16px 40px">
+      <div style="text-align:center;margin-bottom:36px">
+        <img src="/icons/launchericon-96x96.png" style="width:72px;height:72px;border-radius:18px;margin-bottom:14px;box-shadow:0 4px 20px rgba(27,79,216,.25)">
+        <h1 style="font-size:22px;font-weight:700;color:var(--text);margin-bottom:6px">جلسة السوق</h1>
+        <p style="color:var(--text2);font-size:14px;line-height:1.7">منصة تواصل اجتماعي مخصصة للمتداولين السعوديين — تجمع التحليل والتواصل وأدوات التداول في مكان واحد</p>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:32px">
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px 16px">
+          <div style="font-size:26px;margin-bottom:10px">📊</div>
+          <div style="font-weight:600;color:var(--text);margin-bottom:5px">تحليلات ومنشورات</div>
+          <div style="font-size:12.5px;color:var(--text2);line-height:1.6">شارك تحليلاتك الفنية مع رسوم بيانية مباشرة، وتفاعل مع آراء المتداولين</div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px 16px">
+          <div style="font-size:26px;margin-bottom:10px">🎙️</div>
+          <div style="font-weight:600;color:var(--text);margin-bottom:5px">رومات صوتية</div>
+          <div style="font-size:12.5px;color:var(--text2);line-height:1.6">انضم لجلسات صوتية مباشرة مع متداولين آخرين وناقش السوق في الوقت الفعلي</div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px 16px">
+          <div style="font-size:26px;margin-bottom:10px">💼</div>
+          <div style="font-weight:600;color:var(--text);margin-bottom:5px">محفظة افتراضية</div>
+          <div style="font-size:12.5px;color:var(--text2);line-height:1.6">تدرّب على التداول برأس مال افتراضي 100,000 ريال دون أي مخاطر حقيقية</div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px 16px">
+          <div style="font-size:26px;margin-bottom:10px">📈</div>
+          <div style="font-weight:600;color:var(--text);margin-bottom:5px">رسوم بيانية متقدمة</div>
+          <div style="font-size:12.5px;color:var(--text2);line-height:1.6">رسوم شمعية مع مؤشرات RSI وMACD وبولنجر وإيشيموكو وأدوات رسم احترافية</div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px 16px">
+          <div style="font-size:26px;margin-bottom:10px">📓</div>
+          <div style="font-weight:600;color:var(--text);margin-bottom:5px">مفكرة الصفقات</div>
+          <div style="font-size:12.5px;color:var(--text2);line-height:1.6">سجّل صفقاتك الحقيقية وتتبع أداءك وإحصائياتك بشكل منظم</div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px 16px">
+          <div style="font-size:26px;margin-bottom:10px">🗓️</div>
+          <div style="font-weight:600;color:var(--text);margin-bottom:5px">مفكرة السوق</div>
+          <div style="font-size:12.5px;color:var(--text2);line-height:1.6">تابع أحداث السوق القادمة من نتائج ربعية واكتتابات وتوزيعات أرباح</div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px 16px">
+          <div style="font-size:26px;margin-bottom:10px">🧮</div>
+          <div style="font-weight:600;color:var(--text);margin-bottom:5px">الحاسبة</div>
+          <div style="font-size:12.5px;color:var(--text2);line-height:1.6">احسب الأرباح والخسائر والرسوم ومتوسط الدخول بدقة قبل تنفيذ أي صفقة</div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px 16px">
+          <div style="font-size:26px;margin-bottom:10px">📰</div>
+          <div style="font-weight:600;color:var(--text);margin-bottom:5px">أخبار السوق</div>
+          <div style="font-size:12.5px;color:var(--text2);line-height:1.6">آخر أخبار السوق المالي السعودي والعالمي بشكل مباشر داخل المنصة</div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px 16px">
+          <div style="font-size:26px;margin-bottom:10px">🔥</div>
+          <div style="font-weight:600;color:var(--text);margin-bottom:5px">مؤشر مشاعر السوق</div>
+          <div style="font-size:12.5px;color:var(--text2);line-height:1.6">صوّت يومياً على توقعك للسوق وشاهد مشاعر المجتمع بشكل مرئي</div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px 16px">
+          <div style="font-size:26px;margin-bottom:10px">⭐</div>
+          <div style="font-weight:600;color:var(--text);margin-bottom:5px">قائمة المتابعة</div>
+          <div style="font-size:12.5px;color:var(--text2);line-height:1.6">أضف أسهمك المفضلة وتابع أسعارها وآخر التحليلات عليها</div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px 16px">
+          <div style="font-size:26px;margin-bottom:10px">💬</div>
+          <div style="font-weight:600;color:var(--text);margin-bottom:5px">رسائل خاصة</div>
+          <div style="font-size:12.5px;color:var(--text2);line-height:1.6">تواصل مباشرة مع المتداولين الآخرين عبر نظام رسائل خاص وآمن</div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px 16px">
+          <div style="font-size:26px;margin-bottom:10px">🏆</div>
+          <div style="font-weight:600;color:var(--text);margin-bottom:5px">لوحة المتصدرين</div>
+          <div style="font-size:12.5px;color:var(--text2);line-height:1.6">تنافس مع المجتمع وارتقِ في المستويات من مبتدئ حتى خبير معتمد</div>
+        </div>
+      </div>
+      <div style="text-align:center;background:linear-gradient(135deg,var(--primary) 0%,#6B35B8 100%);border-radius:var(--radius);padding:28px 20px">
+        <div style="font-size:18px;font-weight:700;color:#fff;margin-bottom:8px">ابدأ الآن مجاناً</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.8);margin-bottom:18px">انضم لمجتمع المتداولين السعوديين</div>
+        <button onclick="showRegisterModal()" style="background:#fff;color:var(--primary);border:none;padding:10px 28px;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer">إنشاء حساب</button>
+      </div>
+    </div>
+  `;
 }
 
 async function loadSentimentWidget() {
