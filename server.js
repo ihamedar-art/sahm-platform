@@ -3154,9 +3154,6 @@ app.post('/api/portfolio/reset', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
-app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
-
 // ══════════════════════════════════════════════════════════════════
 // SENTIMENT INDEX — مؤشر مشاعر السوق
 // ══════════════════════════════════════════════════════════════════
@@ -3313,5 +3310,8 @@ app.post('/api/contact', async (req, res) => {
     res.json({ error: 'خطأ في الإرسال: ' + e.message });
   }
 });
+
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 app.listen(PORT, () => console.log(`✅ جلسة السوق تعمل على المنفذ ${PORT}`));
