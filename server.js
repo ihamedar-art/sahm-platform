@@ -40,7 +40,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 // 🔐 إصلاح أمني #2: HTTPS Enforcement في Production
 // ══════════════════════════════════════════════════════════════════════════════
 if (IS_PRODUCTION) {
-  app.set('trust proxy', 1);
+  app.set('trust proxy', 'loopback');
   app.use((req, res, next) => {
     if (req.headers['x-forwarded-proto'] !== 'https') {
       return res.redirect(301, `https://${req.headers.host}${req.url}`);
