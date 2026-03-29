@@ -13,7 +13,50 @@
 <link rel="apple-touch-icon" href="/icons/launchericon-144x144.png">
 <link rel="apple-touch-icon" sizes="192x192" href="/icons/launchericon-192x192.png">
 <link rel="apple-touch-icon" sizes="512x512" href="/icons/launchericon-512x512.png">
-<title>جلسة السوق — مجتمع المتداولين</title>
+<title>جلسة السوق — مجتمع المتداولين السعوديين | تحليلات · أسواق · تداول</title>
+
+<!-- SEO -->
+<meta name="description" content="جلسة السوق — منصة التواصل الاجتماعي الأولى للمتداولين السعوديين. شارك تحليلاتك، تابع الأسواق، وتواصل مع آلاف المتداولين في مكان واحد.">
+<meta name="keywords" content="جلسة السوق, تداول, سوق الأسهم السعودي, تاسي, تحليل فني, متداولين, استثمار, أسهم, jalsoq">
+<meta name="author" content="جلسة السوق">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://jalsoq.com">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://jalsoq.com">
+<meta property="og:title" content="جلسة السوق — مجتمع المتداولين السعوديين">
+<meta property="og:description" content="شارك تحليلاتك، تابع السوق، وتواصل مع آلاف المتداولين. منصة التداول الاجتماعي الأولى في السعودية.">
+<meta property="og:image" content="https://jalsoq.com/icons/launchericon-512x512.png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta property="og:locale" content="ar_SA">
+<meta property="og:site_name" content="جلسة السوق">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:url" content="https://jalsoq.com">
+<meta name="twitter:title" content="جلسة السوق — مجتمع المتداولين السعوديين">
+<meta name="twitter:description" content="شارك تحليلاتك، تابع السوق، وتواصل مع آلاف المتداولين. منصة التداول الاجتماعي الأولى في السعودية.">
+<meta name="twitter:image" content="https://jalsoq.com/icons/launchericon-512x512.png">
+
+<!-- Schema.org -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "جلسة السوق",
+  "url": "https://jalsoq.com",
+  "description": "منصة التواصل الاجتماعي الأولى للمتداولين السعوديين",
+  "inLanguage": "ar",
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": "https://jalsoq.com/?page=search&param={search_term_string}",
+    "query-input": "required name=search_term_string"
+  }
+}
+</script>
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Readex+Pro:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -1326,84 +1369,81 @@ body {
 /* ══════════════════════════════════════════════════════════
    MARKETS TICKER BAR
    ══════════════════════════════════════════════════════════ */
-/* ══ TICKER BAR — Glass Design ══ */
 .ticker-bar {
-  background: rgba(255,255,255,0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255,255,255,0.9);
-  box-shadow: 0 2px 16px rgba(27,79,216,0.07);
-  padding: 7px 20px;
+  background: #fff;
+  border-bottom: 1.5px solid var(--border);
+  box-shadow: var(--shadow-xs);
+  padding: 6px 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow-x: auto;
   scrollbar-width: none;
-  gap: 6px;
+}
+
+/* TradingView Ticker Container */
+.tradingview-ticker-container {
+  width: 100%;
+  background: #fff;
+  border-bottom: 1.5px solid var(--border);
+  box-shadow: var(--shadow-xs);
+}
+.tradingview-widget-container {
+  width: 100%;
 }
 .ticker-bar::-webkit-scrollbar { display: none; }
 
 .ticker-track {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   flex-wrap: nowrap;
 }
 
 .ticker-item {
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 6px 16px;
-  background: rgba(255,255,255,0.82);
-  border: 1px solid rgba(27,79,216,0.09);
-  border-radius: 10px;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 20px;
   cursor: pointer;
-  transition: all .2s;
+  transition: all .18s;
   flex-shrink: 0;
   white-space: nowrap;
-  box-shadow: 0 1px 4px rgba(27,79,216,0.06);
 }
 .ticker-item:hover {
-  background: rgba(255,255,255,0.97);
-  border-color: rgba(27,79,216,0.22);
-  box-shadow: 0 2px 10px rgba(27,79,216,0.12);
-  transform: translateY(-1px);
+  border-color: var(--primary);
+  background: var(--primary-l);
 }
-.ticker-flag { font-size: 13px; line-height: 1; }
+.ticker-item.up   { border-right: 2px solid var(--green); }
+.ticker-item.down { border-right: 2px solid var(--red); }
+
+.ticker-header { display: flex; align-items: center; gap: 4px; }
+.ticker-flag { font-size: 12px; line-height: 1; }
 .ticker-label {
-  font-size: 10px; font-weight: 700;
-  color: var(--text3);
-  letter-spacing: 0.3px;
+  font-size: 11px; font-weight: 700;
+  color: var(--text2);
 }
 .ticker-price {
-  font-size: 13px; font-weight: 700;
+  font-size: 12px; font-weight: 700;
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 .ticker-change {
-  font-size: 11px; font-weight: 700;
-  padding: 1px 7px;
-  border-radius: 20px;
+  font-size: 11px; font-weight: 600;
 }
-.ticker-change.up {
-  background: rgba(10,124,80,0.10);
-  color: var(--green);
-}
-.ticker-change.down {
-  background: rgba(200,32,42,0.10);
-  color: var(--red);
-}
+.ticker-change.up   { color: var(--green); }
+.ticker-change.down { color: var(--red); }
 
 .ticker-loading {
   display: flex; align-items: center; gap: 8px;
 }
 .ticker-skel {
-  height: 58px; width: 82px; border-radius: 10px;
-  background: linear-gradient(90deg, rgba(255,255,255,0.6) 25%, rgba(255,255,255,0.9) 50%, rgba(255,255,255,0.6) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s infinite;
+  height: 26px; width: 90px; border-radius: 20px;
+  background: linear-gradient(90deg, var(--bg3) 25%, var(--bg4) 50%, var(--bg3) 75%);
+  background-size: 200% 100%; animation: shimmer 1.4s infinite;
   flex-shrink: 0;
 }
 /* ── Calculators — إزالة أسهم input وتعريض الخط ── */
@@ -1440,8 +1480,32 @@ body {
   </div>
 </nav>
 
-
-<div class="ticker-bar" id="ticker-bar"><div class="ticker-loading"><div class="ticker-skel"></div><div class="ticker-skel"></div><div class="ticker-skel"></div><div class="ticker-skel"></div><div class="ticker-skel"></div></div></div>
+<!-- ════════════════ MARKETS TICKER BAR — TradingView ════════════════ -->
+<div class="tradingview-ticker-container">
+  <!-- TradingView Widget BEGIN -->
+  <div class="tradingview-widget-container">
+    <div class="tradingview-widget-container__widget"></div>
+    <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js" async>
+    {
+      "symbols": [
+        {"proName": "TADAWUL:TASI", "title": "تاسي"},
+        {"proName": "SP:SPX", "title": "S&P 500"},
+        {"proName": "NASDAQ:NDX", "title": "ناسداك"},
+        {"proName": "NYMEX:CL1!", "title": "النفط"},
+        {"proName": "COMEX:GC1!", "title": "الذهب"},
+        {"proName": "BITSTAMP:BTCUSD", "title": "بيتكوين"},
+        {"proName": "BITSTAMP:ETHUSD", "title": "إيثيريوم"}
+      ],
+      "showSymbolLogo": true,
+      "isTransparent": false,
+      "displayMode": "adaptive",
+      "colorTheme": "light",
+      "locale": "ar_AE"
+    }
+    </script>
+  </div>
+  <!-- TradingView Widget END -->
+</div>
 
 <!-- ════════════════ MAIN LAYOUT ════════════════ -->
 <div class="main-layout">
@@ -1753,7 +1817,7 @@ async function init() {
   loadRoomsWidget();
   
   // 2. شريط المؤشرات — TradingView Widget (يحمّل تلقائياً)
-  setTimeout(loadTickerBar, 2000);
+  // loadTickerBar(); // تم استبداله بـ TradingView
   
   // 3. فحص المستخدم (في الخلفية — ما يعلّق الصفحة)
   checkAuth().then(() => {
@@ -1765,7 +1829,7 @@ async function init() {
   setTimeout(checkNewPosts, 15000);
   setInterval(loadHotPosts, 120000);
   setInterval(loadRoomsWidget, 20000);
-  setInterval(loadTickerBar, 60000);
+  // setInterval(loadTickerBar, 60000); // TradingView يحدث تلقائياً
 
   // ── تسجيل Service Worker (PWA) ──
   if ('serviceWorker' in navigator) {
@@ -1810,9 +1874,11 @@ async function loadTickerBar() {
       const cls = m.isUp ? 'up' : 'down';
       const sym = TICKER_STOCK_MAP[m.key] || m.key.toUpperCase();
       return `
-        <div class="ticker-item" onclick="navigateToStock('$${sym}')">
-          <span class="ticker-flag">${m.flag}</span>
-          <span class="ticker-label">${m.label}</span>
+        <div class="ticker-item ${cls}" onclick="navigateToStock('$${sym}')">
+          <div class="ticker-header">
+            <span class="ticker-flag">${m.flag}</span>
+            <span class="ticker-label">${m.label}</span>
+          </div>
           <span class="ticker-price">${formatTickerPrice(m.price, m.currency)}</span>
           <span class="ticker-change ${cls}">${arrow} ${Math.abs(pct)}%</span>
         </div>`;
@@ -4412,6 +4478,7 @@ function toast(msg, type = 'info') {
 // ══════════════════════════════════════════════════════════════════
 // START
 // ══════════════════════════════════════════════════════════════════
+init();
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@1.2.2/dist/livekit-client.umd.min.js"></script>
@@ -8940,5 +9007,4 @@ async function deleteJournal(id) {
 </script>
 
 </body>
-<script>init();</script>
 </html>
