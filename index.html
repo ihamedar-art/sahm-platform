@@ -1326,81 +1326,84 @@ body {
 /* ══════════════════════════════════════════════════════════
    MARKETS TICKER BAR
    ══════════════════════════════════════════════════════════ */
+/* ══ TICKER BAR — Glass Design ══ */
 .ticker-bar {
-  background: #fff;
-  border-bottom: 1.5px solid var(--border);
-  box-shadow: var(--shadow-xs);
-  padding: 6px 20px;
+  background: rgba(255,255,255,0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,0.9);
+  box-shadow: 0 2px 16px rgba(27,79,216,0.07);
+  padding: 7px 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow-x: auto;
   scrollbar-width: none;
-}
-
-/* TradingView Ticker Container */
-.tradingview-ticker-container {
-  width: 100%;
-  background: #fff;
-  border-bottom: 1.5px solid var(--border);
-  box-shadow: var(--shadow-xs);
-}
-.tradingview-widget-container {
-  width: 100%;
+  gap: 6px;
 }
 .ticker-bar::-webkit-scrollbar { display: none; }
 
 .ticker-track {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   flex-wrap: nowrap;
 }
 
 .ticker-item {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: 20px;
+  gap: 2px;
+  padding: 6px 16px;
+  background: rgba(255,255,255,0.82);
+  border: 1px solid rgba(27,79,216,0.09);
+  border-radius: 10px;
   cursor: pointer;
-  transition: all .18s;
+  transition: all .2s;
   flex-shrink: 0;
   white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(27,79,216,0.06);
 }
 .ticker-item:hover {
-  border-color: var(--primary);
-  background: var(--primary-l);
+  background: rgba(255,255,255,0.97);
+  border-color: rgba(27,79,216,0.22);
+  box-shadow: 0 2px 10px rgba(27,79,216,0.12);
+  transform: translateY(-1px);
 }
-.ticker-item.up   { border-right: 2px solid var(--green); }
-.ticker-item.down { border-right: 2px solid var(--red); }
-
-.ticker-header { display: flex; align-items: center; gap: 4px; }
-.ticker-flag { font-size: 12px; line-height: 1; }
+.ticker-flag { font-size: 13px; line-height: 1; }
 .ticker-label {
-  font-size: 11px; font-weight: 700;
-  color: var(--text2);
+  font-size: 10px; font-weight: 700;
+  color: var(--text3);
+  letter-spacing: 0.3px;
 }
 .ticker-price {
-  font-size: 12px; font-weight: 700;
+  font-size: 13px; font-weight: 700;
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 .ticker-change {
-  font-size: 11px; font-weight: 600;
+  font-size: 11px; font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 20px;
 }
-.ticker-change.up   { color: var(--green); }
-.ticker-change.down { color: var(--red); }
+.ticker-change.up {
+  background: rgba(10,124,80,0.10);
+  color: var(--green);
+}
+.ticker-change.down {
+  background: rgba(200,32,42,0.10);
+  color: var(--red);
+}
 
 .ticker-loading {
   display: flex; align-items: center; gap: 8px;
 }
 .ticker-skel {
-  height: 26px; width: 90px; border-radius: 20px;
-  background: linear-gradient(90deg, var(--bg3) 25%, var(--bg4) 50%, var(--bg3) 75%);
-  background-size: 200% 100%; animation: shimmer 1.4s infinite;
+  height: 58px; width: 82px; border-radius: 10px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.6) 25%, rgba(255,255,255,0.9) 50%, rgba(255,255,255,0.6) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
   flex-shrink: 0;
 }
 /* ── Calculators — إزالة أسهم input وتعريض الخط ── */
@@ -1437,15 +1440,31 @@ body {
   </div>
 </nav>
 
-<!-- ════════════════ MARKETS TICKER BAR ════════════════ -->
-<div class="ticker-bar" id="ticker-bar">
-  <div class="ticker-loading">
-    <div class="ticker-skel"></div>
-    <div class="ticker-skel"></div>
-    <div class="ticker-skel"></div>
-    <div class="ticker-skel"></div>
-    <div class="ticker-skel"></div>
+<!-- ════════════════ MARKETS TICKER BAR — TradingView ════════════════ -->
+<div class="tradingview-ticker-container">
+  <!-- TradingView Widget BEGIN -->
+  <div class="tradingview-widget-container">
+    <div class="tradingview-widget-container__widget"></div>
+    <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js" async>
+    {
+      "symbols": [
+        {"proName": "TADAWUL:TASI", "title": "تاسي"},
+        {"proName": "SP:SPX", "title": "S&P 500"},
+        {"proName": "NASDAQ:NDX", "title": "ناسداك"},
+        {"proName": "NYMEX:CL1!", "title": "النفط"},
+        {"proName": "COMEX:GC1!", "title": "الذهب"},
+        {"proName": "BITSTAMP:BTCUSD", "title": "بيتكوين"},
+        {"proName": "BITSTAMP:ETHUSD", "title": "إيثيريوم"}
+      ],
+      "showSymbolLogo": true,
+      "isTransparent": false,
+      "displayMode": "adaptive",
+      "colorTheme": "light",
+      "locale": "ar_AE"
+    }
+    </script>
   </div>
+  <!-- TradingView Widget END -->
 </div>
 
 <!-- ════════════════ MAIN LAYOUT ════════════════ -->
@@ -1757,9 +1776,9 @@ async function init() {
   loadTrendingStocks();
   loadRoomsWidget();
   
-  // 2. شريط المؤشرات — يحمل في الخلفية بعد ثانيتين (ما يعلّق الصفحة)
-  setTimeout(loadTickerBar, 2000);
-
+  // 2. شريط المؤشرات — TradingView Widget (يحمّل تلقائياً)
+  // loadTickerBar(); // تم استبداله بـ TradingView
+  
   // 3. فحص المستخدم (في الخلفية — ما يعلّق الصفحة)
   checkAuth().then(() => {
     renderSidebarUserCard();
@@ -1770,7 +1789,7 @@ async function init() {
   setTimeout(checkNewPosts, 15000);
   setInterval(loadHotPosts, 120000);
   setInterval(loadRoomsWidget, 20000);
-  setInterval(loadTickerBar, 60000);
+  // setInterval(loadTickerBar, 60000); // TradingView يحدث تلقائياً
 
   // ── تسجيل Service Worker (PWA) ──
   if ('serviceWorker' in navigator) {
@@ -1815,11 +1834,9 @@ async function loadTickerBar() {
       const cls = m.isUp ? 'up' : 'down';
       const sym = TICKER_STOCK_MAP[m.key] || m.key.toUpperCase();
       return `
-        <div class="ticker-item ${cls}" onclick="navigateToStock('$${sym}')">
-          <div class="ticker-header">
-            <span class="ticker-flag">${m.flag}</span>
-            <span class="ticker-label">${m.label}</span>
-          </div>
+        <div class="ticker-item" onclick="navigateToStock('$${sym}')">
+          <span class="ticker-flag">${m.flag}</span>
+          <span class="ticker-label">${m.label}</span>
           <span class="ticker-price">${formatTickerPrice(m.price, m.currency)}</span>
           <span class="ticker-change ${cls}">${arrow} ${Math.abs(pct)}%</span>
         </div>`;
