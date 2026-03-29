@@ -1337,6 +1337,17 @@ body {
   overflow-x: auto;
   scrollbar-width: none;
 }
+
+/* TradingView Ticker Container */
+.tradingview-ticker-container {
+  width: 100%;
+  background: #fff;
+  border-bottom: 1.5px solid var(--border);
+  box-shadow: var(--shadow-xs);
+}
+.tradingview-widget-container {
+  width: 100%;
+}
 .ticker-bar::-webkit-scrollbar { display: none; }
 
 .ticker-track {
@@ -1426,16 +1437,31 @@ body {
   </div>
 </nav>
 
-<!-- ════════════════ MARKETS TICKER BAR ════════════════ -->
-<div class="ticker-bar" id="ticker-bar">
-  <div class="ticker-loading">
-    <div class="ticker-skel"></div>
-    <div class="ticker-skel"></div>
-    <div class="ticker-skel"></div>
-    <div class="ticker-skel"></div>
-    <div class="ticker-skel"></div>
-    <div class="ticker-skel"></div>
+<!-- ════════════════ MARKETS TICKER BAR — TradingView ════════════════ -->
+<div class="tradingview-ticker-container">
+  <!-- TradingView Widget BEGIN -->
+  <div class="tradingview-widget-container">
+    <div class="tradingview-widget-container__widget"></div>
+    <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js" async>
+    {
+      "symbols": [
+        {"proName": "TADAWUL:TASI", "title": "تاسي"},
+        {"proName": "SP:SPX", "title": "S&P 500"},
+        {"proName": "NASDAQ:NDX", "title": "ناسداك"},
+        {"proName": "NYMEX:CL1!", "title": "النفط"},
+        {"proName": "COMEX:GC1!", "title": "الذهب"},
+        {"proName": "BITSTAMP:BTCUSD", "title": "بيتكوين"},
+        {"proName": "BITSTAMP:ETHUSD", "title": "إيثيريوم"}
+      ],
+      "showSymbolLogo": true,
+      "isTransparent": false,
+      "displayMode": "adaptive",
+      "colorTheme": "light",
+      "locale": "ar_AE"
+    }
+    </script>
   </div>
+  <!-- TradingView Widget END -->
 </div>
 
 <!-- ════════════════ MAIN LAYOUT ════════════════ -->
@@ -1747,8 +1773,8 @@ async function init() {
   loadTrendingStocks();
   loadRoomsWidget();
   
-  // 2. شريط المؤشرات (في الخلفية)
-  loadTickerBar();
+  // 2. شريط المؤشرات — TradingView Widget (يحمّل تلقائياً)
+  // loadTickerBar(); // تم استبداله بـ TradingView
   
   // 3. فحص المستخدم (في الخلفية — ما يعلّق الصفحة)
   checkAuth().then(() => {
@@ -1760,7 +1786,7 @@ async function init() {
   setTimeout(checkNewPosts, 15000);
   setInterval(loadHotPosts, 120000);
   setInterval(loadRoomsWidget, 20000);
-  setInterval(loadTickerBar, 60000);
+  // setInterval(loadTickerBar, 60000); // TradingView يحدث تلقائياً
 
   // ── تسجيل Service Worker (PWA) ──
   if ('serviceWorker' in navigator) {
