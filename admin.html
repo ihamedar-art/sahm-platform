@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>لوحة تحكم سهم</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<!-- محرر Quill -->
+<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 <style>
 :root {
   --bg: #F0F4FA; --bg2: #FFFFFF; --bg3: #EBF0F8;
@@ -182,7 +185,36 @@ tr:last-child td { border-bottom:none; }
           <div class="table-header"><div class="table-title">✏️ نشر خبر يدوياً</div></div>
           <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
             <input class="inp" style="margin:0" id="news-title" placeholder="عنوان الخبر *">
-            <textarea id="news-summary" placeholder="ملخص الخبر *" style="padding:12px 14px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius2);color:var(--text);font-family:inherit;font-size:14px;outline:none;resize:none;min-height:100px;width:100%"></textarea>
+            
+            <!-- محرر النصوص المتقدم -->
+            <div style="background:#fff;border:1px solid var(--border2);border-radius:var(--radius2);overflow:hidden">
+              <div id="news-toolbar">
+                <span class="ql-formats">
+                  <button class="ql-bold" title="عريض"></button>
+                  <button class="ql-italic" title="مائل"></button>
+                  <button class="ql-underline" title="تحته خط"></button>
+                  <button class="ql-strike" title="يتوسطه خط"></button>
+                </span>
+                <span class="ql-formats">
+                  <select class="ql-color" title="لون النص"></select>
+                  <select class="ql-background" title="لون الخلفية"></select>
+                </span>
+                <span class="ql-formats">
+                  <button class="ql-list" value="ordered" title="قائمة مرقمة"></button>
+                  <button class="ql-list" value="bullet" title="قائمة نقطية"></button>
+                </span>
+                <span class="ql-formats">
+                  <select class="ql-align" title="محاذاة"></select>
+                </span>
+                <span class="ql-formats">
+                  <button class="ql-link" title="رابط"></button>
+                  <button class="ql-clean" title="إزالة التنسيق"></button>
+                </span>
+              </div>
+              <div id="news-editor" style="min-height:150px;direction:rtl"></div>
+            </div>
+            <div style="font-size:12px;color:var(--text3)">💡 يمكنك نسخ ولصق الجداول والتنسيقات من المصادر الأخرى</div>
+            
             <div style="display:flex;gap:10px;flex-wrap:wrap">
               <input class="inp" style="flex:1;min-width:140px;margin:0" id="news-source" placeholder="المصدر (أرقام، مباشر...)">
               <input class="inp" style="flex:1;min-width:140px;margin:0" id="news-symbols" placeholder="رموز الأسهم ($2222 $1120)">
@@ -450,11 +482,15 @@ function deleteNews(id) {
 
 async function publishNews() {
   const title = document.getElementById('news-title').value.trim();
-  const summary = document.getElementById('news-summary').value.trim();
+  const summary = newsEditor.root.innerHTML.trim(); // من محرر Quill
   const source = document.getElementById('news-source').value.trim();
   const symbols = document.getElementById('news-symbols').value.trim();
   const err = document.getElementById('news-err');
-  if (!title || !summary) { err.textContent = 'العنوان والملخص مطلوبان'; return; }
+  
+  // تحقق من المحتوى (Quill يرجع <p><br></p> لو فاضي)
+  const plainText = newsEditor.getText().trim();
+  if (!title || !plainText) { err.textContent = 'العنوان والملخص مطلوبان'; return; }
+  
   err.textContent = '';
   const res = await fetch('/api/admin/news', {
     method:'POST', headers:{'Content-Type':'application/json'},
@@ -464,7 +500,7 @@ async function publishNews() {
   if (data.error) { err.textContent = data.error; return; }
   toast('تم نشر الخبر بنجاح! ✅', 'success');
   document.getElementById('news-title').value = '';
-  document.getElementById('news-summary').value = '';
+  newsEditor.setContents([]); // مسح المحرر
   document.getElementById('news-source').value = '';
   document.getElementById('news-symbols').value = '';
   loadNews();
@@ -487,6 +523,32 @@ function confirmYes() { document.getElementById('confirm-overlay').classList.rem
 function confirmNo() { document.getElementById('confirm-overlay').classList.remove('show'); confirmCallback = null; }
 
 checkAdmin();
+
+// ── تهيئة محرر Quill ──────────────────────────────────────────────────────
+let newsEditor;
+document.addEventListener('DOMContentLoaded', function() {
+  if (document.getElementById('news-editor')) {
+    newsEditor = new Quill('#news-editor', {
+      modules: {
+        toolbar: '#news-toolbar'
+      },
+      theme: 'snow',
+      placeholder: 'اكتب ملخص الخبر هنا... يمكنك نسخ ولصق الجداول والتنسيقات'
+    });
+  }
+});
 </script>
+
+<style>
+/* ستايلات محرر Quill */
+.ql-toolbar.ql-snow { border: none !important; border-bottom: 1px solid var(--border2) !important; background: var(--bg3); }
+.ql-container.ql-snow { border: none !important; font-family: 'IBM Plex Sans Arabic', sans-serif; font-size: 14px; }
+.ql-editor { direction: rtl; text-align: right; min-height: 150px; }
+.ql-editor p { margin-bottom: 8px; }
+.ql-editor table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+.ql-editor table td, .ql-editor table th { border: 1px solid var(--border2); padding: 8px; text-align: right; }
+.ql-editor table th { background: var(--bg3); font-weight: 600; }
+#news-editor { background: #fff; }
+</style>
 </body>
 </html>
