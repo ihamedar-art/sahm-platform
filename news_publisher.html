@@ -35,7 +35,7 @@ textarea { resize:vertical; line-height:1.7; }
 .status.loading { background:#EEF2F8; color:#1B4FD8; display:block; }
 .preview-box { background:#F7F9FC; border:1.5px solid #E3E8F0; border-radius:10px; padding:16px; margin-top:12px; }
 .preview-title { font-size:15px; font-weight:700; color:#0C1B33; margin-bottom:8px; }
-.preview-body { font-size:13px; color:#3D5070; line-height:1.7; white-space:pre-wrap; }
+.preview-body { font-size:13px; color:#3D5070; line-height:1.7; }
 .preview-meta { font-size:11px; color:#8496B0; margin-top:10px; display:flex; gap:12px; flex-wrap:wrap; }
 .badge { background:#EEF2F8; color:#1B4FD8; padding:2px 10px; border-radius:20px; font-size:11px; font-weight:700; }
 .badge.green { background:#E6F5EE; color:#0A7C50; }
@@ -44,6 +44,41 @@ textarea { resize:vertical; line-height:1.7; }
 .url-row input { flex:1; }
 .step-badge { background:#1B4FD8; color:#fff; width:22px; height:22px; border-radius:50%; font-size:11px; display:inline-flex; align-items:center; justify-content:center; font-weight:700; flex-shrink:0; }
 .ai-badge { background:linear-gradient(135deg,#1B4FD8,#6B35B8); color:#fff; padding:2px 8px; border-radius:20px; font-size:10px; font-weight:700; }
+
+/* ── Toolbar التنسيق ── */
+.editor-wrap { border:1.5px solid #E3E8F0; border-radius:8px; overflow:hidden; transition:border .15s; }
+.editor-wrap:focus-within { border-color:#1B4FD8; }
+.toolbar { display:flex; align-items:center; gap:3px; padding:6px 8px; background:#F7F9FC; border-bottom:1px solid #E3E8F0; flex-wrap:wrap; }
+.tb-btn { background:none; border:1px solid transparent; border-radius:5px; padding:4px 8px; cursor:pointer; font-size:13px; color:#3D5070; font-family:inherit; transition:all .12s; display:inline-flex; align-items:center; gap:4px; }
+.tb-btn:hover { background:#EEF2F8; border-color:#C8D3E5; color:#1B4FD8; }
+.tb-btn.active { background:#1B4FD8; color:#fff; border-color:#1B4FD8; }
+.tb-sep { width:1px; height:18px; background:#E3E8F0; margin:0 2px; }
+.editor-area { width:100%; padding:10px 14px; border:none; outline:none; font-family:inherit; font-size:13.5px; color:#0C1B33; line-height:1.8; resize:vertical; min-height:140px; background:#fff; }
+
+/* جدول في المعاينة */
+.preview-body table { width:100%; border-collapse:collapse; margin:10px 0; font-size:12.5px; }
+.preview-body table th { background:#EEF2F8; color:#1B4FD8; padding:7px 10px; border:1px solid #C8D3E5; font-weight:700; text-align:right; }
+.preview-body table td { padding:6px 10px; border:1px solid #E3E8F0; color:#3D5070; }
+.preview-body table tr:nth-child(even) td { background:#F7F9FC; }
+.preview-body strong { font-weight:700; color:#0C1B33; }
+.preview-body em { font-style:italic; }
+.preview-body ul { padding-right:18px; margin:6px 0; }
+.preview-body ul li { margin-bottom:3px; }
+
+/* ── قسم الشارت ── */
+.chart-section { margin-top:14px; padding:14px; background:#F7F9FC; border-radius:10px; border:1px solid #E3E8F0; }
+.chart-section-title { font-size:13px; font-weight:700; color:#3D5070; margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+.chart-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.chart-select { padding:8px 10px; border-radius:8px; border:1.5px solid #E3E8F0; background:#fff; color:#0C1B33; font-family:inherit; font-size:13px; outline:none; transition:border .15s; }
+.chart-select:focus { border-color:#1B4FD8; }
+.chart-input { padding:8px 12px; border-radius:8px; border:1.5px solid #E3E8F0; background:#fff; color:#0C1B33; font-family:inherit; font-size:13px; outline:none; transition:border .15s; flex:1; min-width:120px; }
+.chart-input:focus { border-color:#1B4FD8; }
+.chart-hint { font-size:11px; color:#8496B0; margin-top:6px; }
+.chart-preview-mini { margin-top:10px; display:none; }
+.chart-preview-mini canvas { border-radius:8px; border:1px solid #E3E8F0; width:100%; }
+.chart-loading { text-align:center; padding:20px; color:#8496B0; font-size:13px; }
+.chart-clear-btn { padding:6px 12px; border-radius:6px; border:1px solid #E3E8F0; background:#fff; color:#C8202A; font-family:inherit; font-size:12px; cursor:pointer; }
+.chart-clear-btn:hover { background:#FDEAEA; }
 </style>
 </head>
 <body>
@@ -57,6 +92,7 @@ textarea { resize:vertical; line-height:1.7; }
     </div>
   </div>
 
+  <!-- الخطوة 1 -->
   <div class="card">
     <div class="card-title"><span class="step-badge">1</span> أدخل رابط الخبر</div>
     <div class="form-group">
@@ -69,40 +105,89 @@ textarea { resize:vertical; line-height:1.7; }
     <div id="fetch-status" class="status"></div>
   </div>
 
+  <!-- الخطوة 2 -->
   <div class="card" id="edit-card" style="display:none">
     <div class="card-title"><span class="step-badge">2</span> راجع الخبر قبل النشر <span class="ai-badge">✨ AI</span></div>
+
     <div class="form-group">
       <label>عنوان الخبر</label>
       <input type="text" id="news-title" placeholder="عنوان الخبر..." />
     </div>
+
     <div class="form-group">
       <label>ملخص الخبر</label>
-      <textarea id="news-summary" rows="5" placeholder="ملخص الخبر..."></textarea>
+      <!-- Toolbar + Editor -->
+      <div class="editor-wrap">
+        <div class="toolbar">
+          <button class="tb-btn" onclick="fmt('bold')" title="عريض"><strong>ع</strong></button>
+          <button class="tb-btn" onclick="fmt('italic')" title="مائل"><em>م</em></button>
+          <div class="tb-sep"></div>
+          <button class="tb-btn" onclick="insertBullet()" title="قائمة نقطية">☰</button>
+          <button class="tb-btn" onclick="insertTable()" title="إدراج جدول">⊞ جدول</button>
+          <div class="tb-sep"></div>
+          <button class="tb-btn" onclick="clearFormat()" title="مسح التنسيق">✕ مسح</button>
+          <div class="tb-sep"></div>
+          <span style="font-size:11px;color:#8496B0;margin-right:4px">💡 لصق جدول Excel مباشرة</span>
+        </div>
+        <div class="editor-area" id="news-summary" contenteditable="true"
+             onpaste="handlePaste(event)"
+             oninput="updatePreview()"
+             placeholder="ملخص الخبر..."></div>
+      </div>
     </div>
+
     <div class="form-group">
       <label>المصدر</label>
       <input type="text" id="news-source" placeholder="أرقام / مباشر / الاقتصادية..." />
     </div>
+
     <div class="form-group">
       <label>رمز السهم (اختياري)</label>
       <input type="text" id="news-symbol" placeholder="مثال: $2222 أو $1120" />
     </div>
+
+    <!-- قسم الشارت -->
+    <div class="chart-section">
+      <div class="chart-section-title">📊 إضافة شارت (اختياري)</div>
+      <div class="chart-row">
+        <select class="chart-select" id="chart-exchange" onchange="onChartInput()">
+          <option value="TADAWUL">تداول 🇸🇦</option>
+          <option value="DFM">دبي 🇦🇪</option>
+          <option value="NASDAQ">ناسداك 🇺🇸</option>
+          <option value="NYSE">نيويورك 🇺🇸</option>
+          <option value="CRYPTO">كريبتو ₿</option>
+        </select>
+        <input class="chart-input" type="text" id="chart-symbol" placeholder="رمز السهم — مثال: 2222" oninput="onChartInput()" />
+        <button class="chart-clear-btn" onclick="clearChart()">✕ حذف</button>
+      </div>
+      <div class="chart-hint">💡 تداول السعودي: أرقام فقط (مثال: 2222) — كريبتو: BTCUSDT</div>
+      <div class="chart-preview-mini" id="chart-preview-wrap">
+        <div class="chart-loading" id="chart-loading">⏳ جاري تحميل الشارت...</div>
+        <canvas id="chart-canvas" height="160"></canvas>
+      </div>
+    </div>
+
     <div class="divider"></div>
     <div style="font-size:12px;color:#8496B0;margin-bottom:8px;font-weight:600">معاينة المنشور</div>
     <div class="preview-box">
       <div class="preview-title" id="preview-title"></div>
       <div class="preview-body" id="preview-body"></div>
+      <div id="preview-chart-wrap" style="margin-top:10px;display:none">
+        <canvas id="preview-chart-canvas" height="120" style="width:100%;border-radius:8px;border:1px solid #E3E8F0"></canvas>
+      </div>
       <div class="preview-meta" id="preview-meta"></div>
     </div>
+
     <div style="margin-top:16px">
       <div class="btns">
-        <button class="btn btn-success" onclick="publishNews()">📤 نشر الخبر</button>
+        <button class="btn btn-success" onclick="publishNews()">🚀 نشر الخبر</button>
         <button class="btn btn-secondary" onclick="resetForm()">↩ إعادة تعيين</button>
       </div>
       <div id="publish-status" class="status"></div>
     </div>
   </div>
 
+  <!-- نجاح النشر -->
   <div class="card" id="history-card" style="display:none">
     <div class="card-title"><span class="step-badge">✓</span> تم النشر بنجاح! ✅</div>
     <div id="success-info" class="preview-box"></div>
@@ -114,23 +199,208 @@ textarea { resize:vertical; line-height:1.7; }
 
 </div>
 <script>
-['news-title','news-summary','news-source','news-symbol'].forEach(id => {
+/* ════════════════════════════════
+   التنسيق
+════════════════════════════════ */
+function fmt(cmd) {
+  document.getElementById('news-summary').focus();
+  document.execCommand(cmd, false, null);
+  updatePreview();
+}
+
+function insertBullet() {
+  const el = document.getElementById('news-summary');
+  el.focus();
+  document.execCommand('insertUnorderedList', false, null);
+  updatePreview();
+}
+
+function insertTable() {
+  const rows = prompt('عدد الصفوف:', '3');
+  const cols = prompt('عدد الأعمدة:', '3');
+  if (!rows || !cols) return;
+  let html = '<table border="1" style="width:100%;border-collapse:collapse;margin:8px 0"><thead><tr>';
+  for (let c = 0; c < +cols; c++) html += `<th style="background:#EEF2F8;color:#1B4FD8;padding:6px 10px;border:1px solid #C8D3E5">العمود ${c+1}</th>`;
+  html += '</tr></thead><tbody>';
+  for (let r = 0; r < +rows; r++) {
+    html += '<tr>';
+    for (let c = 0; c < +cols; c++) html += '<td style="padding:6px 10px;border:1px solid #E3E8F0"> </td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table><br>';
+  document.getElementById('news-summary').focus();
+  document.execCommand('insertHTML', false, html);
+  updatePreview();
+}
+
+function clearFormat() {
+  document.getElementById('news-summary').focus();
+  document.execCommand('removeFormat', false, null);
+  updatePreview();
+}
+
+/* لصق ذكي — يحول جدول Excel/HTML لجدول منسق */
+function handlePaste(e) {
+  const html = e.clipboardData.getData('text/html');
+  if (html && html.includes('<table')) {
+    e.preventDefault();
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    // نظّف الأنماط المعقدة وأبقِ الهيكل
+    tmp.querySelectorAll('table').forEach(t => {
+      t.removeAttribute('class');
+      t.style.cssText = 'width:100%;border-collapse:collapse;margin:8px 0;font-size:13px';
+    });
+    tmp.querySelectorAll('th').forEach(th => {
+      th.style.cssText = 'background:#EEF2F8;color:#1B4FD8;padding:6px 10px;border:1px solid #C8D3E5;font-weight:700;text-align:right';
+    });
+    tmp.querySelectorAll('td').forEach(td => {
+      td.style.cssText = 'padding:6px 10px;border:1px solid #E3E8F0;color:#3D5070';
+      td.removeAttribute('class');
+    });
+    document.execCommand('insertHTML', false, tmp.innerHTML);
+    updatePreview();
+    return;
+  }
+  // نص عادي — اسمح بالإدراج الافتراضي
+}
+
+/* ════════════════════════════════
+   الشارت
+════════════════════════════════ */
+let chartTimer = null;
+let chartData = null;
+let currentSymbol = '';
+
+function onChartInput() {
+  const sym = document.getElementById('chart-symbol').value.trim();
+  if (!sym) { clearChart(); return; }
+  clearTimeout(chartTimer);
+  chartTimer = setTimeout(() => loadChart(sym), 700);
+}
+
+async function loadChart(sym) {
+  const exchange = document.getElementById('chart-exchange').value;
+  const wrap = document.getElementById('chart-preview-wrap');
+  const loading = document.getElementById('chart-loading');
+  const canvas = document.getElementById('chart-canvas');
+
+  wrap.style.display = 'block';
+  loading.style.display = 'block';
+  canvas.style.display = 'none';
+
+  // بناء رمز Yahoo Finance
+  let ySymbol = sym;
+  if (exchange === 'TADAWUL') ySymbol = sym + '.SR';
+  else if (exchange === 'DFM') ySymbol = sym + '.DU';
+
+  try {
+    const res = await fetch(`/api/quote?symbol=${encodeURIComponent(ySymbol)}`);
+    const d = await res.json();
+    if (!d || d.error) throw new Error('لم يتم جلب البيانات');
+    chartData = d;
+    currentSymbol = ySymbol;
+    loading.style.display = 'none';
+    canvas.style.display = 'block';
+    drawMiniChart(canvas, d, sym);
+    // معاينة
+    const pw = document.getElementById('preview-chart-wrap');
+    pw.style.display = 'block';
+    drawMiniChart(document.getElementById('preview-chart-canvas'), d, sym);
+    updatePreview();
+  } catch(e) {
+    loading.textContent = '⚠️ تعذر تحميل الشارت — تأكد من رمز السهم';
+  }
+}
+
+function drawMiniChart(canvas, d, label) {
+  if (!d || !d.prices || d.prices.length < 2) return;
+  const prices = d.prices;
+  const W = canvas.offsetWidth || canvas.parentElement.offsetWidth || 600;
+  canvas.width = W;
+  const H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  const min = Math.min(...prices) * 0.998;
+  const max = Math.max(...prices) * 1.002;
+  const range = max - min;
+  const isUp = prices[prices.length-1] >= prices[0];
+  const color = isUp ? '#0A7C50' : '#C8202A';
+  const fillColor = isUp ? 'rgba(10,124,80,0.08)' : 'rgba(200,32,42,0.08)';
+
+  const px = (i) => (i / (prices.length-1)) * (W - 20) + 10;
+  const py = (v) => H - 28 - ((v - min) / range) * (H - 40);
+
+  // خلفية
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, W, H);
+
+  // منطقة التعبئة
+  ctx.beginPath();
+  ctx.moveTo(px(0), py(prices[0]));
+  prices.forEach((v, i) => ctx.lineTo(px(i), py(v)));
+  ctx.lineTo(px(prices.length-1), H - 28);
+  ctx.lineTo(px(0), H - 28);
+  ctx.closePath();
+  ctx.fillStyle = fillColor;
+  ctx.fill();
+
+  // الخط
+  ctx.beginPath();
+  ctx.moveTo(px(0), py(prices[0]));
+  prices.forEach((v, i) => ctx.lineTo(px(i), py(v)));
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // تسمية
+  const last = prices[prices.length-1];
+  const change = ((last - prices[0]) / prices[0] * 100).toFixed(2);
+  ctx.fillStyle = '#0C1B33';
+  ctx.font = 'bold 13px IBM Plex Sans Arabic, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(label + ' — ' + last.toFixed(2), W - 10, 18);
+  ctx.fillStyle = color;
+  ctx.font = 'bold 12px IBM Plex Sans Arabic, sans-serif';
+  ctx.fillText((isUp ? '▲' : '▼') + ' ' + change + '%', W - 10, 34);
+}
+
+function clearChart() {
+  document.getElementById('chart-symbol').value = '';
+  document.getElementById('chart-preview-wrap').style.display = 'none';
+  document.getElementById('preview-chart-wrap').style.display = 'none';
+  chartData = null;
+  currentSymbol = '';
+  updatePreview();
+}
+
+/* ════════════════════════════════
+   المعاينة
+════════════════════════════════ */
+['news-title','news-source','news-symbol'].forEach(id => {
   document.getElementById(id).addEventListener('input', updatePreview);
 });
 
 function updatePreview() {
   const title = document.getElementById('news-title').value;
-  const summary = document.getElementById('news-summary').value;
+  const summaryEl = document.getElementById('news-summary');
+  const summaryHTML = summaryEl.innerHTML;
   const source = document.getElementById('news-source').value || 'جلسة السوق';
   const symbol = document.getElementById('news-symbol').value;
+
   document.getElementById('preview-title').textContent = '📰 ' + title;
-  document.getElementById('preview-body').textContent = summary + '\n\n📌 المصدر: ' + source;
+  document.getElementById('preview-body').innerHTML = summaryHTML +
+    `<div style="margin-top:10px;font-size:12px;color:#8496B0">📌 المصدر: ${source}</div>`;
   document.getElementById('preview-meta').innerHTML =
     (symbol ? `<span class="badge">${symbol}</span>` : '') +
     `<span class="badge green">📰 خبر</span>` +
-    `<span style="color:#B0BDD0">📰 أخبار السوق · الآن</span>`;
+    `<span style="color:#B0BDD0">🕐 أخبار السوق · الآن</span>`;
 }
 
+/* ════════════════════════════════
+   جلب الخبر وتلخيصه
+════════════════════════════════ */
 async function fetchAndSummarize() {
   const url = document.getElementById('news-url').value.trim();
   if (!url) { showStatus('fetch-status','أدخل رابط الخبر أولاً','error'); return; }
@@ -138,8 +408,7 @@ async function fetchAndSummarize() {
   btn.disabled = true; btn.textContent = '⏳ جاري التلخيص...';
   showStatus('fetch-status','جاري قراءة الخبر وتلخيصه...','loading');
   try {
-    // جلب الصفحة عبر سيرفرنا
-    const pageRes = await fetch('/api/fetch-url?url=' + encodeURIComponent(url), { credentials:'include' });
+    const pageRes = await fetch('/api/fetch-url?url=' + encodeURIComponent(url), { credentials:'same-origin' });
     const pageData = await pageRes.json();
     if (pageData.error) throw new Error(pageData.error);
 
@@ -148,8 +417,7 @@ async function fetchAndSummarize() {
     const text = (tmp.innerText || tmp.textContent || '').replace(/\s+/g,' ').trim().slice(0,5000);
     if (!text || text.length < 100) throw new Error('لم يتم استخراج محتوى كافٍ');
 
-    // تلخيص عبر Claude
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('/api/claude', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
@@ -157,7 +425,7 @@ async function fetchAndSummarize() {
         max_tokens:1000,
         messages:[{
           role:'user',
-          content:`أنت محرر أخبار مالية سعودي. لخّص هذا الخبر بالعربية وأرجع JSON فقط بدون أي نص إضافي:
+          content:`أنت محرر أخبار مالية سعودي. لخص هذا الخبر بالعربية وأرجع JSON فقط بدون أي نص إضافي أو markdown:
 {"title":"عنوان أقل من 80 حرف مع اسم الشركة ورقمها","summary":"ملخص 100-200 كلمة يشمل الأرقام","source":"اسم المصدر فقط","symbol":"$XXXX أو فارغ"}
 
 الخبر:
@@ -166,12 +434,23 @@ ${text}`
       })
     });
     const data = await response.json();
-    const result = JSON.parse((data.content?.[0]?.text||'').replace(/```json|```/g,'').trim());
+    const raw = (data.content?.[0]?.text||'').replace(/```json|```/g,'').trim();
+    const result = JSON.parse(raw);
 
     document.getElementById('news-title').value = result.title||'';
-    document.getElementById('news-summary').value = result.summary||'';
+    // نضع الملخص كنص عادي في الـ contenteditable
+    const summaryEl = document.getElementById('news-summary');
+    summaryEl.innerText = result.summary||'';
     document.getElementById('news-source').value = result.source||'أرقام';
     document.getElementById('news-symbol').value = result.symbol||'';
+
+    // إذا فيه رمز سهم نحمّل الشارت تلقائياً
+    if (result.symbol) {
+      const sym = result.symbol.replace('$','').trim();
+      document.getElementById('chart-symbol').value = sym;
+      loadChart(sym);
+    }
+
     updatePreview();
     document.getElementById('edit-card').style.display = 'block';
     document.getElementById('edit-card').scrollIntoView({behavior:'smooth'});
@@ -182,19 +461,33 @@ ${text}`
   btn.disabled = false; btn.textContent = '✨ تلخيص';
 }
 
+/* ════════════════════════════════
+   النشر
+════════════════════════════════ */
 async function publishNews() {
   const title = document.getElementById('news-title').value.trim();
-  const summary = document.getElementById('news-summary').value.trim();
+  const summaryEl = document.getElementById('news-summary');
+  const summary = summaryEl.innerText.trim();
+  const summaryHTML = summaryEl.innerHTML;
   const source = document.getElementById('news-source').value.trim()||'أرقام';
   const symbol = document.getElementById('news-symbol').value.trim();
+  const chartSym = currentSymbol;
+
   if (!title||!summary) { showStatus('publish-status','العنوان والملخص مطلوبان','error'); return; }
   showStatus('publish-status','جاري النشر...','loading');
   try {
     const res = await fetch('/api/admin/news',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      credentials:'include',
-      body: JSON.stringify({title,summary,source,stock_symbols:symbol})
+      credentials:'same-origin',
+      body: JSON.stringify({
+        title,
+        summary,
+        summary_html: summaryHTML,
+        source,
+        stock_symbols: symbol,
+        chart_symbol: chartSym
+      })
     });
     const data = await res.json();
     if (data.success) {
@@ -204,19 +497,23 @@ async function publishNews() {
         <div class="preview-meta" style="margin-top:10px">
           <span class="badge green">✅ تم النشر</span>
           ${symbol?`<span class="badge">${symbol}</span>`:''}
+          ${chartSym?`<span class="badge">📊 ${chartSym}</span>`:''}
           <span style="color:#B0BDD0">📌 ${source}</span>
         </div>`;
       document.getElementById('history-card').style.display='block';
       document.getElementById('history-card').scrollIntoView({behavior:'smooth'});
       document.getElementById('edit-card').style.display='none';
     } else {
-      showStatus('publish-status', data.error||'حدث خطأ — تأكد أنك مسجّل دخول كأدمن','error');
+      showStatus('publish-status', data.error||'حدث خطأ — تأكد أنك مسجل دخول كأدمن','error');
     }
   } catch(e) {
     showStatus('publish-status','خطأ في الاتصال: '+e.message,'error');
   }
 }
 
+/* ════════════════════════════════
+   مساعدات
+════════════════════════════════ */
 function showStatus(id,msg,type) {
   const el = document.getElementById(id);
   el.textContent = msg;
@@ -225,12 +522,16 @@ function showStatus(id,msg,type) {
 }
 
 function resetForm() {
-  ['news-url','news-title','news-summary','news-source','news-symbol'].forEach(id=>{
-    document.getElementById(id).value='';
-  });
+  document.getElementById('news-url').value='';
+  document.getElementById('news-title').value='';
+  document.getElementById('news-summary').innerHTML='';
+  document.getElementById('news-source').value='';
+  document.getElementById('news-symbol').value='';
+  clearChart();
   document.getElementById('edit-card').style.display='none';
   document.getElementById('history-card').style.display='none';
   showStatus('fetch-status','','');
+  showStatus('publish-status','','');
   window.scrollTo({top:0,behavior:'smooth'});
 }
 </script>
