@@ -1800,10 +1800,7 @@ async function init() {
   // 3. فحص المستخدم (في الخلفية — ما يعلّق الصفحة)
   checkAuth().then(() => {
     renderSidebarUserCard();
-    if (currentUser) {
-      pollNotifications();
-      loadSentimentWidget();
-    }
+    if (currentUser) pollNotifications();
   }).catch(e => console.log('Auth check:', e));
 
   // 4. التحديثات الدورية
@@ -8778,7 +8775,7 @@ async function loadSentimentWidget() {
         <span style="color:var(--gold)">➡️ ${np}%</span>
         <span style="color:var(--red)">📉 ${brp}%</span>
       </div>
-      ${currentUser ? `
+      ${d.is_logged_in ? `
       <div style="display:flex;gap:6px">
         <button onclick="voteSentiment('bullish')" style="flex:1;padding:7px;border-radius:8px;border:1.5px solid ${myVote==='bullish'?'var(--green)':'var(--border2)'};background:${myVote==='bullish'?'var(--green-bg)':'transparent'};color:${myVote==='bullish'?'var(--green)':'var(--text2)'};font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📈 صاعد</button>
         <button onclick="voteSentiment('neutral')" style="flex:1;padding:7px;border-radius:8px;border:1.5px solid ${myVote==='neutral'?'var(--gold)':'var(--border2)'};background:${myVote==='neutral'?'var(--gold-bg)':'transparent'};color:${myVote==='neutral'?'var(--gold)':'var(--text2)'};font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">➡️ محايد</button>

@@ -3313,7 +3313,7 @@ try { db.exec(`
 app.get('/api/sentiment', (req, res) => {
   const today = new Date().toISOString().split('T')[0];
   const rows = db.prepare(`SELECT vote, COUNT(*) as count FROM sentiment_votes WHERE vote_date=? GROUP BY vote`).all(today);
-  const result = { bullish: 0, neutral: 0, bearish: 0, my_vote: null };
+  const result = { bullish: 0, neutral: 0, bearish: 0, my_vote: null, is_logged_in: !!req.session.userId };
   rows.forEach(r => { result[r.vote] = r.count; });
   if (req.session.userId) {
     const my = db.prepare('SELECT vote FROM sentiment_votes WHERE user_id=? AND vote_date=?').get(req.session.userId, today);
