@@ -425,8 +425,10 @@ async function fetchAndSummarize() {
         max_tokens:1000,
         messages:[{
           role:'user',
-          content:`أنت محرر أخبار مالية سعودي. لخص هذا الخبر بالعربية وأرجع JSON فقط بدون أي نص إضافي أو markdown:
-{"title":"عنوان أقل من 80 حرف مع اسم الشركة ورقمها","summary":"ملخص 100-200 كلمة يشمل الأرقام","source":"اسم المصدر فقط","symbol":"$XXXX أو فارغ"}
+          content:`أنت محرر أخبار مالية سعودي محترف. مهمتك تقديم ملخص واضح ومفيد للمتداول السعودي.
+
+أرجع JSON فقط بدون أي نص خارجه أو markdown:
+{"title":"عنوان مباشر يذكر اسم الشركة والحدث الرئيسي، أقل من 80 حرف","summary":"ملخص 150-250 كلمة يتضمن: (1) ما الذي حدث بالضبط (2) الأرقام والنسب المهمة (3) السبب أو الخلفية (4) التأثير المتوقع على السهم أو القطاع. اكتب بأسلوب واضح وصريح ومباشر","source":"اسم الموقع أو المصدر فقط","symbol":"$XXXX إذا ذُكر رمز سهم محدد، وإلا اتركه فارغاً"}
 
 الخبر:
 ${text}`
@@ -467,7 +469,7 @@ ${text}`
 async function publishNews() {
   const title = document.getElementById('news-title').value.trim();
   const summaryEl = document.getElementById('news-summary');
-  const summary = summaryEl.innerText.trim();
+  const summary = summaryEl.innerHTML.trim();
   const summaryHTML = summaryEl.innerHTML;
   const source = document.getElementById('news-source').value.trim()||'أرقام';
   const symbol = document.getElementById('news-symbol').value.trim();
