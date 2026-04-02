@@ -3454,6 +3454,68 @@ app.post('/api/contact', async (req, res) => {
   }
 });
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CUSTOM ROUTES — fetch-url / claude proxy / quote
+// ══════════════════════════════════════════════════════════════════════════════
+app.get('/api/fetch-url', async (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.json({ error: 'no url' });
+  try {
+    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const html = await r.text();
+    res.json({ html });
+  } catch(e) {
+    res.json({ error: e.message });
+  }
+});
+
+app.post('/api/claude', async (req, res) => {
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify(req.body)
+    });
+    res.json(await r.json());
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/quote', async (req, res) => {
+  const sym = req.query.symbol;
+  if (!sym) return res.json({ error: 'no symbol' });
+  try {
+    const ySymbol = sym.match(/^\d+$/) ? sym + '.SR' : sym;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ySymbol)}?interval=1d&range=30d`;
+    const data = await new Promise((resolve, reject) => {
+      const https = require('https');
+      https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } }, (r) => {
+        let d = '';
+        r.on('data', chunk => d += chunk);
+        r.on('end', () => { try { resolve(JSON.parse(d)); } catch(e) { reject(e); } });
+      }).on('error', reject);
+    });
+    const result = data?.chart?.result?.[0];
+    if (!result) return res.json({ error: 'السهم غير موجود' });
+    const quotes = result.indicators.quote[0];
+    const prices = quotes.close.filter(p => p !== null);
+    const meta = result.meta;
+    res.json({
+      symbol: meta.symbol,
+      price: meta.regularMarketPrice,
+      prices
+    });
+  } catch(e) {
+    res.json({ error: e.message });
+  }
+});
+
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
