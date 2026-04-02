@@ -1800,7 +1800,10 @@ async function init() {
   // 3. فحص المستخدم (في الخلفية — ما يعلّق الصفحة)
   checkAuth().then(() => {
     renderSidebarUserCard();
-    if (currentUser) pollNotifications();
+    if (currentUser) {
+      pollNotifications();
+      loadSentimentWidget();
+    }
   }).catch(e => console.log('Auth check:', e));
 
   // 4. التحديثات الدورية
