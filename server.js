@@ -3516,6 +3516,89 @@ app.get('/api/quote', async (req, res) => {
   }
 });
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 📰 نظام مسودات الأخبار التلقائية — GitHub Actions Bot
+// ══════════════════════════════════════════════════════════════════════════════
+try { db.exec(`
+  CREATE TABLE IF NOT EXISTS news_drafts (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    source TEXT DEFAULT 'تداول السعودية',
+    stock_symbols TEXT DEFAULT '',
+    draft_source TEXT DEFAULT 'tadawul_bot',
+    status TEXT DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`); } catch(e) {}
+
+// استقبال المسودات من الـ Bot
+app.post('/api/admin/news-draft', (req, res) => {
+  const { title, summary, source, stock_symbols, api_secret } = req.body;
+  
+  // التحقق من الـ secret
+  if (api_secret !== process.env.BOT_API_SECRET) {
+    return res.status(401).json({ error: 'غير مصرح' });
+  }
+  
+  if (!title || !summary) return res.json({ error: 'العنوان والملخص مطلوبان' });
+  
+  // تحقق من التكرار — نفس العنوان خلال 24 ساعة
+  const existing = db.prepare(
+    "SELECT id FROM news_drafts WHERE title=? AND created_at > datetime('now','-1 day')"
+  ).get(title);
+  if (existing) return res.json({ success: true, duplicate: true });
+  
+  const id = uuidv4();
+  db.prepare(
+    'INSERT INTO news_drafts (id,title,summary,source,stock_symbols) VALUES (?,?,?,?,?)'
+  ).run(id, title.trim(), summary.trim(), source||'تداول السعودية', stock_symbols||'');
+  
+  res.json({ success: true, id });
+});
+
+// جلب المسودات (أدمن فقط)
+app.get('/api/admin/news-drafts', requireAdmin, (req, res) => {
+  const drafts = db.prepare(
+    "SELECT * FROM news_drafts WHERE status='pending' ORDER BY created_at DESC LIMIT 20"
+  ).all();
+  res.json({ drafts });
+});
+
+// نشر مسودة
+app.post('/api/admin/news-drafts/:id/publish', requireAdmin, (req, res) => {
+  const draft = db.prepare('SELECT * FROM news_drafts WHERE id=?').get(req.params.id);
+  if (!draft) return res.json({ error: 'المسودة غير موجودة' });
+  
+  const newsUserId = ensureNewsAccount();
+  const postId = uuidv4();
+  const newsId = uuidv4();
+  
+  db.prepare(`INSERT INTO posts (id,user_id,content,stock_symbols,post_type)
+    VALUES (?,?,?,?,?)`).run(
+    postId, newsUserId,
+    `📰 ${draft.title}\n\n${draft.summary}\n\n📌 المصدر: ${draft.source}`,
+    draft.stock_symbols||'', 'news'
+  );
+  
+  db.prepare(`INSERT INTO news_posts (id,title,summary,source,stock_symbols,post_id,is_published)
+    VALUES (?,?,?,?,?,?,?)`).run(
+    newsId, draft.title, draft.summary, draft.source, draft.stock_symbols||'', postId, 1
+  );
+  
+  db.prepare("UPDATE users SET posts_count = posts_count + 1 WHERE username = 'jalsat_news'").run();
+  db.prepare("UPDATE news_drafts SET status='published' WHERE id=?").run(draft.id);
+  
+  res.json({ success: true, postId });
+});
+
+// حذف مسودة
+app.delete('/api/admin/news-drafts/:id', requireAdmin, (req, res) => {
+  db.prepare("UPDATE news_drafts SET status='rejected' WHERE id=?").run(req.params.id);
+  res.json({ success: true });
+});
+
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
@@ -3530,79 +3613,6 @@ app.use((err, req, res, next) => {
       : err.message
   });
 });
-
-
-// ══════════════════════════════════════════════════════════════════════════════
-// 🗓️ النشر التلقائي لأحداث المفكرة — ينشر منشور مثبت يوم الحدث
-// ══════════════════════════════════════════════════════════════════════════════
-
-// أضف حقل auto_published لتتبع الأحداث التي تم نشرها
-try { db.exec('ALTER TABLE market_events ADD COLUMN auto_published INTEGER DEFAULT 0'); } catch(e) {}
-try { db.exec('ALTER TABLE market_events ADD COLUMN auto_post_id TEXT DEFAULT NULL'); } catch(e) {}
-
-const EVENT_ICONS = {
-  'توزيع أرباح':       '💰',
-  'أحقية أرباح':       '📋',
-  'أحقية أسهم منحة':  '🎁',
-  'اكتتاب':            '🆕',
-  'إدراج وبداية تداول':'🚀',
-  'نتائج مالية':       '📊',
-  'اجتماع جمعية':      '🤝',
-  'إجازة رسمية':       '🏖️',
-  'أخرى':              '📌',
-};
-
-async function autoPublishTodayEvents() {
-  try {
-    const today = new Date().toISOString().split('T')[0];
-    const events = db.prepare(
-      'SELECT * FROM market_events WHERE event_date=? AND auto_published=0'
-    ).all(today);
-
-    if (!events.length) return;
-
-    const newsUserId = ensureNewsAccount();
-    const newsUser = db.prepare('SELECT id FROM users WHERE username=?').get('jalsat_news');
-    if (!newsUser) return;
-
-    for (const ev of events) {
-      try {
-        const icon = EVENT_ICONS[ev.event_type] || '📌';
-        const symTag = ev.symbol ? ' $' + ev.symbol : '';
-        const content = `${icon} ${ev.event_type}${symTag ? ' · ' + symTag : ''}\n${ev.company_name}\n${ev.details || ''}\n\n📅 اليوم هو يوم الحدث`.trim();
-
-        const postId = require('crypto').randomUUID ? require('crypto').randomUUID() : uuidv4();
-
-        // أنشئ المنشور
-        db.prepare(`INSERT INTO posts (id,user_id,content,stock_symbols,post_type,is_pinned,pinned_at)
-          VALUES (?,?,?,?,?,1,?)`).run(
-          postId, newsUserId, content,
-          ev.symbol ? '$' + ev.symbol : '',
-          'news',
-          new Date().toISOString()
-        );
-
-        // حدّث عداد المنشورات
-        db.prepare("UPDATE users SET posts_count = posts_count + 1 WHERE id=?").run(newsUserId);
-
-        // علّم الحدث كمنشور
-        db.prepare('UPDATE market_events SET auto_published=1, auto_post_id=? WHERE id=?').run(postId, ev.id);
-
-        console.log(`✅ Auto-published event: ${ev.company_name} - ${ev.event_type}`);
-      } catch(e) {
-        console.log('⚠️ Auto-publish error for event', ev.id, e.message);
-      }
-    }
-  } catch(e) {
-    console.log('⚠️ autoPublishTodayEvents error:', e.message);
-  }
-}
-
-// شغّل عند بدء السيرفر بعد 10 ثواني، ثم كل ساعة
-setTimeout(() => {
-  autoPublishTodayEvents();
-  setInterval(autoPublishTodayEvents, 60 * 60 * 1000);
-}, 10000);
 
 app.listen(PORT, () => {
   console.log('╔════════════════════════════════════════════════════════════╗');

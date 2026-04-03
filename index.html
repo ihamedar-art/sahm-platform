@@ -5702,6 +5702,7 @@ function renderAdminShell() {
     ['comments','💬 التعليقات', true],
     ['polls','📊 الاستطلاعات', true],
     ['calendar','📅 المفكرة', true],
+    ['drafts','📥 مسودات البوت', true],
     ['news','📰 الأخبار', true],
     ['logs','📋 سجل التحركات', isSuperAdmin],
   ].filter(t => t[2]);
@@ -5735,8 +5736,78 @@ async function loadAdminTab(tab) {
   else if (tab === 'comments') await renderAdminComments(el);
   else if (tab === 'polls') await renderAdminPolls(el);
   else if (tab === 'calendar') await renderAdminCalendar(el);
+  else if (tab === 'drafts') await renderAdminDrafts(el);
   else if (tab === 'news') await renderAdminNews(el);
   else if (tab === 'logs') await renderAdminLogs(el);
+}
+
+// ── مسودات البوت التلقائي ────────────────────────────────────────
+async function renderAdminDrafts(el) {
+  const r = await fetch('/api/admin/news-drafts');
+  const d = await r.json();
+  const drafts = d.drafts || [];
+  
+  if (!drafts.length) {
+    el.innerHTML = `
+      <div class="panel-card">
+        <div class="panel-title">📥 مسودات البوت التلقائي</div>
+        <div class="empty-state">
+          <div class="empty-icon">📥</div>
+          <div class="empty-title">لا توجد مسودات بانتظار المراجعة</div>
+          <p style="color:var(--text2);font-size:13px">البوت يرسل الأخبار كل يوم الساعة 9 صباحاً</p>
+        </div>
+      </div>`;
+    return;
+  }
+  
+  el.innerHTML = `
+    <div class="panel-card">
+      <div class="panel-title" style="margin-bottom:16px">📥 مسودات بانتظار موافقتك (${drafts.length})</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:16px;padding:10px;background:var(--bg3);border-radius:8px">
+        💡 هذه الأخبار جلبها البوت تلقائياً من تداول السعودية — راجعها وانشر أو احذف
+      </div>
+      ${drafts.map(dr => `
+        <div style="border:1px solid var(--border);border-right:3px solid var(--primary);border-radius:var(--radius);padding:14px;margin-bottom:10px;background:#fff">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:5px">${dr.title}</div>
+              <div style="font-size:12px;color:var(--text3);margin-bottom:8px;line-height:1.6">${dr.summary.slice(0,200)}${dr.summary.length>200?'...':''}</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                ${dr.stock_symbols ? `<span style="font-size:11px;font-weight:700;color:var(--primary);background:var(--primary-l);padding:2px 8px;border-radius:10px">${dr.stock_symbols}</span>` : ''}
+                <span style="font-size:11px;color:var(--text3);background:var(--bg3);padding:2px 8px;border-radius:10px">📌 ${dr.source}</span>
+                <span style="font-size:11px;color:var(--text3)">🕐 ${dr.created_at.slice(0,16)}</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0">
+              <button class="btn btn-success btn-sm" onclick="publishDraft('${dr.id}',this)">🚀 نشر</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteDraft('${dr.id}',this)">🗑️ حذف</button>
+            </div>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+async function publishDraft(id, btn) {
+  btn.disabled = true; btn.textContent = '⏳';
+  const r = await fetch(`/api/admin/news-drafts/${id}/publish`, { method: 'POST' });
+  const d = await r.json();
+  if (d.success) {
+    toast('✅ تم النشر بنجاح', 'success');
+    btn.closest('div[style*="border"]').remove();
+  } else {
+    toast(d.error || 'حدث خطأ', 'error');
+    btn.disabled = false; btn.textContent = '🚀 نشر';
+  }
+}
+
+async function deleteDraft(id, btn) {
+  btn.disabled = true;
+  const r = await fetch(`/api/admin/news-drafts/${id}`, { method: 'DELETE' });
+  const d = await r.json();
+  if (d.success) {
+    btn.closest('div[style*="border"]').remove();
+    toast('🗑️ تم الحذف', 'info');
+  }
 }
 
 // ── الإحصائيات ───────────────────────────────────────────────────
