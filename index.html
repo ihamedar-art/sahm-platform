@@ -1388,10 +1388,10 @@ body {
    MARKETS TICKER BAR
    ══════════════════════════════════════════════════════════ */
 .ticker-bar {
-  background: linear-gradient(to bottom, #fff, #FAFCFF);
+  background: #F3F7FC;
   border-bottom: 1.5px solid var(--border);
-  box-shadow: 0 2px 8px rgba(14,165,233,.06);
-  padding: 5px 20px;
+  box-shadow: none;
+  padding: 5px 16px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1414,7 +1414,7 @@ body {
 .ticker-track {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0;
   flex-wrap: nowrap;
 }
 
@@ -1428,16 +1428,20 @@ body {
   border: 1px solid var(--border);
   border-radius: 12px;
   cursor: pointer;
-  transition: all .2s;
+  transition: border-color .18s, background .18s;
   flex-shrink: 0;
   white-space: nowrap;
-  box-shadow: 0 1px 4px rgba(14,165,233,.05);
+  margin: 0 3px;
 }
 .ticker-item:hover {
-  background: var(--primary-l);
-  border-color: rgba(14,165,233,.3);
-  box-shadow: 0 3px 12px rgba(14,165,233,.15);
-  transform: translateY(-2px);
+  background: #F0F9FF;
+  border-color: #0EA5E9;
+}
+
+.ticker-sep {
+  width: 1px; height: 28px;
+  background: var(--border);
+  flex-shrink: 0; margin: 0 2px;
 }
 
 .ticker-header { display: flex; align-items: center; gap: 4px; }
@@ -1447,15 +1451,16 @@ body {
   color: var(--text2);
 }
 .ticker-price {
-  font-size: 12px; font-weight: 700;
+  font-size: 13px; font-weight: 700;
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 .ticker-change {
   font-size: 11px; font-weight: 600;
+  padding: 1px 5px; border-radius: 6px;
 }
-.ticker-change.up { background: rgba(10,124,80,0.10); color: var(--green); }
-.ticker-change.down { background: rgba(200,32,42,0.10); color: var(--red); }
+.ticker-change.up { background: #ECFDF5; color: #059669; }
+.ticker-change.down { background: #FEF2F2; color: #DC2626; }
 
 .ticker-loading {
   display: flex; align-items: center; gap: 8px;
@@ -1864,13 +1869,14 @@ async function loadTickerBar() {
     const d = await r.json();
     if (!d.markets || !d.markets.length) return;
 
-    const itemsHtml = d.markets.map(m => {
+    const itemsHtml = d.markets.map((m, i) => {
       const pct = parseFloat(m.changePct).toFixed(2);
       const arrow = m.isUp ? '▲' : '▼';
       const cls = m.isUp ? 'up' : 'down';
       const sym = TICKER_STOCK_MAP[m.key] || m.key.toUpperCase();
-      return `
-        <div class="ticker-item ${cls}" onclick="navigateToStock('$${sym}')">
+      const sep = i > 0 ? '<div class="ticker-sep"></div>' : '';
+      return sep + `
+        <div class="ticker-item" onclick="navigateToStock('$${sym}')">
           <div class="ticker-header">
             <span class="ticker-flag">${m.flag}</span>
             <span class="ticker-label">${m.label}</span>
