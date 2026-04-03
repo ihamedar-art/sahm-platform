@@ -3531,6 +3531,79 @@ app.use((err, req, res, next) => {
   });
 });
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🗓️ النشر التلقائي لأحداث المفكرة — ينشر منشور مثبت يوم الحدث
+// ══════════════════════════════════════════════════════════════════════════════
+
+// أضف حقل auto_published لتتبع الأحداث التي تم نشرها
+try { db.exec('ALTER TABLE market_events ADD COLUMN auto_published INTEGER DEFAULT 0'); } catch(e) {}
+try { db.exec('ALTER TABLE market_events ADD COLUMN auto_post_id TEXT DEFAULT NULL'); } catch(e) {}
+
+const EVENT_ICONS = {
+  'توزيع أرباح':       '💰',
+  'أحقية أرباح':       '📋',
+  'أحقية أسهم منحة':  '🎁',
+  'اكتتاب':            '🆕',
+  'إدراج وبداية تداول':'🚀',
+  'نتائج مالية':       '📊',
+  'اجتماع جمعية':      '🤝',
+  'إجازة رسمية':       '🏖️',
+  'أخرى':              '📌',
+};
+
+async function autoPublishTodayEvents() {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const events = db.prepare(
+      'SELECT * FROM market_events WHERE event_date=? AND auto_published=0'
+    ).all(today);
+
+    if (!events.length) return;
+
+    const newsUserId = ensureNewsAccount();
+    const newsUser = db.prepare('SELECT id FROM users WHERE username=?').get('jalsat_news');
+    if (!newsUser) return;
+
+    for (const ev of events) {
+      try {
+        const icon = EVENT_ICONS[ev.event_type] || '📌';
+        const symTag = ev.symbol ? ' $' + ev.symbol : '';
+        const content = `${icon} ${ev.event_type}${symTag ? ' · ' + symTag : ''}\n${ev.company_name}\n${ev.details || ''}\n\n📅 اليوم هو يوم الحدث`.trim();
+
+        const postId = require('crypto').randomUUID ? require('crypto').randomUUID() : uuidv4();
+
+        // أنشئ المنشور
+        db.prepare(`INSERT INTO posts (id,user_id,content,stock_symbols,post_type,is_pinned,pinned_at)
+          VALUES (?,?,?,?,?,1,?)`).run(
+          postId, newsUserId, content,
+          ev.symbol ? '$' + ev.symbol : '',
+          'news',
+          new Date().toISOString()
+        );
+
+        // حدّث عداد المنشورات
+        db.prepare("UPDATE users SET posts_count = posts_count + 1 WHERE id=?").run(newsUserId);
+
+        // علّم الحدث كمنشور
+        db.prepare('UPDATE market_events SET auto_published=1, auto_post_id=? WHERE id=?').run(postId, ev.id);
+
+        console.log(`✅ Auto-published event: ${ev.company_name} - ${ev.event_type}`);
+      } catch(e) {
+        console.log('⚠️ Auto-publish error for event', ev.id, e.message);
+      }
+    }
+  } catch(e) {
+    console.log('⚠️ autoPublishTodayEvents error:', e.message);
+  }
+}
+
+// شغّل عند بدء السيرفر بعد 10 ثواني، ثم كل ساعة
+setTimeout(() => {
+  autoPublishTodayEvents();
+  setInterval(autoPublishTodayEvents, 60 * 60 * 1000);
+}, 10000);
+
 app.listen(PORT, () => {
   console.log('╔════════════════════════════════════════════════════════════╗');
   console.log(`║  ✅ جلسة السوق تعمل على المنفذ ${PORT}                        ║`);
