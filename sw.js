@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jalsat-v1';
+const CACHE_NAME = 'jalsat-v3';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
