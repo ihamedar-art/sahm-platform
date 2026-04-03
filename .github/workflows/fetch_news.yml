@@ -1,1 +1,25 @@
+name: جالب أخبار تداول اليومي
 
+on:
+  schedule:
+    - cron: '0 6 * * 0-4'
+  workflow_dispatch:
+
+jobs:
+  fetch-news:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: جلب أخبار تداول
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          API_SECRET: ${{ secrets.API_SECRET }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python fetch_tadawul.py
