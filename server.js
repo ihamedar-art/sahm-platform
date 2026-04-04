@@ -1259,12 +1259,22 @@ app.get('/api/posts', (req, res) => {
   }
 
   if (symbol) {
-    posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified,
+    // المثبتة على هذا السهم أولاً، ثم الباقي
+    const symbolPinned = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified,
       (strftime('%s','now') - strftime('%s', p.created_at)) < 3600 as can_direct_delete
       FROM posts p JOIN users u ON p.user_id = u.id
-      WHERE (p.stock_symbols LIKE ?) AND ${visibilityClause}
+      WHERE (p.stock_symbols LIKE ?) AND p.symbol_pinned=1 AND ${visibilityClause}
+      ORDER BY p.symbol_pinned_at DESC`
+    ).all(`%${symbol}%`);
+
+    const rest = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified,
+      (strftime('%s','now') - strftime('%s', p.created_at)) < 3600 as can_direct_delete
+      FROM posts p JOIN users u ON p.user_id = u.id
+      WHERE (p.stock_symbols LIKE ?) AND (p.symbol_pinned=0 OR p.symbol_pinned IS NULL) AND ${visibilityClause}
       ORDER BY p.created_at DESC LIMIT ? OFFSET ?`
     ).all(`%${symbol}%`, limit, offset);
+
+    posts = [...symbolPinned, ...rest];
   } else if (user_id) {
     posts = db.prepare(`SELECT p.*, u.username, u.display_name, u.avatar, u.level, u.is_verified,
       (strftime('%s','now') - strftime('%s', p.created_at)) < 3600 as can_direct_delete
@@ -3528,6 +3538,9 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS news_drafts (
 
 try { db.exec('ALTER TABLE market_events ADD COLUMN auto_published INTEGER DEFAULT 0'); } catch(e) {}
 try { db.exec('ALTER TABLE market_events ADD COLUMN auto_post_id TEXT DEFAULT NULL'); } catch(e) {}
+// عمود التثبيت على صفحة السهم فقط (مو الرئيسية)
+try { db.exec('ALTER TABLE posts ADD COLUMN symbol_pinned INTEGER DEFAULT 0'); } catch(e) {}
+try { db.exec('ALTER TABLE posts ADD COLUMN symbol_pinned_at DATETIME DEFAULT NULL'); } catch(e) {}
 
 app.get('/api/admin/news-drafts', requireAdmin, (req, res) => {
   const drafts = db.prepare("SELECT * FROM news_drafts WHERE status='pending' ORDER BY created_at DESC LIMIT 20").all();
@@ -3648,13 +3661,30 @@ async function autoPublishEvents() {
       const icon = EVENT_ICONS_MAP[ev.event_type] || '📌';
       const content = icon + ' ' + ev.event_type + (ev.symbol ? ' · $' + ev.symbol : '') + '\n' + ev.company_name + (ev.details ? '\n' + ev.details : '') + '\n\n📅 اليوم هو يوم الحدث';
       const postId = uuidv4();
-      db.prepare('INSERT INTO posts (id,user_id,content,stock_symbols,post_type,is_pinned,pinned_at) VALUES (?,?,?,?,?,1,?)').run(postId, newsUserId, content, ev.symbol ? '$'+ev.symbol : '', 'news', new Date().toISOString());
+      const now = new Date().toISOString();
+      // is_pinned=0 → لا يتثبت على الرئيسية
+      // symbol_pinned=1 → يتثبت على صفحة السهم فقط ليوم واحد
+      db.prepare('INSERT INTO posts (id,user_id,content,stock_symbols,post_type,is_pinned,symbol_pinned,symbol_pinned_at) VALUES (?,?,?,?,?,0,1,?)').run(
+        postId, newsUserId, content, ev.symbol ? '$'+ev.symbol : '', 'news', now
+      );
       db.prepare("UPDATE users SET posts_count = posts_count + 1 WHERE id=?").run(newsUserId);
       db.prepare('UPDATE market_events SET auto_published=1, auto_post_id=? WHERE id=?').run(postId, ev.id);
     }
   } catch(e) { console.log('autoPublish error:', e.message); }
 }
-setTimeout(() => { autoPublishEvents(); setInterval(autoPublishEvents, 60*60*1000); }, 10000);
+
+// إلغاء symbol_pinned تلقائياً بعد 24 ساعة
+function cleanExpiredSymbolPins() {
+  try {
+    const updated = db.prepare(`
+      UPDATE posts SET symbol_pinned=0, symbol_pinned_at=NULL
+      WHERE symbol_pinned=1
+      AND symbol_pinned_at < datetime('now', '-24 hours')
+    `).run();
+    if (updated.changes > 0) console.log(`📌 تم إلغاء تثبيت ${updated.changes} حدث منتهي`);
+  } catch(e) { console.log('cleanExpiredSymbolPins error:', e.message); }
+}
+setTimeout(() => { autoPublishEvents(); cleanExpiredSymbolPins(); setInterval(() => { autoPublishEvents(); cleanExpiredSymbolPins(); }, 60*60*1000); }, 10000);
 
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
