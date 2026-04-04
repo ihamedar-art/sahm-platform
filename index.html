@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <!-- PWA -->
 <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#0EA5E9">
+<meta name="theme-color" content="#1B4FD8">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -82,10 +82,10 @@
   --text4:     #A8BBCF;
 
   /* ── Brand — Sky Blue ── */
-  --primary:      #0EA5E9;
-  --primary2:     #0284C7;
-  --primary-l:    rgba(14,165,233,.09);
-  --primary-m:    rgba(14,165,233,.18);
+  --primary:      #1B4FD8;
+  --primary2:     #1E40AF;
+  --primary-l:    rgba(27,79,216,.09);
+  --primary-m:    rgba(27,79,216,.18);
 
   /* ── Semantic ── */
   --green:     #059669;
@@ -116,7 +116,7 @@
   --shadow-sm:  0 2px 10px rgba(13,31,53,.07), 0 1px 3px rgba(13,31,53,.04);
   --shadow:     0 4px 20px rgba(13,31,53,.08), 0 2px 6px rgba(13,31,53,.04);
   --shadow-lg:  0 8px 36px rgba(13,31,53,.10), 0 2px 8px rgba(13,31,53,.05);
-  --shadow-blue: 0 4px 24px rgba(14,165,233,.28);
+  --shadow-blue: 0 4px 24px rgba(27,79,216,.28);
 
   /* ── Heights ── */
   --nav-h: 62px;
@@ -179,7 +179,7 @@ body {
   width:38px; height:38px; border-radius:12px;
   display:flex; align-items:center; justify-content:center;
   flex-shrink:0; overflow:hidden;
-  box-shadow: 0 2px 8px rgba(14,165,233,.2);
+  box-shadow: 0 2px 8px rgba(27,79,216,.2);
 }
 .logo-mark img {
   width:36px; height:36px; border-radius:10px;
@@ -245,7 +245,7 @@ body {
 }
 .btn-primary {
   background: linear-gradient(135deg, var(--primary), var(--primary2));
-  color:#fff; box-shadow: 0 2px 8px rgba(14,165,233,.3);
+  color:#fff; box-shadow: 0 2px 8px rgba(27,79,216,.3);
 }
 .btn-primary:hover { transform:translateY(-1px); box-shadow:var(--shadow-blue); }
 .btn-primary:active { transform:none; }
@@ -314,7 +314,7 @@ body {
 }
 .nav-item:hover { background:var(--bg3); color:var(--text); }
 .nav-item.active {
-  background: linear-gradient(to left, var(--primary-l), rgba(14,165,233,.03));
+  background: linear-gradient(to left, var(--primary-l), rgba(27,79,216,.03));
   color:var(--primary);
   border-right-color:var(--primary); font-weight:600;
 }
@@ -370,7 +370,7 @@ body {
 .stock-chip {
   display:inline-flex; align-items:center; gap:5px;
   padding:4px 12px; border-radius:20px;
-  background:var(--primary-l); border:1px solid rgba(14,165,233,.2);
+  background:var(--primary-l); border:1px solid rgba(27,79,216,.2);
   font-size:12px; font-weight:700; color:var(--primary);
   cursor:pointer; transition:all .15s; margin:2px 2px;
 }
@@ -700,9 +700,9 @@ body {
 
 /* ── ROOMS WIDGET in right panel ── */
 .rooms-widget-card {
-  background: linear-gradient(135deg, #0EA5E9 0%, #0369A1 50%, #7C3AED 100%);
+  background: linear-gradient(135deg, #1B4FD8 0%, #1E40AF 50%, #7C3AED 100%);
   border:none; border-radius:var(--radius); padding:16px;
-  box-shadow: 0 4px 24px rgba(14,165,233,.32);
+  box-shadow: 0 4px 24px rgba(27,79,216,.32);
   position:relative; overflow:hidden;
 }
 .rooms-widget-card::before {
@@ -815,7 +815,7 @@ body {
 }
 .profile-cover {
   height:155px;
-  background:linear-gradient(135deg, #0C4A6E 0%, #0EA5E9 50%, #7C3AED 100%);
+  background:linear-gradient(135deg, #1E3A8A 0%, #1B4FD8 50%, #7C3AED 100%);
   position:relative;
 }
 .profile-cover::after {
@@ -899,11 +899,11 @@ body {
 
 /* Create Room Hero Banner */
 .create-room-banner {
-  background:linear-gradient(135deg, #0EA5E9 0%, #7C3AED 100%);
+  background:linear-gradient(135deg, #1B4FD8 0%, #7C3AED 100%);
   border-radius:var(--radius); padding:18px;
   display:flex; align-items:center; justify-content:space-between;
   margin-bottom:16px; gap:14px;
-  box-shadow: 0 4px 24px rgba(14,165,233,.28);
+  box-shadow: 0 4px 24px rgba(27,79,216,.28);
 }
 .create-room-text h3 { font-size:16px; font-weight:700; color:#fff; }
 .create-room-text p { font-size:12.5px; color:rgba(255,255,255,.7); margin-top:3px; }
@@ -1046,9 +1046,9 @@ body {
    POLL WIDGET
    ══════════════════════════════════════════════════════════ */
 .poll-widget {
-  background:linear-gradient(135deg, #0EA5E9 0%, #0284C7 50%, #0369A1 100%);
+  background:linear-gradient(135deg, #1B4FD8 0%, #1E40AF 50%, #1D3FAE 100%);
   border-radius:var(--radius); padding:16px;
-  box-shadow:0 4px 24px rgba(14,165,233,.3); color:#fff;
+  box-shadow:0 4px 24px rgba(27,79,216,.3); color:#fff;
   position:relative; overflow:hidden;
 }
 .poll-widget::before {
@@ -1435,7 +1435,7 @@ body {
 }
 .ticker-item:hover {
   background: #F0F9FF;
-  border-color: #0EA5E9;
+  border-color: #1B4FD8;
 }
 
 .ticker-sep {
@@ -6652,7 +6652,7 @@ const EVENT_TYPES = {
   'توزيع أرباح':         { color: '#059669', bg: '#ECFDF5', border: '#A7F3D0', leftColor: '#059669', icon: '💰' },
   'أحقية أرباح':         { color: '#0C4A6E', bg: '#E0F2FE', border: '#BAE6FD', leftColor: '#0891B2', icon: '📋' },
   'أحقية أسهم منحة':    { color: '#4C1D95', bg: '#F5F3FF', border: '#DDD6FE', leftColor: '#7C3AED', icon: '🎁' },
-  'اكتتاب':              { color: '#0C4A6E', bg: '#E0F2FE', border: '#BAE6FD', leftColor: '#0EA5E9', icon: '🆕' },
+  'اكتتاب':              { color: '#0C4A6E', bg: '#E0F2FE', border: '#BAE6FD', leftColor: '#1B4FD8', icon: '🆕' },
   'إدراج وبداية تداول': { color: '#065F46', bg: '#ECFDF5', border: '#A7F3D0', leftColor: '#10B981', icon: '🚀' },
   'نتائج مالية':         { color: '#78350F', bg: '#FFFBEB', border: '#FDE68A', leftColor: '#D97706', icon: '📊' },
   'اجتماع جمعية':        { color: '#78350F', bg: '#FFFBEB', border: '#FDE68A', leftColor: '#D97706', icon: '🤝' },
