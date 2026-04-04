@@ -1793,22 +1793,15 @@ let notifCount = 0;
 // INIT
 // ══════════════════════════════════════════════════════════════════
 async function init() {
-  // تعيين الحالة الأولى في التاريخ
   const urlParams = new URLSearchParams(window.location.search);
   const resetToken = urlParams.get('token');
   if (resetToken) { showResetPasswordPage(resetToken); return; }
 
-  // استعادة الصفحة من الـ URL لو موجودة
   const initPage = urlParams.get('page') || 'home';
   const initParam = urlParams.get('param') || '';
   history.replaceState({ page: initPage, param: initParam }, '', window.location.href);
 
-  // ═══════════════════════════════════════════════════════════════
-  // 🚀 تحميل سريع — المحتوى يظهر فوراً بدون انتظار
-  // ═══════════════════════════════════════════════════════════════
-  
-  // 1. حمّل المحتوى الأساسي فوراً
-  renderFeed();
+  // ── تحميل الـ widgets الجانبية ──
   loadPoll();
   loadHotPosts();
   loadSentimentWidget();
@@ -1816,17 +1809,20 @@ async function init() {
   loadLeaderboardPanel();
   loadTrendingStocks();
   loadRoomsWidget();
-  
-  // 2. شريط المؤشرات — TradingView Widget (يحمّل تلقائياً)
   setTimeout(loadTickerBar, 2000);
-  
-  // 3. فحص المستخدم (في الخلفية — ما يعلّق الصفحة)
-  checkAuth().then(() => {
-    renderSidebarUserCard();
-    if (currentUser) pollNotifications();
-  }).catch(e => console.log('Auth check:', e));
 
-  // 4. التحديثات الدورية
+  // ── checkAuth أولاً ثم نوجّه للصفحة الصحيحة (deep link) ──
+  try { await checkAuth(); } catch(e) { console.log('Auth:', e); }
+  renderSidebarUserCard();
+  if (currentUser) pollNotifications();
+
+  if (initPage !== 'home') {
+    navigate(initPage, initParam, false);
+  } else {
+    renderFeed();
+  }
+
+  // ── تحديثات دورية ──
   setTimeout(checkNewPosts, 15000);
   setInterval(loadHotPosts, 120000);
   setInterval(loadRoomsWidget, 20000);
