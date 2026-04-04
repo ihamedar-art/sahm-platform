@@ -3679,6 +3679,145 @@ app.post('/api/admin/fetch-tadawul-news', async (req, res) => {
   }
 });
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 📰 جلب أخبار من 3 مصادر: Bloomberg + أرقام + الشرق بلومبرغ
+// ══════════════════════════════════════════════════════════════════════════════
+async function fetchRSS(url, sourceName) {
+  try {
+    const r = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+      },
+      signal: AbortSignal.timeout(15000)
+    });
+    const xml = await r.text();
+    // Parser بسيط بدون مكتبة خارجية
+    const items = [];
+    const itemRegex = /<item[^>]*>([\s\S]*?)<\/item>/gi;
+    let itemMatch;
+    while ((itemMatch = itemRegex.exec(xml)) !== null && items.length < 5) {
+      const block = itemMatch[1];
+      const getTag = (tag) => {
+        const m = block.match(new RegExp(`<${tag}[^>]*><!\[CDATA\[([\s\S]*?)\]\]><\/${tag}>|<${tag}[^>]*>([^<]*)<\/${tag}>`, 'i'));
+        return (m?.[1] || m?.[2] || '').trim().replace(/<[^>]*>/g, '');
+      };
+      const title = getTag('title');
+      if (title && title.length > 5) {
+        items.push({
+          title,
+          desc: getTag('description').slice(0, 300),
+          link: getTag('link'),
+          source: sourceName,
+          date: getTag('pubDate')
+        });
+      }
+    }
+    return items;
+  } catch(e) {
+    console.log(`⚠️ RSS error ${sourceName}: ${e.message}`);
+    return [];
+  }
+}
+
+async function fetchAsharq() {
+  try {
+    const r = await fetch('https://asharqbusiness.com/latest-news/', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,*/*',
+      },
+      signal: AbortSignal.timeout(15000)
+    });
+    const html = await r.text();
+    const items = [];
+    // استخرج العناوين من الـ HTML
+    const regex = /<h[23][^>]*class="[^"]*title[^"]*"[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/gi;
+    let match;
+    while ((match = regex.exec(html)) !== null && items.length < 5) {
+      const title = match[2].trim();
+      const link = match[1].trim();
+      if (title.length > 10) {
+        items.push({ title, desc: '', link, source: 'الشرق بلومبرغ', date: '' });
+      }
+    }
+    // fallback — نبحث عن أي links تحتوي على article
+    if (!items.length) {
+      const regex2 = /<a[^>]*href="(https:\/\/asharqbusiness\.com\/[^"]+)"[^>]*>\s*<[^>]+>([^<]{20,})<\/[^>]+>\s*<\/a>/gi;
+      while ((match = regex2.exec(html)) !== null && items.length < 5) {
+        items.push({ title: match[2].trim(), desc: '', link: match[1], source: 'الشرق بلومبرغ', date: '' });
+      }
+    }
+    return items;
+  } catch(e) {
+    console.log(`⚠️ Asharq error: ${e.message}`);
+    return [];
+  }
+}
+
+async function summarizeWithClaude(item) {
+  const text = item.title + (item.desc ? '. ' + item.desc : '');
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 300,
+        messages: [{ role: 'user', content:
+          'أنت محرر أخبار مالية سعودي. أرجع JSON فقط بدون أي نص خارجه:\n{"title":"عنوان عربي واضح أقل من 80 حرف","summary":"ملخص عربي 40-60 كلمة","symbol":"$XXXX أو فارغ"}\n\nالخبر: ' + text
+        }]
+      })
+    });
+    const d = await r.json();
+    const raw = (d.content?.[0]?.text || '').replace(/```json|```/g,'').trim();
+    return JSON.parse(raw);
+  } catch(e) {
+    return { title: item.title, summary: item.desc || item.title, symbol: '' };
+  }
+}
+
+app.post('/api/admin/fetch-news-all', async (req, res) => {
+  const { api_secret } = req.body;
+  if (api_secret !== process.env.BOT_API_SECRET) {
+    return res.status(401).json({ error: 'غير مصرح' });
+  }
+
+  console.log('📰 جاري جلب الأخبار من 3 مصادر...');
+
+  const [bloomberg, argaam, asharq] = await Promise.all([
+    fetchRSS('https://feeds.bloomberg.com/business/news.rss', 'Bloomberg'),
+    fetchRSS('https://www.argaam.com/ar/rss/ho-market-pulse?sectionid=70', 'أرقام'),
+    fetchAsharq()
+  ]);
+
+  const all = [...bloomberg.slice(0,3), ...argaam.slice(0,3), ...asharq.slice(0,3)];
+  console.log(`✅ Bloomberg: ${bloomberg.length} | أرقام: ${argaam.length} | الشرق: ${asharq.length}`);
+
+  let added = 0;
+  for (const item of all) {
+    const existing = db.prepare(
+      "SELECT id FROM news_drafts WHERE title LIKE ? AND created_at > datetime('now','-12 hours')"
+    ).get('%' + item.title.slice(0,20) + '%');
+    if (existing) continue;
+
+    const summarized = await summarizeWithClaude(item);
+    const id = uuidv4();
+    db.prepare(
+      'INSERT INTO news_drafts (id,title,summary,source,stock_symbols) VALUES (?,?,?,?,?)'
+    ).run(id, summarized.title, summarized.summary, item.source, summarized.symbol || '');
+    added++;
+    await new Promise(r => setTimeout(r, 500));
+  }
+
+  res.json({ success: true, added, bloomberg: bloomberg.length, argaam: argaam.length, asharq: asharq.length });
+});
+
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
