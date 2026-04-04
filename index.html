@@ -61,33 +61,24 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Readex+Pro:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 /* ══════════════════════════════════════════════════════════
-   JALSAT AL-SOUQ — TWITTER x TRADINGVIEW LIGHT v3.0
-   Sky-Blue · Clean · Data-Forward · Professional
+   JALSAT AL-SOUQ — v4.0 · Twitter/X × TradingView
+   Fixed Sidebar · Clean Feed · Professional
    ══════════════════════════════════════════════════════════ */
 :root {
-  /* ── Core Palette — Sky/Slate Light ── */
-  --bg:        #F3F7FC;
+  --bg:        #F0F4F8;
   --bg2:       #FFFFFF;
-  --bg3:       #EEF3FA;
-  --bg4:       #E4EDF8;
-
-  /* ── Borders ── */
-  --border:    #DAE4F0;
-  --border2:   #B5C9DE;
-
-  /* ── Text ── */
-  --text:      #0D1F35;
-  --text2:     #2E4A66;
-  --text3:     #7891A8;
-  --text4:     #A8BBCF;
-
-  /* ── Brand — Sky Blue ── */
+  --bg3:       #E8EFF7;
+  --bg4:       #DCE8F5;
+  --border:    #D8E4EF;
+  --border2:   #B0C8E0;
+  --text:      #0A1929;
+  --text2:     #2C4560;
+  --text3:     #6B88A2;
+  --text4:     #A2B8CE;
   --primary:      #0EA5E9;
   --primary2:     #0284C7;
-  --primary-l:    rgba(14,165,233,.09);
-  --primary-m:    rgba(14,165,233,.18);
-
-  /* ── Semantic ── */
+  --primary-l:    rgba(14,165,233,.08);
+  --primary-m:    rgba(14,165,233,.16);
   --green:     #059669;
   --green-l:   #ECFDF5;
   --green-bg:  rgba(5,150,105,.07);
@@ -101,27 +92,18 @@
   --teal-bg:   rgba(8,145,178,.07);
   --purple:    #7C3AED;
   --purple-bg: rgba(124,58,237,.07);
-
-  /* ── Radius ── */
-  --r4:   4px;
-  --r8:   8px;
-  --r12:  12px;
-  --r16:  16px;
-  --r24:  24px;
-  --radius:  16px;
-  --radius2: 12px;
-
-  /* ── Shadows ── */
-  --shadow-xs:  0 1px 4px rgba(13,31,53,.05);
-  --shadow-sm:  0 2px 10px rgba(13,31,53,.07), 0 1px 3px rgba(13,31,53,.04);
-  --shadow:     0 4px 20px rgba(13,31,53,.08), 0 2px 6px rgba(13,31,53,.04);
-  --shadow-lg:  0 8px 36px rgba(13,31,53,.10), 0 2px 8px rgba(13,31,53,.05);
-  --shadow-blue: 0 4px 24px rgba(14,165,233,.28);
-
-  /* ── Heights ── */
-  --nav-h: 62px;
-  --ticker-h: 44px;
-  --header-h: 106px;
+  --r4:4px; --r8:8px; --r12:12px; --r16:16px; --r24:24px;
+  --radius:16px; --radius2:12px;
+  --shadow-xs:  0 1px 3px rgba(10,25,41,.04);
+  --shadow-sm:  0 2px 8px rgba(10,25,41,.06), 0 1px 2px rgba(10,25,41,.04);
+  --shadow:     0 4px 16px rgba(10,25,41,.08), 0 2px 4px rgba(10,25,41,.04);
+  --shadow-lg:  0 8px 32px rgba(10,25,41,.10), 0 2px 8px rgba(10,25,41,.05);
+  --shadow-blue: 0 4px 20px rgba(14,165,233,.28);
+  --sidebar-w: 255px;
+  --right-w:   275px;
+  --ticker-h:  48px;
+  --nav-h: 0px;
+  --header-h: 48px;
 }
 
 /* ══ Reset ══ */
@@ -138,13 +120,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── Scrollbar ── */
 ::-webkit-scrollbar { width:5px; height:5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius:3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text4); }
 
-/* ── Animations ── */
 @keyframes spin    { to { transform:rotate(360deg); } }
 @keyframes fadeIn  { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
 @keyframes slideIn { from { opacity:0; transform:translateX(12px); } to { opacity:1; transform:none; } }
@@ -155,86 +135,208 @@ body {
 @keyframes glow    { 0%,100%{box-shadow:0 0 0 0 rgba(27,79,216,.3)} 50%{box-shadow:0 0 0 6px rgba(27,79,216,0)} }
 
 /* ══════════════════════════════════════════════════════════
-   NAVBAR
+   APP SHELL — Twitter/X style fixed sidebar
    ══════════════════════════════════════════════════════════ */
-#app { display:flex; flex-direction:column; min-height:100vh; }
-
-.navbar {
-  position: sticky; top:0; z-index:200;
-  height: var(--nav-h);
-  background: rgba(255,255,255,0.97);
-  border-bottom: 1.5px solid var(--border);
-  box-shadow: 0 1px 0 var(--border), var(--shadow-xs);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  display: flex; align-items: center;
-  padding: 0 24px; gap:16px;
+#app {
+  display: flex;
+  min-height: 100vh;
 }
 
-.navbar-logo {
-  display:flex; align-items:center; gap:9px;
-  cursor:pointer; flex-shrink:0;
+/* ══════════════════════════════════════════════════════════
+   LEFT SIDEBAR — Fixed, full height
+   ══════════════════════════════════════════════════════════ */
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  background: var(--bg2);
+  border-left: 1.5px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 200;
+  scrollbar-width: none;
+}
+.sidebar::-webkit-scrollbar { display: none; }
+
+/* Logo at top of sidebar */
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 18px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 .logo-mark {
-  width:38px; height:38px; border-radius:12px;
-  display:flex; align-items:center; justify-content:center;
-  flex-shrink:0; overflow:hidden;
+  width: 40px; height: 40px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; overflow: hidden;
   box-shadow: 0 2px 8px rgba(14,165,233,.2);
 }
-.logo-mark img {
-  width:36px; height:36px; border-radius:10px;
-  object-fit:cover; display:block;
-}
-.logo-text {
-  font-family: 'Readex Pro', sans-serif;
-  font-size:17px; font-weight:700; color:var(--text);
-  letter-spacing:-.3px; line-height:1.1;
-}
-.logo-sub {
-  font-size:9px; font-weight:500; color:var(--text3);
-  letter-spacing:.5px; text-transform:uppercase;
-}
+.logo-mark img { width:38px; height:38px; border-radius:10px; object-fit:cover; }
+.logo-text { font-size:16px; font-weight:700; color:var(--text); letter-spacing:-.3px; line-height:1.1; }
+.logo-sub  { font-size:9px; font-weight:500; color:var(--text3); letter-spacing:.5px; text-transform:uppercase; }
 
-.nav-divider { width:1px; height:28px; background:var(--border); flex-shrink:0; }
-
-/* Search */
-.navbar-search {
-  flex:1; max-width:340px; position:relative;
+/* Search inside sidebar */
+.sidebar-search {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
-.navbar-search input {
-  width:100%; height:36px; padding:0 14px 0 36px;
-  background:var(--bg3); border:1.5px solid var(--border);
-  border-radius:var(--r24); color:var(--text);
-  font-family:inherit; font-size:13.5px; outline:none;
+.sidebar-search-inner {
+  position: relative;
+}
+.sidebar-search input {
+  width: 100%; height: 36px; padding: 0 14px 0 36px;
+  background: var(--bg3); border: 1.5px solid var(--border);
+  border-radius: var(--r24); color: var(--text);
+  font-family: inherit; font-size: 13px; outline: none;
   transition: border-color .2s, box-shadow .2s;
 }
-.navbar-search input:focus {
-  border-color:var(--primary);
+.sidebar-search input:focus {
+  border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-l);
-  background:#fff;
+  background: #fff;
 }
-.navbar-search input::placeholder { color:var(--text3); }
+.sidebar-search input::placeholder { color: var(--text3); }
 .search-icon {
-  position:absolute; left:11px; top:50%; transform:translateY(-50%);
-  color:var(--text3); font-size:14px; pointer-events:none;
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  color: var(--text3); font-size: 13px; pointer-events: none;
 }
 .search-results {
-  position:absolute; top:calc(100% + 6px); right:0; left:0;
-  background:#fff; border:1.5px solid var(--border2);
-  border-radius:var(--r12); box-shadow:var(--shadow-lg);
-  z-index:300; overflow:hidden; display:none;
+  position: absolute; top: calc(100% + 6px); right: 0; left: 0;
+  background: #fff; border: 1.5px solid var(--border2);
+  border-radius: var(--r12); box-shadow: var(--shadow-lg);
+  z-index: 300; overflow: hidden; display: none;
 }
-.search-results.show { display:block; animation:fadeIn .18s ease; }
+.search-results.show { display: block; animation: fadeIn .18s ease; }
 .search-result-item {
-  padding:10px 14px; cursor:pointer;
-  display:flex; align-items:center; gap:10px;
-  transition:background .12s; font-size:13.5px;
+  padding: 10px 14px; cursor: pointer;
+  display: flex; align-items: center; gap: 10px;
+  transition: background .12s; font-size: 13px;
   border-bottom: 1px solid var(--border);
 }
-.search-result-item:last-child { border-bottom:none; }
-.search-result-item:hover { background:var(--bg3); }
+.search-result-item:last-child { border-bottom: none; }
+.search-result-item:hover { background: var(--bg3); }
 
-.navbar-actions { display:flex; align-items:center; gap:8px; margin-right:auto; }
+/* Navigation items */
+.sidebar-nav {
+  flex: 1;
+  padding: 8px 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.sidebar-nav::-webkit-scrollbar { display: none; }
+
+.nav-section-label {
+  font-size: 10px; font-weight: 700; color: var(--text4);
+  letter-spacing: .8px; text-transform: uppercase;
+  padding: 10px 18px 4px;
+}
+
+.nav-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 18px; color: var(--text2);
+  cursor: pointer; transition: all .15s;
+  font-size: 14px; font-weight: 500;
+  border-right: 3px solid transparent;
+  position: relative;
+}
+.nav-item:hover { background: var(--bg3); color: var(--text); }
+.nav-item.active {
+  background: linear-gradient(to left, var(--primary-l), rgba(14,165,233,.02));
+  color: var(--primary);
+  border-right-color: var(--primary); font-weight: 600;
+}
+.nav-icon { font-size: 16px; width: 22px; text-align: center; flex-shrink: 0; }
+
+/* User card in sidebar bottom */
+.sidebar-user-section {
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.sidebar-user-card {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 14px 10px; text-align: center;
+  cursor: pointer;
+  background: var(--bg3); border-radius: var(--radius2);
+  border: 1px solid var(--border);
+  transition: all .18s;
+}
+.sidebar-user-card:hover { border-color: var(--primary-m); }
+.sidebar-user-name { font-weight: 700; font-size: 13.5px; margin-top: 8px; color: var(--text); }
+.sidebar-user-handle { color: var(--text3); font-size: 12px; margin-top: 1px; }
+.sidebar-user-stats { display: flex; gap: 16px; margin-top: 10px; }
+.su-stat { text-align: center; }
+.su-num { font-weight: 700; font-size: 14px; color: var(--text); }
+.su-lbl { font-size: 10px; color: var(--text3); }
+
+/* Auth buttons in sidebar */
+.sidebar-auth {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 14px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* Poll in sidebar */
+#poll-widget-wrap { padding: 0 14px 14px; }
+#popular-stocks-sidebar { padding: 0 14px; }
+
+/* ══════════════════════════════════════════════════════════
+   NAVBAR — hidden (merged into sidebar)
+   ══════════════════════════════════════════════════════════ */
+.navbar { display: none; }
+
+/* ══════════════════════════════════════════════════════════
+   MAIN WRAPPER — offset for fixed sidebar
+   ══════════════════════════════════════════════════════════ */
+.main-wrapper {
+  margin-right: var(--sidebar-w);
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Ticker bar at top of main content */
+.ticker-bar {
+  background: var(--bg2);
+  border-bottom: 1.5px solid var(--border);
+  padding: 6px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-x: auto;
+  scrollbar-width: none;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: var(--shadow-xs);
+}
+.ticker-bar::-webkit-scrollbar { display: none; }
+
+/* ══════════════════════════════════════════════════════════
+   LAYOUT — Two-Column (Feed + Right Panel)
+   ══════════════════════════════════════════════════════════ */
+.main-layout {
+  display: flex;
+  max-width: 1060px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 20px 16px;
+  gap: 20px;
+  flex: 1;
+  align-items: flex-start;
+}
 
 /* ══ Buttons ══ */
 .btn {
@@ -249,16 +351,11 @@ body {
 }
 .btn-primary:hover { transform:translateY(-1px); box-shadow:var(--shadow-blue); }
 .btn-primary:active { transform:none; }
-.btn-ghost {
-  background:transparent; color:var(--text2);
-  border:1.5px solid var(--border2);
-}
+.btn-ghost { background:transparent; color:var(--text2); border:1.5px solid var(--border2); }
 .btn-ghost:hover { background:var(--bg3); border-color:var(--border2); color:var(--text); }
 .btn-sm { padding:5px 12px; font-size:12.5px; border-radius:var(--r8); }
 .btn-danger { background:var(--red-bg); color:var(--red); border:1px solid var(--red); }
 .btn-success { background:var(--green-bg); color:var(--green); border:1px solid var(--green); }
-
-/* Icon button */
 .icon-btn {
   width:36px; height:36px; border-radius:var(--r8);
   background:var(--bg3); border:1.5px solid var(--border);
@@ -274,83 +371,13 @@ body {
   display:flex; align-items:center; justify-content:center;
   font-weight:700; padding:0 4px; border:2px solid #fff;
 }
-
-/* ══════════════════════════════════════════════════════════
-   LAYOUT — Three-Column Dashboard
-   ══════════════════════════════════════════════════════════ */
-.main-layout {
-  display:flex; max-width:1280px; margin:0 auto;
-  width:100%; padding:20px 16px; gap:20px; flex:1;
-  align-items:flex-start;
-}
-
-/* ══════════════════════════════════════════════════════════
-   LEFT SIDEBAR
-   ══════════════════════════════════════════════════════════ */
-.sidebar {
-  width:220px; flex-shrink:0;
-}
-
-/* Navigation */
-.sidebar-nav {
-  background:#fff; border:1px solid var(--border);
-  border-radius:var(--radius); overflow:hidden;
-  box-shadow:var(--shadow-sm); margin-bottom:14px;
-}
-
-.nav-section-label {
-  font-size:10px; font-weight:700; color:var(--text3);
-  letter-spacing:.8px; text-transform:uppercase;
-  padding:10px 14px 4px;
-}
-
-.nav-item {
-  display:flex; align-items:center; gap:11px;
-  padding:10px 14px; color:var(--text2);
-  cursor:pointer; transition:all .15s;
-  font-size:14px; font-weight:500;
-  border-right:3px solid transparent;
-  position:relative;
-}
-.nav-item:hover { background:var(--bg3); color:var(--text); }
-.nav-item.active {
-  background: linear-gradient(to left, var(--primary-l), rgba(14,165,233,.03));
-  color:var(--primary);
-  border-right-color:var(--primary); font-weight:600;
-}
-.nav-icon {
-  width:22px; text-align:center; font-size:16px; flex-shrink:0;
-}
+.navbar-actions { display:flex; align-items:center; gap:8px; }
 
 /* Rooms highlight in nav */
 .nav-item.rooms-nav {
   background: linear-gradient(to left, rgba(27,79,216,.04), transparent);
 }
-.nav-item.rooms-nav .nav-icon {
-  animation: pulse 2s infinite;
-}
-
-/* User card in sidebar */
-.sidebar-user-card {
-  background: linear-gradient(to bottom, #fff, var(--bg3));
-  border:1px solid var(--border);
-  border-radius:var(--radius); padding:16px;
-  box-shadow:var(--shadow-sm); margin-bottom:14px;
-  display:flex; flex-direction:column; align-items:center;
-  gap:8px; text-align:center;
-}
-.sidebar-user-name {
-  font-size:14px; font-weight:700; color:var(--text);
-}
-.sidebar-user-handle { font-size:12px; color:var(--text3); }
-.sidebar-user-stats {
-  display:flex; gap:14px; width:100%;
-  padding-top:10px; border-top:1px solid var(--border);
-  justify-content:center;
-}
-.su-stat { text-align:center; }
-.su-num { font-size:15px; font-weight:700; color:var(--text); }
-.su-lbl { font-size:10px; color:var(--text3); }
+.nav-item.rooms-nav .nav-icon { animation: pulse 2s infinite; }
 
 /* Sidebar card */
 .sidebar-card {
@@ -393,7 +420,7 @@ body {
   background:#fff; border:1.5px solid var(--border);
   border-radius:var(--radius); padding:5px;
   box-shadow:var(--shadow-xs);
-  position:sticky; top:calc(var(--header-h) + 8px); z-index:100;
+  position:sticky; top:calc(var(--ticker-h) + 8px); z-index:100;
 }
 .feed-tab {
   flex:1; padding:8px 12px; border-radius:var(--r8);
@@ -676,9 +703,13 @@ body {
    RIGHT PANEL — Sticky Widgets
    ══════════════════════════════════════════════════════════ */
 .right-panel {
-  width:270px; flex-shrink:0;
+  width:280px; flex-shrink:0;
   display:flex; flex-direction:column; gap:12px;
+  position:sticky; top:calc(var(--ticker-h) + 12px);
+  max-height:calc(100vh - var(--ticker-h) - 24px);
+  overflow-y:auto; scrollbar-width:none;
 }
+.right-panel::-webkit-scrollbar { display:none; }
 
 .panel-card {
   background:#fff; border:1px solid var(--border);
@@ -1144,7 +1175,7 @@ body {
 
 /* ══ Notification Panel ══ */
 .notif-panel {
-  position:fixed; top:calc(var(--nav-h) + 6px); left:80px;
+  position:fixed; top:58px; left:16px;
   width:360px; background:#fff; border:1.5px solid var(--border2);
   border-radius:var(--radius); box-shadow:var(--shadow-lg); z-index:500;
   max-height:480px; overflow-y:auto; display:none;
@@ -1262,11 +1293,11 @@ body {
    ══════════════════════════════════════════════════════════ */
 @media(max-width:1100px) {
   .right-panel { display:none; }
-  .main-layout { max-width:960px; }
+  .main-layout { max-width:900px; }
 }
-@media(max-width:820px) {
+@media(max-width:860px) {
   .sidebar { display:none; }
-  .navbar-search { max-width:100%; }
+  .main-wrapper { margin-right: 0; }
   .main-layout { padding:14px 12px; gap:14px; }
 }
 @media(max-width:520px) {
@@ -1281,19 +1312,38 @@ body {
 .mobile-nav { display:none; }
 
 @media(max-width:768px) {
-  /* Navbar */
-  .navbar { padding:0 12px; height:52px; gap:8px; }
-  .logo-sub { display:none; }
-  .navbar-search { flex:1; max-width:100%; }
-  .navbar-search input { font-size:13px; height:34px; }
-  .navbar-actions .btn-ghost { display:none; }
+  /* Mobile top bar */
+  .mobile-top-bar {
+    display: flex;
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 52px;
+    background: rgba(255,255,255,0.97);
+    border-bottom: 1.5px solid var(--border);
+    align-items: center; padding: 0 12px; gap: 10px;
+    z-index: 200;
+    backdrop-filter: blur(12px);
+    box-shadow: var(--shadow-xs);
+  }
+  .mobile-top-bar-logo {
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0; cursor: pointer;
+  }
+  .mobile-top-bar-search { flex: 1; position: relative; }
+  .mobile-top-bar-search input {
+    width: 100%; height: 34px; padding: 0 12px 0 32px;
+    background: var(--bg3); border: 1.5px solid var(--border);
+    border-radius: 20px; color: var(--text);
+    font-family: inherit; font-size: 13px; outline: none;
+  }
+  .mobile-top-bar-search input:focus { border-color: var(--primary); }
+  .mobile-top-bar-notif { position: relative; flex-shrink: 0; }
 
-  /* Layout — مساحة للشريط السفلي */
-  .main-layout { padding:12px 10px calc(80px + env(safe-area-inset-bottom, 0px)); gap:0; }
+  /* Layout — مساحة للشريط السفلي والعلوي */
+  .main-wrapper { margin-right: 0; padding-top: 52px; }
+  .main-layout { padding:10px 10px calc(76px + env(safe-area-inset-bottom, 0px)); gap:0; }
 
   /* شريط المؤشرات */
-  .ticker-bar { padding:5px 8px; -webkit-overflow-scrolling:touch; }
-  .ticker-item { min-width:85px; padding:4px 8px; }
+  .ticker-bar { padding:5px 8px; -webkit-overflow-scrolling:touch; position:relative; top:0; }
+  .ticker-item { min-width:82px; padding:4px 8px; }
   .ticker-price { font-size:11.5px; }
   .ticker-label { font-size:10px; }
   .ticker-change { font-size:10px; }
@@ -1321,7 +1371,7 @@ body {
   .mobile-nav {
     display:flex;
     position:fixed; bottom:0; left:0; right:0;
-    height:62px;
+    height:60px;
     background:rgba(255,255,255,0.97);
     border-top:1.5px solid var(--border);
     box-shadow:0 -4px 20px rgba(13,31,53,.08);
@@ -1343,7 +1393,7 @@ body {
   .mobile-nav-item.active { color:var(--primary); }
   .mobile-nav-item:active { background:var(--bg3); }
   .mobile-nav-icon { font-size:19px; line-height:1; }
-  .mobile-nav-label { font-size:9.5px; font-weight:600; white-space:nowrap; }
+  .mobile-nav-label { font-size:9px; font-weight:600; white-space:nowrap; }
   .mobile-nav-badge {
     position:absolute; top:3px; right:calc(50% - 16px);
     background:var(--red); color:#fff; font-size:9px;
@@ -1482,89 +1532,105 @@ body {
 <body>
 <div id="app">
 
-<!-- ════════════════ NAVBAR ════════════════ -->
-<nav class="navbar">
-  <a class="navbar-logo" onclick="navigate('home')">
+<!-- ════════════════ MOBILE TOP BAR (hidden on desktop) ════════════════ -->
+<div class="mobile-top-bar" id="mobile-top-bar" style="display:none">
+  <div class="mobile-top-bar-logo" onclick="navigate('home')">
+    <div class="logo-mark"><img src="/icons/launchericon-72x72.png" alt="جلسة"></div>
+  </div>
+  <div class="mobile-top-bar-search" style="position:relative">
+    <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px">🔍</span>
+    <input type="text" id="search-input-mobile" placeholder="ابحث..." autocomplete="off"
+      oninput="document.getElementById('search-input').value=this.value;handleSearch(this.value)">
+    <div class="search-results" id="search-results-mobile"></div>
+  </div>
+  <div class="mobile-top-bar-notif">
+    <button class="icon-btn" onclick="toggleNotifPanel()" id="notif-btn-mobile">
+      🔔 <span class="notif-badge" id="notif-badge-mobile" style="display:none"></span>
+    </button>
+  </div>
+</div>
+
+<!-- ════════════════ FIXED LEFT SIDEBAR ════════════════ -->
+<aside class="sidebar" id="main-sidebar">
+
+  <!-- Logo -->
+  <div class="sidebar-logo" onclick="navigate('home')">
     <div class="logo-mark"><img src="/icons/launchericon-72x72.png" alt="جلسة السوق"></div>
     <div>
       <div class="logo-text">جلسة السوق</div>
       <div class="logo-sub">متداولون · تحليلات · أسواق</div>
     </div>
-  </a>
-
-  <div class="nav-divider"></div>
-
-  <div class="navbar-search">
-    <span class="search-icon">🔍</span>
-    <input type="text" id="search-input" placeholder="ابحث عن مستخدم، سهم، أو تحليل..." autocomplete="off">
-    <div class="search-results" id="search-results"></div>
   </div>
 
-  <div class="navbar-actions">
-    <div id="auth-actions"></div>
+  <!-- Search -->
+  <div class="sidebar-search">
+    <div class="sidebar-search-inner">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="search-input" placeholder="ابحث عن مستخدم أو سهم..." autocomplete="off">
+      <div class="search-results" id="search-results"></div>
+    </div>
   </div>
-</nav>
 
-<!-- ════════════════ MARKETS TICKER BAR — TradingView ════════════════ -->
+  <!-- Navigation -->
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">القائمة</div>
+    <a class="nav-item active" id="nav-home" onclick="navigate('home')">
+      <span class="nav-icon">🏠</span> الرئيسية
+    </a>
+    <a class="nav-item" id="nav-explore" onclick="navigate('explore')">
+      <span class="nav-icon">🔥</span> استكشاف
+    </a>
+    <a class="nav-item" id="nav-ipos" onclick="navigate('ipos')">
+      <span class="nav-icon">🆕</span> الاكتتابات
+    </a>
+    <a class="nav-item" id="nav-calendar" onclick="navigate('calendar')">
+      <span class="nav-icon">📅</span> مفكرة السوق
+    </a>
+    <a class="nav-item" id="nav-calc" onclick="navigate('calc')">
+      <span class="nav-icon">🧮</span> الحاسبة
+    </a>
+    <a class="nav-item" id="nav-journal" onclick="navigate('journal')">
+      <span class="nav-icon">📒</span> مفكرة الصفقات
+    </a>
+
+    <div class="nav-section-label" style="margin-top:4px">مجتمع</div>
+    <a class="nav-item rooms-nav" id="nav-rooms" onclick="navigate('rooms')">
+      <span class="nav-icon">🎙️</span>
+      الرومات الصوتية
+      <span id="rooms-live-count" style="margin-right:auto;font-size:10px;background:var(--red);color:#fff;padding:1px 6px;border-radius:10px;display:none"></span>
+    </a>
+    <a class="nav-item" id="nav-messages" onclick="navigate('messages')" style="position:relative">
+      <span class="nav-icon">💬</span> الرسائل
+      <span id="msg-badge" style="display:none;position:absolute;left:14px;top:10px;background:var(--red);color:#fff;font-size:10px;min-width:17px;height:17px;border-radius:9px;align-items:center;justify-content:center;font-weight:700;padding:0 4px;border:2px solid #fff"></span>
+    </a>
+    <a class="nav-item" id="nav-watchlist" onclick="navigate('watchlist')">
+      <span class="nav-icon">⭐</span> قائمة المتابعة
+    </a>
+    <a class="nav-item" id="nav-admin" onclick="navigate('admin')" style="display:none">
+      <span class="nav-icon">⚙️</span> لوحة التحكم
+    </a>
+  </nav>
+
+  <!-- Poll widget -->
+  <div id="poll-widget-wrap"></div>
+  <div id="popular-stocks-sidebar" style="display:none"><div id="popular-stocks-list"></div></div>
+
+  <!-- User Card / Auth at bottom -->
+  <div class="sidebar-user-section">
+    <div id="sidebar-user-card"></div>
+    <div id="sidebar-auth-area"></div>
+  </div>
+
+</aside>
+
+<!-- ════════════════ MAIN WRAPPER ════════════════ -->
+<div class="main-wrapper">
+
+<!-- ════════════════ MARKETS TICKER BAR ════════════════ -->
 <div class="ticker-bar" id="ticker-bar"><div class="ticker-loading"><div class="ticker-skel"></div><div class="ticker-skel"></div><div class="ticker-skel"></div><div class="ticker-skel"></div><div class="ticker-skel"></div></div></div>
 
 <!-- ════════════════ MAIN LAYOUT ════════════════ -->
 <div class="main-layout">
-
-  <!-- ═══ LEFT SIDEBAR ═══ -->
-  <aside class="sidebar">
-    <!-- User mini card (shown when logged in) -->
-    <div id="sidebar-user-card"></div>
-
-    <nav class="sidebar-nav">
-      <div class="nav-section-label">القائمة</div>
-      <a class="nav-item active" id="nav-home" onclick="navigate('home')">
-        <span class="nav-icon">🏠</span> الرئيسية
-      </a>
-      <a class="nav-item" id="nav-explore" onclick="navigate('explore')">
-        <span class="nav-icon">🔥</span> استكشاف
-      </a>
-      <a class="nav-item" id="nav-ipos" onclick="navigate('ipos')">
-        <span class="nav-icon">🆕</span> الاكتتابات
-      </a>
-      <a class="nav-item" id="nav-calendar" onclick="navigate('calendar')">
-        <span class="nav-icon">📅</span> مفكرة السوق
-      </a>
-      <a class="nav-item" id="nav-calc" onclick="navigate('calc')">
-        <span class="nav-icon">🧮</span> الحاسبة
-      </a>
-      <a class="nav-item" id="nav-journal" onclick="navigate('journal')">
-        <span class="nav-icon">📒</span> مفكرة الصفقات
-      </a>
-
-      <div class="nav-section-label" style="margin-top:4px">مجتمع</div>
-      <a class="nav-item rooms-nav" id="nav-rooms" onclick="navigate('rooms')">
-        <span class="nav-icon">🎙️</span>
-        الرومات الصوتية
-        <span id="rooms-live-count" style="margin-right:auto;font-size:10px;background:var(--red);color:#fff;padding:1px 6px;border-radius:10px;display:none"></span>
-      </a>
-      <a class="nav-item" id="nav-messages" onclick="navigate('messages')" style="position:relative">
-        <span class="nav-icon">💬</span> الرسائل
-        <span id="msg-badge" style="display:none;position:absolute;left:10px;top:8px;background:var(--red);color:#fff;font-size:10px;min-width:17px;height:17px;border-radius:9px;align-items:center;justify-content:center;font-weight:700;padding:0 4px;border:2px solid #fff"></span>
-      </a>
-      <a class="nav-item" id="nav-profile" onclick="navigate('profile')">
-        <span class="nav-icon">👤</span> حسابي
-      </a>
-      <a class="nav-item" id="nav-watchlist" onclick="navigate('watchlist')">
-        <span class="nav-icon">⭐</span> قائمة المتابعة
-      </a>
-      <a class="nav-item" id="nav-admin" onclick="navigate('admin')" style="display:none">
-        <span class="nav-icon">⚙️</span> لوحة التحكم
-      </a>
-    </nav>
-
-    <!-- Poll widget -->
-    <div id="poll-widget-wrap"></div>
-
-    <div id="popular-stocks-sidebar" style="display:none"><div id="popular-stocks-list"></div></div>
-  </aside>
-
-  <!-- ═══ CENTER FEED ═══ -->
   <main class="feed">
 
     <!-- Home Page -->
@@ -1668,7 +1734,7 @@ body {
   <!-- ═══ RIGHT PANEL ═══ -->
   <aside class="right-panel">
 
-    <!-- ROOMS WIDGET — بارز في الأعلى -->
+    <!-- ROOMS WIDGET -->
     <div class="rooms-widget-card" id="rooms-widget">
       <div class="rooms-widget-title">
         <span class="live-dot"></span>
@@ -1681,6 +1747,15 @@ body {
         🎙️ عرض كل الرومات
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
       </div>
+    </div>
+
+    <!-- Markets Summary -->
+    <div class="panel-card" id="markets-summary-panel" style="padding:0;overflow:hidden">
+      <div style="padding:12px 14px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <div class="panel-title" style="margin:0">📊 الأسواق الآن</div>
+        <span style="font-size:11px;color:var(--text3)">يتجدد كل دقيقة</span>
+      </div>
+      <div id="markets-summary-list" style="padding:0 14px 8px"></div>
     </div>
 
     <!-- Sentiment Index -->
@@ -1725,8 +1800,8 @@ body {
     </div>
 
   </aside>
-</div>
-</div>
+</div><!-- end main-layout -->
+</div><!-- end main-wrapper -->
 
 <!-- ════ Auth Modal ════ -->
 <div class="modal-overlay" id="auth-modal">
@@ -1807,6 +1882,12 @@ async function init() {
   // 🚀 تحميل سريع — المحتوى يظهر فوراً بدون انتظار
   // ═══════════════════════════════════════════════════════════════
   
+  // ── إظهار الموبايل توب بار ──
+  if (window.innerWidth <= 768) {
+    const mbar = document.getElementById('mobile-top-bar');
+    if (mbar) mbar.style.display = 'flex';
+  }
+
   // 1. حمّل المحتوى الأساسي فوراً
   renderFeed();
   loadPoll();
@@ -1816,8 +1897,9 @@ async function init() {
   loadLeaderboardPanel();
   loadTrendingStocks();
   loadRoomsWidget();
+  loadMarketsSummary();
   
-  // 2. شريط المؤشرات — TradingView Widget (يحمّل تلقائياً)
+  // 2. شريط المؤشرات
   setTimeout(loadTickerBar, 2000);
   
   // 3. فحص المستخدم (في الخلفية — ما يعلّق الصفحة)
@@ -1831,6 +1913,7 @@ async function init() {
   setInterval(loadHotPosts, 120000);
   setInterval(loadRoomsWidget, 20000);
   setInterval(loadTickerBar, 60000);
+  setInterval(loadMarketsSummary, 60000);
 
   // ── تسجيل Service Worker (PWA) ──
   if ('serviceWorker' in navigator) {
@@ -1893,6 +1976,35 @@ async function loadTickerBar() {
   }
 }
 
+// ── Markets Summary Widget (right panel) ────────────────────
+async function loadMarketsSummary() {
+  const el = document.getElementById('markets-summary-list');
+  if (!el) return;
+  try {
+    const r = await fetch('/api/markets/ticker');
+    const d = await r.json();
+    if (!d.markets || !d.markets.length) { el.innerHTML = ''; return; }
+    el.innerHTML = d.markets.slice(0, 6).map(m => {
+      const pct = parseFloat(m.changePct).toFixed(2);
+      const arrow = m.isUp ? '▲' : '▼';
+      const cls = m.isUp ? 'var(--green)' : 'var(--red)';
+      const bg  = m.isUp ? 'var(--green-l)' : 'var(--red-l)';
+      const sym = TICKER_STOCK_MAP[m.key] || m.key.toUpperCase();
+      return `
+        <div onclick="navigateToStock('$${sym}')" style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+          <div style="display:flex;align-items:center;gap:7px">
+            <span style="font-size:14px">${m.flag}</span>
+            <div>
+              <div style="font-size:13px;font-weight:700;color:var(--text)">${m.label}</div>
+              <div style="font-size:11px;color:var(--text3)">${formatTickerPrice(m.price, m.currency)} ${m.currency||''}</div>
+            </div>
+          </div>
+          <span style="font-size:12px;font-weight:700;color:${cls};background:${bg};padding:3px 8px;border-radius:8px">${arrow} ${Math.abs(pct)}%</span>
+        </div>`;
+    }).join('') + `<div style="padding-top:4px"></div>`;
+  } catch(e) {}
+}
+
 // ── Rooms Widget (right panel) ────────────────────────────
 async function loadRoomsWidget() {
   const el = document.getElementById('rooms-widget-list');
@@ -1934,8 +2046,18 @@ async function loadRoomsWidget() {
 // ── Sidebar User Card ─────────────────────────────────────
 function renderSidebarUserCard() {
   const el = document.getElementById('sidebar-user-card');
+  const authEl = document.getElementById('sidebar-auth-area');
   if (!el) return;
-  if (!currentUser) { el.innerHTML = ''; return; }
+  if (!currentUser) {
+    el.innerHTML = '';
+    if (authEl) authEl.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px;padding:4px 0">
+        <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="showRegisterModal()">إنشاء حساب</button>
+        <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="showLoginModal()">تسجيل الدخول</button>
+      </div>`;
+    return;
+  }
+  if (authEl) authEl.innerHTML = '';
   el.innerHTML = `
     <div class="sidebar-user-card" onclick="navigate('profile','${currentUser.username}')" style="cursor:pointer">
       <div class="avatar" style="width:52px;height:52px;font-size:18px;border:3px solid var(--primary)">
@@ -2206,24 +2328,18 @@ window.addEventListener('popstate', (e) => {
 // AUTH UI
 // ══════════════════════════════════════════════════════════════════
 function renderAuthArea() {
-  const el = document.getElementById('auth-actions');
-  if (currentUser) {
-    el.innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px">
-        <div class="icon-btn" onclick="navigate('rooms')" title="الرومات الصوتية" style="font-size:17px">🎙️</div>
-        <div class="icon-btn" onclick="toggleNotif()" id="notif-btn" title="الإشعارات">
-          🔔<span class="notif-badge" id="notif-badge" style="display:none">${notifCount}</span>
-        </div>
-        <div class="avatar" style="width:34px;height:34px;font-size:13px;cursor:pointer;border:2px solid var(--primary)" onclick="navigate('profile')">
-          ${currentUser.avatar ? `<img src="${currentUser.avatar}" alt="">` : currentUser.display_name[0]}
-        </div>
-        <button class="btn btn-ghost btn-sm" onclick="logout()">خروج</button>
-      </div>`;
-  } else {
-    el.innerHTML = `
-      <button class="btn btn-ghost btn-sm" onclick="showLoginModal()">دخول</button>
-      <button class="btn btn-primary btn-sm" onclick="showRegisterModal()">انضم الآن 🔔</button>`;
+  // في التصميم الجديد، الـ auth يظهر في أسفل السايدبار عبر renderSidebarUserCard
+  renderSidebarUserCard();
+
+  // للموبايل — زر الإشعارات في التوب بار
+  const notifBtnMobile = document.getElementById('notif-btn-mobile');
+  if (notifBtnMobile && currentUser) {
+    notifBtnMobile.style.display = 'flex';
   }
+
+  // الـ auth-actions القديم — نتركه فارغاً (مخفي في الـ navbar المخفي)
+  const el = document.getElementById('auth-actions');
+  if (el) el.innerHTML = '';
 }
 
 function renderComposeArea() {
@@ -4242,6 +4358,8 @@ function toggleNotif() {
   panel.classList.toggle('show');
   if (panel.classList.contains('show')) loadNotifications();
 }
+// alias للتوافقية مع التصميم الجديد
+function toggleNotifPanel() { toggleNotif(); }
 
 async function loadNotifications() {
   const res = await fetch('/api/notifications');
