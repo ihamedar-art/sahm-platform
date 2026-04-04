@@ -3518,78 +3518,143 @@ app.get('/api/quote', async (req, res) => {
 
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 📰 نظام مسودات الأخبار التلقائية — GitHub Actions Bot
+// 📰 نظام مسودات الأخبار التلقائية
 // ══════════════════════════════════════════════════════════════════════════════
 try { db.exec(`
   CREATE TABLE IF NOT EXISTS news_drafts (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     summary TEXT NOT NULL,
-    source TEXT DEFAULT 'تداول السعودية',
+    source TEXT DEFAULT 'مصدر خارجي',
     stock_symbols TEXT DEFAULT '',
-    draft_source TEXT DEFAULT 'tadawul_bot',
     status TEXT DEFAULT 'pending',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `); } catch(e) {}
 
-// استقبال المسودات من الـ Bot
+// استقبال مسودة من البوت
 app.post('/api/admin/news-draft', (req, res) => {
   const { title, summary, source, stock_symbols, api_secret } = req.body;
-  
-  // التحقق من الـ secret
-  if (api_secret !== process.env.BOT_API_SECRET) {
-    return res.status(401).json({ error: 'غير مصرح' });
-  }
-  
+  if (api_secret !== process.env.BOT_API_SECRET) return res.status(401).json({ error: 'غير مصرح' });
   if (!title || !summary) return res.json({ error: 'العنوان والملخص مطلوبان' });
-  
-  // تحقق من التكرار — نفس العنوان خلال 24 ساعة
-  const existing = db.prepare(
-    "SELECT id FROM news_drafts WHERE title=? AND created_at > datetime('now','-1 day')"
-  ).get(title);
+  const existing = db.prepare("SELECT id FROM news_drafts WHERE title LIKE ? AND created_at > datetime('now','-1 day')").get('%' + title.slice(0,20) + '%');
   if (existing) return res.json({ success: true, duplicate: true });
-  
   const id = uuidv4();
-  db.prepare(
-    'INSERT INTO news_drafts (id,title,summary,source,stock_symbols) VALUES (?,?,?,?,?)'
-  ).run(id, title.trim(), summary.trim(), source||'تداول السعودية', stock_symbols||'');
-  
+  db.prepare('INSERT INTO news_drafts (id,title,summary,source,stock_symbols) VALUES (?,?,?,?,?)').run(id, title.trim(), summary.trim(), source||'مصدر خارجي', stock_symbols||'');
   res.json({ success: true, id });
 });
 
-// جلب المسودات (أدمن فقط)
+// جلب الأخبار من Bloomberg + أرقام + الشرق بلومبرغ
+app.post('/api/admin/fetch-news-all', async (req, res) => {
+  const { api_secret } = req.body;
+  if (api_secret !== process.env.BOT_API_SECRET) return res.status(401).json({ error: 'غير مصرح' });
+
+  async function fetchRSS(url, sourceName) {
+    try {
+      const r = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Accept': 'application/rss+xml, text/xml, */*' },
+        signal: AbortSignal.timeout(15000)
+      });
+      const xml = await r.text();
+      const items = [];
+      const itemRegex = /<item[^>]*>([\s\S]*?)<\/item>/gi;
+      let im;
+      while ((im = itemRegex.exec(xml)) !== null && items.length < 5) {
+        const block = im[1];
+        const getTag = (tag) => {
+          const cdataMatch = block.match(new RegExp('<' + tag + '[^>]*><!\[CDATA\[([\s\S]*?)\]\]><\/' + tag + '>', 'i'));
+          const plainMatch = block.match(new RegExp('<' + tag + '[^>]*>([^<]*)<\/' + tag + '>', 'i'));
+          return ((cdataMatch && cdataMatch[1]) || (plainMatch && plainMatch[1]) || '').trim().replace(/<[^>]*>/g, '');
+        };
+        const title = getTag('title');
+        if (title && title.length > 5) {
+          items.push({ title, desc: getTag('description').slice(0, 300), source: sourceName });
+        }
+      }
+      return items;
+    } catch(e) {
+      console.log('RSS error ' + sourceName + ': ' + e.message);
+      return [];
+    }
+  }
+
+  async function fetchAsharq() {
+    try {
+      const r = await fetch('https://asharqbusiness.com/latest-news/', {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        signal: AbortSignal.timeout(15000)
+      });
+      const html = await r.text();
+      const items = [];
+      const regex = /<h[23][^>]*>\s*<a[^>]*href="(https:\/\/asharqbusiness\.com\/[^"]+)"[^>]*>([^<]{15,})<\/a>/gi;
+      let m;
+      while ((m = regex.exec(html)) !== null && items.length < 5) {
+        items.push({ title: m[2].trim(), desc: '', source: 'الشرق بلومبرغ' });
+      }
+      return items;
+    } catch(e) { return []; }
+  }
+
+  async function summarize(item) {
+    try {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001', max_tokens: 250,
+          messages: [{ role: 'user', content: 'أرجع JSON فقط: {"title":"عنوان عربي أقل من 80 حرف","summary":"ملخص 40-60 كلمة","symbol":"$XXXX أو فارغ"}\n\nالخبر: ' + item.title + '. ' + (item.desc||'') }]
+        })
+      });
+      const d = await r.json();
+      const raw = (d.content?.[0]?.text||'').replace(/```json|```/g,'').trim();
+      return JSON.parse(raw);
+    } catch(e) { return { title: item.title, summary: item.desc||item.title, symbol: '' }; }
+  }
+
+  const [bloomberg, argaam, asharq] = await Promise.all([
+    fetchRSS('https://feeds.bloomberg.com/business/news.rss', 'Bloomberg'),
+    fetchRSS('https://www.argaam.com/ar/rss/ho-market-pulse?sectionid=70', 'أرقام'),
+    fetchAsharq()
+  ]);
+
+  console.log('Bloomberg:' + bloomberg.length + ' أرقام:' + argaam.length + ' الشرق:' + asharq.length);
+  const all = [...bloomberg.slice(0,3), ...argaam.slice(0,3), ...asharq.slice(0,3)];
+  let added = 0;
+  for (const item of all) {
+    const existing = db.prepare("SELECT id FROM news_drafts WHERE title LIKE ? AND created_at > datetime('now','-12 hours')").get('%' + item.title.slice(0,15) + '%');
+    if (existing) continue;
+    const summarized = await summarize(item);
+    const id = uuidv4();
+    db.prepare('INSERT INTO news_drafts (id,title,summary,source,stock_symbols) VALUES (?,?,?,?,?)').run(id, summarized.title, summarized.summary, item.source, summarized.symbol||'');
+    added++;
+    await new Promise(r => setTimeout(r, 300));
+  }
+  res.json({ success: true, added, bloomberg: bloomberg.length, argaam: argaam.length, asharq: asharq.length });
+});
+
+// جلب المسودات للأدمن
 app.get('/api/admin/news-drafts', requireAdmin, (req, res) => {
-  const drafts = db.prepare(
-    "SELECT * FROM news_drafts WHERE status='pending' ORDER BY created_at DESC LIMIT 20"
-  ).all();
+  const drafts = db.prepare("SELECT * FROM news_drafts WHERE status='pending' ORDER BY created_at DESC LIMIT 20").all();
   res.json({ drafts });
 });
 
 // نشر مسودة
 app.post('/api/admin/news-drafts/:id/publish', requireAdmin, (req, res) => {
   const draft = db.prepare('SELECT * FROM news_drafts WHERE id=?').get(req.params.id);
-  if (!draft) return res.json({ error: 'المسودة غير موجودة' });
-  
+  if (!draft) return res.json({ error: 'غير موجودة' });
   const newsUserId = ensureNewsAccount();
   const postId = uuidv4();
   const newsId = uuidv4();
-  
-  db.prepare(`INSERT INTO posts (id,user_id,content,stock_symbols,post_type)
-    VALUES (?,?,?,?,?)`).run(
+  db.prepare('INSERT INTO posts (id,user_id,content,stock_symbols,post_type) VALUES (?,?,?,?,?)').run(
     postId, newsUserId,
-    `📰 ${draft.title}\n\n${draft.summary}\n\n📌 المصدر: ${draft.source}`,
+    '📰 ' + draft.title + '\n\n' + draft.summary + '\n\n📌 المصدر: ' + draft.source,
     draft.stock_symbols||'', 'news'
   );
-  
-  db.prepare(`INSERT INTO news_posts (id,title,summary,source,stock_symbols,post_id,is_published)
-    VALUES (?,?,?,?,?,?,?)`).run(
+  db.prepare('INSERT INTO news_posts (id,title,summary,source,stock_symbols,post_id,is_published) VALUES (?,?,?,?,?,?,?)').run(
     newsId, draft.title, draft.summary, draft.source, draft.stock_symbols||'', postId, 1
   );
-  
   db.prepare("UPDATE users SET posts_count = posts_count + 1 WHERE username = 'jalsat_news'").run();
   db.prepare("UPDATE news_drafts SET status='published' WHERE id=?").run(draft.id);
-  
   res.json({ success: true, postId });
 });
 
@@ -3599,224 +3664,51 @@ app.delete('/api/admin/news-drafts/:id', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
-
-// ── جلب أخبار تداول تلقائياً (يُستدعى من GitHub Actions) ──────────
+// الـ route القديم للتوافق
 app.post('/api/admin/fetch-tadawul-news', async (req, res) => {
   const { api_secret } = req.body;
-  if (api_secret !== process.env.BOT_API_SECRET) {
-    return res.status(401).json({ error: 'غير مصرح' });
-  }
-
-  try {
-    // جلب صفحة تداول من السيرفر (IP غير محجوب)
-    const pageRes = await fetch(
-      'https://www.saudiexchange.sa/wps/portal/saudiexchange/newsandreports/issuer-news/issuer-announcements?locale=ar',
-      { headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'text/html,application/xhtml+xml,*/*;q=0.9',
-        'Accept-Language': 'ar,en;q=0.9',
-        'Referer': 'https://www.saudiexchange.sa/'
-      }}
-    );
-    const html = await pageRes.text();
-
-    // استخرج الإعلانات من الـ HTML
-    const match = html.match(/"announcementList"\s*:\s*(\[.*?\])/s);
-    let announcements = [];
-    if (match) {
-      try { announcements = JSON.parse(match[1]).slice(0, 5); } catch(e) {}
-    }
-
-    if (!announcements.length) {
-      return res.json({ success: false, message: 'ما قدرنا نجيب إعلانات من تداول' });
-    }
-
-    // لخّص كل إعلان بـ Claude وأضفه كمسودة
-    let added = 0;
-    for (const ann of announcements) {
-      const title = ann.TITLE + ': ' + (ann.SHORT_DESC || '').slice(0, 80);
-      const existing = db.prepare(
-        "SELECT id FROM news_drafts WHERE title LIKE ? AND created_at > datetime('now','-1 day')"
-      ).get('%' + ann.TITLE + '%');
-      if (existing) continue;
-
-      // تلخيص بـ Claude
-      let summary = ann.SHORT_DESC || '';
-      let finalTitle = title;
-      try {
-        const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': process.env.ANTHROPIC_API_KEY,
-            'anthropic-version': '2023-06-01'
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 400,
-            messages: [{ role: 'user', content:
-              'أنت محرر أخبار مالية سعودي. أرجع JSON فقط: {"title":"عنوان أقل من 80 حرف","summary":"ملخص 50-80 كلمة"}\n\nالإعلان: ' + ann.SHORT_DESC
-            }]
-          })
-        });
-        const claudeData = await claudeRes.json();
-        const raw = (claudeData.content?.[0]?.text || '').replace(/```json|```/g,'').trim();
-        const parsed = JSON.parse(raw);
-        finalTitle = parsed.title || title;
-        summary = parsed.summary || summary;
-      } catch(e) {}
-
-      const id = uuidv4();
-      db.prepare(
-        'INSERT INTO news_drafts (id,title,summary,source,stock_symbols) VALUES (?,?,?,?,?)'
-      ).run(id, finalTitle, summary, 'تداول السعودية', ann.SYMBOL ? '$'+ann.SYMBOL : '');
-      added++;
-    }
-
-    res.json({ success: true, added, total: announcements.length });
-  } catch(e) {
-    res.status(500).json({ error: e.message });
-  }
+  if (api_secret !== process.env.BOT_API_SECRET) return res.status(401).json({ error: 'غير مصرح' });
+  req.body.api_secret = api_secret;
+  const fakeRes = { json: (d) => res.json(d) };
+  // استدعي fetch-news-all
+  return res.json({ success: false, message: 'استخدم /api/admin/fetch-news-all' });
 });
 
+// النشر التلقائي لأحداث المفكرة
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 📰 جلب أخبار من 3 مصادر: Bloomberg + أرقام + الشرق بلومبرغ
+// 🗓️ النشر التلقائي لأحداث المفكرة
 // ══════════════════════════════════════════════════════════════════════════════
-async function fetchRSS(url, sourceName) {
+try { db.exec('ALTER TABLE market_events ADD COLUMN auto_published INTEGER DEFAULT 0'); } catch(e) {}
+try { db.exec('ALTER TABLE market_events ADD COLUMN auto_post_id TEXT DEFAULT NULL'); } catch(e) {}
+
+const EVENT_ICONS_AUTO = {
+  'توزيع أرباح':'💰','أحقية أرباح':'📋','أحقية أسهم منحة':'🎁',
+  'اكتتاب':'🆕','إدراج وبداية تداول':'🚀','نتائج مالية':'📊',
+  'اجتماع جمعية':'🤝','إجازة رسمية':'🏖️','أخرى':'📌'
+};
+
+async function autoPublishTodayEvents() {
   try {
-    const r = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/rss+xml, application/xml, text/xml, */*',
-      },
-      signal: AbortSignal.timeout(15000)
-    });
-    const xml = await r.text();
-    // Parser بسيط بدون مكتبة خارجية
-    const items = [];
-    const itemRegex = /<item[^>]*>([\s\S]*?)<\/item>/gi;
-    let itemMatch;
-    while ((itemMatch = itemRegex.exec(xml)) !== null && items.length < 5) {
-      const block = itemMatch[1];
-      const getTag = (tag) => {
-        const m = block.match(new RegExp(`<${tag}[^>]*><!\[CDATA\[([\s\S]*?)\]\]><\/${tag}>|<${tag}[^>]*>([^<]*)<\/${tag}>`, 'i'));
-        return (m?.[1] || m?.[2] || '').trim().replace(/<[^>]*>/g, '');
-      };
-      const title = getTag('title');
-      if (title && title.length > 5) {
-        items.push({
-          title,
-          desc: getTag('description').slice(0, 300),
-          link: getTag('link'),
-          source: sourceName,
-          date: getTag('pubDate')
-        });
-      }
+    const today = new Date().toISOString().split('T')[0];
+    const events = db.prepare('SELECT * FROM market_events WHERE event_date=? AND auto_published=0').all(today);
+    if (!events.length) return;
+    const newsUserId = ensureNewsAccount();
+    for (const ev of events) {
+      const icon = EVENT_ICONS_AUTO[ev.event_type] || '📌';
+      const symTag = ev.symbol ? ' $' + ev.symbol : '';
+      const content = icon + ' ' + ev.event_type + (symTag ? ' · ' + symTag : '') + '\n' + ev.company_name + (ev.details ? '\n' + ev.details : '') + '\n\n📅 اليوم هو يوم الحدث';
+      const postId = uuidv4();
+      db.prepare('INSERT INTO posts (id,user_id,content,stock_symbols,post_type,is_pinned,pinned_at) VALUES (?,?,?,?,?,1,?)').run(
+        postId, newsUserId, content, ev.symbol ? '$'+ev.symbol : '', 'news', new Date().toISOString()
+      );
+      db.prepare("UPDATE users SET posts_count = posts_count + 1 WHERE id=?").run(newsUserId);
+      db.prepare('UPDATE market_events SET auto_published=1, auto_post_id=? WHERE id=?').run(postId, ev.id);
+      console.log('✅ Auto-published: ' + ev.company_name);
     }
-    return items;
-  } catch(e) {
-    console.log(`⚠️ RSS error ${sourceName}: ${e.message}`);
-    return [];
-  }
+  } catch(e) { console.log('⚠️ autoPublish error:', e.message); }
 }
-
-async function fetchAsharq() {
-  try {
-    const r = await fetch('https://asharqbusiness.com/latest-news/', {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'text/html,*/*',
-      },
-      signal: AbortSignal.timeout(15000)
-    });
-    const html = await r.text();
-    const items = [];
-    // استخرج العناوين من الـ HTML
-    const regex = /<h[23][^>]*class="[^"]*title[^"]*"[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/gi;
-    let match;
-    while ((match = regex.exec(html)) !== null && items.length < 5) {
-      const title = match[2].trim();
-      const link = match[1].trim();
-      if (title.length > 10) {
-        items.push({ title, desc: '', link, source: 'الشرق بلومبرغ', date: '' });
-      }
-    }
-    // fallback — نبحث عن أي links تحتوي على article
-    if (!items.length) {
-      const regex2 = /<a[^>]*href="(https:\/\/asharqbusiness\.com\/[^"]+)"[^>]*>\s*<[^>]+>([^<]{20,})<\/[^>]+>\s*<\/a>/gi;
-      while ((match = regex2.exec(html)) !== null && items.length < 5) {
-        items.push({ title: match[2].trim(), desc: '', link: match[1], source: 'الشرق بلومبرغ', date: '' });
-      }
-    }
-    return items;
-  } catch(e) {
-    console.log(`⚠️ Asharq error: ${e.message}`);
-    return [];
-  }
-}
-
-async function summarizeWithClaude(item) {
-  const text = item.title + (item.desc ? '. ' + item.desc : '');
-  try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 300,
-        messages: [{ role: 'user', content:
-          'أنت محرر أخبار مالية سعودي. أرجع JSON فقط بدون أي نص خارجه:\n{"title":"عنوان عربي واضح أقل من 80 حرف","summary":"ملخص عربي 40-60 كلمة","symbol":"$XXXX أو فارغ"}\n\nالخبر: ' + text
-        }]
-      })
-    });
-    const d = await r.json();
-    const raw = (d.content?.[0]?.text || '').replace(/```json|```/g,'').trim();
-    return JSON.parse(raw);
-  } catch(e) {
-    return { title: item.title, summary: item.desc || item.title, symbol: '' };
-  }
-}
-
-app.post('/api/admin/fetch-news-all', async (req, res) => {
-  const { api_secret } = req.body;
-  if (api_secret !== process.env.BOT_API_SECRET) {
-    return res.status(401).json({ error: 'غير مصرح' });
-  }
-
-  console.log('📰 جاري جلب الأخبار من 3 مصادر...');
-
-  const [bloomberg, argaam, asharq] = await Promise.all([
-    fetchRSS('https://feeds.bloomberg.com/business/news.rss', 'Bloomberg'),
-    fetchRSS('https://www.argaam.com/ar/rss/ho-market-pulse?sectionid=70', 'أرقام'),
-    fetchAsharq()
-  ]);
-
-  const all = [...bloomberg.slice(0,3), ...argaam.slice(0,3), ...asharq.slice(0,3)];
-  console.log(`✅ Bloomberg: ${bloomberg.length} | أرقام: ${argaam.length} | الشرق: ${asharq.length}`);
-
-  let added = 0;
-  for (const item of all) {
-    const existing = db.prepare(
-      "SELECT id FROM news_drafts WHERE title LIKE ? AND created_at > datetime('now','-12 hours')"
-    ).get('%' + item.title.slice(0,20) + '%');
-    if (existing) continue;
-
-    const summarized = await summarizeWithClaude(item);
-    const id = uuidv4();
-    db.prepare(
-      'INSERT INTO news_drafts (id,title,summary,source,stock_symbols) VALUES (?,?,?,?,?)'
-    ).run(id, summarized.title, summarized.summary, item.source, summarized.symbol || '');
-    added++;
-    await new Promise(r => setTimeout(r, 500));
-  }
-
-  res.json({ success: true, added, bloomberg: bloomberg.length, argaam: argaam.length, asharq: asharq.length });
-});
+setTimeout(() => { autoPublishTodayEvents(); setInterval(autoPublishTodayEvents, 60*60*1000); }, 10000);
 
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
