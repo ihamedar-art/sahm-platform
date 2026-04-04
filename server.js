@@ -3599,6 +3599,86 @@ app.delete('/api/admin/news-drafts/:id', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+
+// ── جلب أخبار تداول تلقائياً (يُستدعى من GitHub Actions) ──────────
+app.post('/api/admin/fetch-tadawul-news', async (req, res) => {
+  const { api_secret } = req.body;
+  if (api_secret !== process.env.BOT_API_SECRET) {
+    return res.status(401).json({ error: 'غير مصرح' });
+  }
+
+  try {
+    // جلب صفحة تداول من السيرفر (IP غير محجوب)
+    const pageRes = await fetch(
+      'https://www.saudiexchange.sa/wps/portal/saudiexchange/newsandreports/issuer-news/issuer-announcements?locale=ar',
+      { headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml,*/*;q=0.9',
+        'Accept-Language': 'ar,en;q=0.9',
+        'Referer': 'https://www.saudiexchange.sa/'
+      }}
+    );
+    const html = await pageRes.text();
+
+    // استخرج الإعلانات من الـ HTML
+    const match = html.match(/"announcementList"\s*:\s*(\[.*?\])/s);
+    let announcements = [];
+    if (match) {
+      try { announcements = JSON.parse(match[1]).slice(0, 5); } catch(e) {}
+    }
+
+    if (!announcements.length) {
+      return res.json({ success: false, message: 'ما قدرنا نجيب إعلانات من تداول' });
+    }
+
+    // لخّص كل إعلان بـ Claude وأضفه كمسودة
+    let added = 0;
+    for (const ann of announcements) {
+      const title = ann.TITLE + ': ' + (ann.SHORT_DESC || '').slice(0, 80);
+      const existing = db.prepare(
+        "SELECT id FROM news_drafts WHERE title LIKE ? AND created_at > datetime('now','-1 day')"
+      ).get('%' + ann.TITLE + '%');
+      if (existing) continue;
+
+      // تلخيص بـ Claude
+      let summary = ann.SHORT_DESC || '';
+      let finalTitle = title;
+      try {
+        const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': process.env.ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 400,
+            messages: [{ role: 'user', content:
+              'أنت محرر أخبار مالية سعودي. أرجع JSON فقط: {"title":"عنوان أقل من 80 حرف","summary":"ملخص 50-80 كلمة"}\n\nالإعلان: ' + ann.SHORT_DESC
+            }]
+          })
+        });
+        const claudeData = await claudeRes.json();
+        const raw = (claudeData.content?.[0]?.text || '').replace(/```json|```/g,'').trim();
+        const parsed = JSON.parse(raw);
+        finalTitle = parsed.title || title;
+        summary = parsed.summary || summary;
+      } catch(e) {}
+
+      const id = uuidv4();
+      db.prepare(
+        'INSERT INTO news_drafts (id,title,summary,source,stock_symbols) VALUES (?,?,?,?,?)'
+      ).run(id, finalTitle, summary, 'تداول السعودية', ann.SYMBOL ? '$'+ann.SYMBOL : '');
+      added++;
+    }
+
+    res.json({ success: true, added, total: announcements.length });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
