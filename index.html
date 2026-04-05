@@ -1800,7 +1800,7 @@ async function init() {
   const initParam = urlParams.get('param') || '';
   history.replaceState({ page: initPage, param: initParam }, '', window.location.href);
 
-  // ── تحميل الـ widgets الجانبية ──
+  // ── تحميل الـ widgets الجانبية فوراً ──
   loadPoll();
   loadHotPosts();
   loadSentimentWidget();
@@ -1810,15 +1810,22 @@ async function init() {
   loadRoomsWidget();
   setTimeout(loadTickerBar, 2000);
 
-  // ── checkAuth أولاً ثم نوجّه للصفحة الصحيحة (deep link) ──
-  try { await checkAuth(); } catch(e) { console.log('Auth:', e); }
-  renderSidebarUserCard();
-  if (currentUser) pollNotifications();
-
+  // ── deep link: لو في صفحة محددة في الـ URL، حمّلها فوراً ──
   if (initPage !== 'home') {
+    // حمّل الصفحة المطلوبة أولاً بدون انتظار checkAuth
     navigate(initPage, initParam, false);
+    // checkAuth في الخلفية
+    checkAuth().then(() => {
+      renderSidebarUserCard();
+      if (currentUser) pollNotifications();
+    }).catch(e => console.log('Auth:', e));
   } else {
+    // الرئيسية: حمّل الفيد فوراً + checkAuth في الخلفية
     renderFeed();
+    checkAuth().then(() => {
+      renderSidebarUserCard();
+      if (currentUser) pollNotifications();
+    }).catch(e => console.log('Auth:', e));
   }
 
   // ── تحديثات دورية ──
