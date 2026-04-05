@@ -1817,25 +1817,10 @@ async function init() {
     renderFeed();
   }
 
-  // ── checkAuth في الخلفية لا يوقف التحميل ──
-  fetch('/api/me').then(r=>r.json()).then(data => {
-    currentUser = data.user;
-    if (currentUser) {
-      fetch('/api/admin/check').then(r=>r.json()).then(adminData => {
-        currentUser.isAdmin = adminData.isAdmin;
-        currentUser.isSuperAdmin = adminData.isSuperAdmin;
-        const adminNav = document.getElementById('nav-admin');
-        if (adminNav) adminNav.style.display = adminData.isAdmin ? '' : 'none';
-        renderAuthArea();
-        renderComposeArea();
-        renderSidebarUserCard();
-        pollNotifications();
-      });
-    } else {
-      renderAuthArea();
-      renderComposeArea();
-      renderSidebarUserCard();
-    }
+  // ── checkAuth في الخلفية ──
+  checkAuth().then(() => {
+    renderSidebarUserCard();
+    if (currentUser) pollNotifications();
   }).catch(e => console.log('Auth:', e));
 
   // ── تحديثات دورية ──
@@ -3749,8 +3734,6 @@ async function loadPostPage(postId) {
   const feed = document.querySelector('.feed');
   window.scrollTo(0,0);
 
-  // تأكد من حالة المستخدم أولاً
-  if (!currentUser) await checkAuth();
 
   function renderCommentInput() {
     if (currentUser) {
