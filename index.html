@@ -1800,7 +1800,7 @@ async function init() {
   const initParam = urlParams.get('param') || '';
   history.replaceState({ page: initPage, param: initParam }, '', window.location.href);
 
-  // ── تحميل الـ widgets الجانبية فوراً ──
+  // ── تحميل الـ widgets الجانبية ──
   loadPoll();
   loadHotPosts();
   loadSentimentWidget();
@@ -1810,20 +1810,16 @@ async function init() {
   loadRoomsWidget();
   setTimeout(loadTickerBar, 2000);
 
-  // ── شغّل الفيد فوراً بدون انتظار ──
+  // ── checkAuth أولاً ثم نوجّه للصفحة الصحيحة (deep link) ──
+  try { await checkAuth(); } catch(e) { console.log('Auth:', e); }
+  renderSidebarUserCard();
+  if (currentUser) pollNotifications();
+
   if (initPage !== 'home') {
     navigate(initPage, initParam, false);
   } else {
     renderFeed();
   }
-
-  // ── checkAuth في الخلفية — يحدّث الـ UI بعد ما يخلص ──
-  checkAuth(true).then(() => {
-    renderSidebarUserCard();
-    // حدّث compose area بعد ما نعرف حالة المستخدم
-    renderComposeArea();
-    if (currentUser) pollNotifications();
-  }).catch(e => console.log('Auth:', e));
 
   // ── تحديثات دورية ──
   setTimeout(checkNewPosts, 15000);
@@ -2038,7 +2034,7 @@ async function loadHotPosts() {
   } catch(e) {}
 }
 
-async function checkAuth(skipRender = false) {
+async function checkAuth() {
   const res = await fetch('/api/me');
   const data = await res.json();
   currentUser = data.user;
@@ -2047,12 +2043,13 @@ async function checkAuth(skipRender = false) {
     const adminData = await adminCheck.json();
     currentUser.isAdmin = adminData.isAdmin;
     currentUser.isSuperAdmin = adminData.isSuperAdmin;
+    // إظهار/إخفاء رابط لوحة التحكم
     const adminNav = document.getElementById('nav-admin');
     if (adminNav) adminNav.style.display = adminData.isAdmin ? '' : 'none';
   }
   renderAuthArea();
+  renderComposeArea();
   renderSidebarUserCard();
-  if (!skipRender) renderComposeArea();
 }
 
 async function togglePin(postId, currentlyPinned) {
