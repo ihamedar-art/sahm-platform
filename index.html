@@ -1810,16 +1810,33 @@ async function init() {
   loadRoomsWidget();
   setTimeout(loadTickerBar, 2000);
 
-  // ── checkAuth أولاً ثم نوجّه للصفحة الصحيحة (deep link) ──
-  try { await checkAuth(); } catch(e) { console.log('Auth:', e); }
-  renderSidebarUserCard();
-  if (currentUser) pollNotifications();
-
+  // ── شغّل المحتوى فوراً ──
   if (initPage !== 'home') {
     navigate(initPage, initParam, false);
   } else {
     renderFeed();
   }
+
+  // ── checkAuth في الخلفية لا يوقف التحميل ──
+  fetch('/api/me').then(r=>r.json()).then(data => {
+    currentUser = data.user;
+    if (currentUser) {
+      fetch('/api/admin/check').then(r=>r.json()).then(adminData => {
+        currentUser.isAdmin = adminData.isAdmin;
+        currentUser.isSuperAdmin = adminData.isSuperAdmin;
+        const adminNav = document.getElementById('nav-admin');
+        if (adminNav) adminNav.style.display = adminData.isAdmin ? '' : 'none';
+        renderAuthArea();
+        renderComposeArea();
+        renderSidebarUserCard();
+        pollNotifications();
+      });
+    } else {
+      renderAuthArea();
+      renderComposeArea();
+      renderSidebarUserCard();
+    }
+  }).catch(e => console.log('Auth:', e));
 
   // ── تحديثات دورية ──
   setTimeout(checkNewPosts, 15000);
