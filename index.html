@@ -1810,18 +1810,16 @@ async function init() {
   loadRoomsWidget();
   setTimeout(loadTickerBar, 2000);
 
-  // ── شغّل المحتوى فوراً ──
+  // ── checkAuth أولاً ثم نوجّه للصفحة الصحيحة (deep link) ──
+  try { await checkAuth(); } catch(e) { console.log('Auth:', e); }
+  renderSidebarUserCard();
+  if (currentUser) pollNotifications();
+
   if (initPage !== 'home') {
     navigate(initPage, initParam, false);
   } else {
     renderFeed();
   }
-
-  // ── checkAuth في الخلفية ──
-  checkAuth().then(() => {
-    renderSidebarUserCard();
-    if (currentUser) pollNotifications();
-  }).catch(e => console.log('Auth:', e));
 
   // ── تحديثات دورية ──
   setTimeout(checkNewPosts, 15000);
@@ -3553,7 +3551,6 @@ async function loadStockPage(symbol) {
     '$TSLA':'تسلا','$AAPL':'آبل','$MSFT':'مايكروسوفت','$AMZN':'أمازون',
     '$GOOGL':'جوجل','$META':'ميتا','$NVDA':'انفيديا','$NFLX':'نتفلكس',
   };
-  // اسم الشركة: أولاً من TRENDING_NAMES (كل شركات تداول ونمو) ثم STOCK_INFO_MAP
   const _sym = symbol.replace('$','');
   const stockInfoName = TRENDING_NAMES[_sym] || STOCK_INFO_MAP[symbol] || null;
 
@@ -3734,6 +3731,8 @@ async function loadPostPage(postId) {
   const feed = document.querySelector('.feed');
   window.scrollTo(0,0);
 
+  // تأكد من حالة المستخدم أولاً
+  if (!currentUser) await checkAuth();
 
   function renderCommentInput() {
     if (currentUser) {
