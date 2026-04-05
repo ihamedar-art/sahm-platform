@@ -1810,23 +1810,20 @@ async function init() {
   loadRoomsWidget();
   setTimeout(loadTickerBar, 2000);
 
-  // ── deep link: لو في صفحة محددة في الـ URL، حمّلها فوراً ──
-  if (initPage !== 'home') {
-    // حمّل الصفحة المطلوبة أولاً بدون انتظار checkAuth
-    navigate(initPage, initParam, false);
-    // checkAuth في الخلفية
-    checkAuth().then(() => {
-      renderSidebarUserCard();
-      if (currentUser) pollNotifications();
-    }).catch(e => console.log('Auth:', e));
-  } else {
-    // الرئيسية: حمّل الفيد فوراً + checkAuth في الخلفية
+  // ── checkAuth أولاً لمعرفة حالة المستخدم ──
+  checkAuth().then(() => {
+    renderSidebarUserCard();
+    if (currentUser) pollNotifications();
+    // بعد checkAuth نوجّه للصفحة الصحيحة
+    if (initPage !== 'home') {
+      navigate(initPage, initParam, false);
+    } else {
+      renderFeed();
+    }
+  }).catch(e => {
+    console.log('Auth:', e);
     renderFeed();
-    checkAuth().then(() => {
-      renderSidebarUserCard();
-      if (currentUser) pollNotifications();
-    }).catch(e => console.log('Auth:', e));
-  }
+  });
 
   // ── تحديثات دورية ──
   setTimeout(checkNewPosts, 15000);
