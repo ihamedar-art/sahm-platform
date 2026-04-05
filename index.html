@@ -1856,7 +1856,7 @@ async function loadTickerBar() {
   
   // ⏱️ إذا أخذ أكثر من 5 ثواني، ألغِ الطلب
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
   
   try {
     const r = await fetch('/api/markets/ticker', { signal: controller.signal });
