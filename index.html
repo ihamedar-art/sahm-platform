@@ -1810,20 +1810,20 @@ async function init() {
   loadRoomsWidget();
   setTimeout(loadTickerBar, 2000);
 
-  // ── checkAuth أولاً لمعرفة حالة المستخدم ──
-  checkAuth().then(() => {
-    renderSidebarUserCard();
-    if (currentUser) pollNotifications();
-    // بعد checkAuth نوجّه للصفحة الصحيحة
-    if (initPage !== 'home') {
-      navigate(initPage, initParam, false);
-    } else {
-      renderFeed();
-    }
-  }).catch(e => {
-    console.log('Auth:', e);
+  // ── شغّل الفيد فوراً بدون انتظار ──
+  if (initPage !== 'home') {
+    navigate(initPage, initParam, false);
+  } else {
     renderFeed();
-  });
+  }
+
+  // ── checkAuth في الخلفية — يحدّث الـ UI بعد ما يخلص ──
+  checkAuth(true).then(() => {
+    renderSidebarUserCard();
+    // حدّث compose area بعد ما نعرف حالة المستخدم
+    renderComposeArea();
+    if (currentUser) pollNotifications();
+  }).catch(e => console.log('Auth:', e));
 
   // ── تحديثات دورية ──
   setTimeout(checkNewPosts, 15000);
@@ -2038,7 +2038,7 @@ async function loadHotPosts() {
   } catch(e) {}
 }
 
-async function checkAuth() {
+async function checkAuth(skipRender = false) {
   const res = await fetch('/api/me');
   const data = await res.json();
   currentUser = data.user;
@@ -2047,13 +2047,12 @@ async function checkAuth() {
     const adminData = await adminCheck.json();
     currentUser.isAdmin = adminData.isAdmin;
     currentUser.isSuperAdmin = adminData.isSuperAdmin;
-    // إظهار/إخفاء رابط لوحة التحكم
     const adminNav = document.getElementById('nav-admin');
     if (adminNav) adminNav.style.display = adminData.isAdmin ? '' : 'none';
   }
   renderAuthArea();
-  renderComposeArea();
   renderSidebarUserCard();
+  if (!skipRender) renderComposeArea();
 }
 
 async function togglePin(postId, currentlyPinned) {
