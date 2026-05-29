@@ -1477,125 +1477,61 @@ body {
 #calc-content { font-weight: 500; }
 #calc-content .panel-card, #calc-content h2, #calc-content label { font-weight: 600; }
 
-/* ════════════════════════════════════════════════════════════════════════
-   JALSAT REWORK LAYER — typography, post variety, calmer surfaces
-   ════════════════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════
+   HOME VIEW REDESIGN — feed only, scoped via #page-home
+   ════════════════════════════════════════════════════════════════ */
 
-/* ── Global type refinement ─────────────────────────────────────────── */
-body {
+/* ── Page-home scoped typography refinement ── */
+#page-home {
   font-family: 'IBM Plex Sans Arabic', 'Plus Jakarta Sans', sans-serif;
   font-feature-settings: "kern","ss01";
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background:
-    radial-gradient(1000px 500px at 100% 0%, rgba(27,79,216,0.035), transparent 60%),
-    radial-gradient(800px 400px at 0% 100%, rgba(8,145,178,0.035), transparent 60%),
-    var(--bg);
-  background-attachment: fixed;
 }
-.logo-text, h1, h2, h3, h4,
-.author-name, .post-name, .panel-title,
-.compose-textarea {
+#page-home h1, #page-home h2, #page-home h3, #page-home h4,
+#page-home .post-name, #page-home .compose-box {
   letter-spacing: -0.015em;
 }
 
-/* Numeric tabular everywhere */
-.ticker-bar, .ticker-bar *,
-.trending-sym, .trending-count,
-.target-tag, .post-card .post-symbol,
-.action-count, .like-count, .comment-count {
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum","zero";
-}
-
-/* ════════════════════════════════════════════════════════════════════════
-   NAVBAR + TICKER
-   ════════════════════════════════════════════════════════════════════════ */
-.navbar {
-  background: rgba(255,255,255,0.88) !important;
-  backdrop-filter: blur(24px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
-  border-bottom: 1px solid var(--border) !important;
-  box-shadow: 0 1px 0 rgba(13,31,53,0.02) !important;
-}
-.logo-text { font-weight: 700 !important; letter-spacing: -0.02em !important; }
-.logo-sub  { font-weight: 500 !important; letter-spacing: 0.05em !important; }
-
-.ticker-bar {
-  background: rgba(255,255,255,0.7) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
-  border-bottom: 1px solid var(--border) !important;
-}
-
-/* ════════════════════════════════════════════════════════════════════════
-   SIDEBAR (right nav) — softer, hierarchical
-   ════════════════════════════════════════════════════════════════════════ */
-.sidebar { background: transparent !important; }
-.sidebar-nav a, .nav-item {
-  border-radius: 12px !important;
-  padding: 10px 14px !important;
-  font-weight: 500 !important;
-  letter-spacing: -0.005em !important;
-  transition: background 0.18s ease, color 0.18s ease !important;
-}
-.nav-item.active {
-  background: var(--primary-l) !important;
-  color: var(--primary) !important;
-  font-weight: 700 !important;
-}
-.nav-item:not(.active):hover {
-  background: var(--bg3) !important;
-}
-.nav-section-label {
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  color: var(--text3) !important;
-  letter-spacing: 0.08em !important;
-  text-transform: uppercase !important;
-  margin-bottom: 8px !important;
-  padding: 0 4px !important;
-}
-
-/* ════════════════════════════════════════════════════════════════════════
+/* ────────────────────────────────────────────────
    FEED TABS — underline pill style
-   ════════════════════════════════════════════════════════════════════════ */
+   ──────────────────────────────────────────────── */
 #page-home .feed-tabs {
   background: transparent !important;
   border: none !important;
-  border-bottom: 1px solid var(--border) !important;
-  border-radius: 0 !important;
   box-shadow: none !important;
   padding: 0 !important;
   gap: 4px !important;
-  margin-bottom: 20px !important;
+  margin-bottom: 18px !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 0 !important;
 }
 #page-home .feed-tab {
   flex: 0 0 auto !important;
-  padding: 14px 18px !important;
+  padding: 12px 18px !important;
   border-radius: 0 !important;
   background: transparent !important;
   color: var(--text3) !important;
   font-size: 14px !important;
   font-weight: 500 !important;
   position: relative;
+  transition: color 0.2s ease !important;
   letter-spacing: -0.005em;
-  transition: color 0.18s ease !important;
-  box-shadow: none !important;
 }
 #page-home .feed-tab::after {
   content: '';
   position: absolute;
-  bottom: -1px; left: 16px; right: 16px;
+  bottom: -1px; left: 12px; right: 12px;
   height: 3px;
   background: var(--primary);
   border-radius: 3px 3px 0 0;
   transform: scaleX(0);
+  transform-origin: center;
   transition: transform 0.25s ease;
 }
 #page-home .feed-tab.active {
   background: transparent !important;
   color: var(--text) !important;
+  box-shadow: none !important;
   font-weight: 700 !important;
 }
 #page-home .feed-tab.active::after { transform: scaleX(1); }
@@ -1604,17 +1540,19 @@ body {
   color: var(--text2) !important;
 }
 
-/* ════════════════════════════════════════════════════════════════════════
-   COMPOSE BOX
-   ════════════════════════════════════════════════════════════════════════ */
+/* ────────────────────────────────────────────────
+   COMPOSE BOX — bolder, with clearer hierarchy
+   ──────────────────────────────────────────────── */
 #page-home .compose-box {
   background: #fff !important;
   border: 1px solid var(--border) !important;
   border-top: none !important;
   border-radius: 18px !important;
   padding: 0 !important;
-  margin-bottom: 24px !important;
-  box-shadow: 0 1px 2px rgba(13,31,53,0.03), 0 4px 16px rgba(13,31,53,0.04) !important;
+  margin-bottom: 22px !important;
+  box-shadow:
+    0 1px 2px rgba(13,31,53,0.04),
+    0 4px 16px rgba(13,31,53,0.05) !important;
   overflow: hidden;
   position: relative;
 }
@@ -1627,23 +1565,38 @@ body {
 }
 #page-home .compose-box:focus-within {
   border-color: var(--primary-m) !important;
-  box-shadow: 0 1px 2px rgba(13,31,53,0.04), 0 8px 28px rgba(27,79,216,0.10) !important;
+  box-shadow:
+    0 1px 2px rgba(13,31,53,0.04),
+    0 8px 28px rgba(27,79,216,0.10) !important;
 }
-#page-home .compose-header { padding: 18px 20px 4px !important; gap: 12px !important; }
+#page-home .compose-header {
+  padding: 18px 20px 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin-bottom: 0 !important;
+}
+#page-home .compose-header > *:first-child {
+  /* avatar */
+  flex-shrink: 0;
+}
 #page-home .compose-textarea {
-  padding: 4px 20px 14px !important;
+  padding: 0 20px 12px !important;
   font-size: 16px !important;
   font-weight: 500 !important;
   line-height: 1.65 !important;
   min-height: 70px !important;
   color: var(--text) !important;
 }
-#page-home .compose-textarea::placeholder { color: var(--text3) !important; font-weight: 400; }
+#page-home .compose-textarea::placeholder {
+  color: var(--text3) !important;
+  font-weight: 400;
+}
 #page-home .compose-footer {
   background: linear-gradient(180deg, transparent, rgba(238,243,250,0.5)) !important;
   padding: 12px 20px !important;
+  margin-top: 4px !important;
   border-top: 1px solid var(--border) !important;
-  margin-top: 0 !important;
 }
 #page-home .compose-type-select {
   background: #fff !important;
@@ -1651,284 +1604,188 @@ body {
   border-radius: 10px !important;
   padding: 7px 12px !important;
   font-weight: 500 !important;
-  transition: border-color 0.18s ease !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
 }
-#page-home .compose-type-select:hover { border-color: var(--primary-m) !important; }
+#page-home .compose-type-select:hover {
+  border-color: var(--primary-m) !important;
+}
 #page-home .compose-footer button:not(.compose-type-select) {
   background: var(--primary) !important;
   color: #fff !important;
   border: none !important;
-  padding: 10px 24px !important;
+  padding: 9px 22px !important;
   border-radius: 100px !important;
   font-weight: 700 !important;
   font-size: 14px !important;
   letter-spacing: -0.005em;
   box-shadow: 0 4px 14px rgba(27,79,216,0.25) !important;
-  transition: transform 0.18s ease, box-shadow 0.22s ease !important;
+  transition: transform 0.2s ease, box-shadow 0.25s ease !important;
 }
 #page-home .compose-footer button:not(.compose-type-select):hover {
   transform: translateY(-1px);
   box-shadow: 0 8px 22px rgba(27,79,216,0.35) !important;
 }
-#page-home .compose-footer button:disabled {
-  opacity: 0.5; cursor: not-allowed; transform: none;
+#page-home .compose-footer button:not(.compose-type-select):disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
-/* ════════════════════════════════════════════════════════════════════════
-   POST CARDS — base + variants by data-post-type
-   ════════════════════════════════════════════════════════════════════════ */
-#page-home .post-card,
-#page-explore .post-card,
-#page-stock .post-card,
-#page-profile .post-card {
+/* Analysis fields polish */
+#page-home .analysis-fields {
+  padding: 14px 20px !important;
+  background: rgba(8,145,178,0.04);
+  border-top: 1px solid var(--border) !important;
+  margin-top: 0 !important;
+  gap: 10px !important;
+}
+#page-home .analysis-input {
+  background: #fff !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  padding: 9px 13px !important;
+  font-weight: 500 !important;
+}
+#page-home .dir-btn {
+  background: #fff !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  padding: 8px 14px !important;
+  font-weight: 600 !important;
+  transition: all 0.2s ease !important;
+}
+
+/* ────────────────────────────────────────────────
+   POST CARD — new clean layout
+   ──────────────────────────────────────────────── */
+#page-home .post-card {
   background: #fff !important;
   border: 1px solid var(--border) !important;
   border-radius: 16px !important;
-  padding: 18px 20px 16px !important;
+  padding: 18px 20px !important;
   margin-bottom: 12px !important;
-  box-shadow: 0 1px 2px rgba(13,31,53,0.03) !important;
-  transition: border-color 0.2s ease, box-shadow 0.25s ease, transform 0.18s ease !important;
-  position: relative;
+  box-shadow:
+    0 1px 2px rgba(13,31,53,0.03) !important;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.25s ease,
+    transform 0.18s ease !important;
 }
 #page-home .post-card:hover {
   border-color: rgba(27,79,216,0.20) !important;
-  box-shadow: 0 1px 2px rgba(13,31,53,0.04), 0 12px 28px rgba(27,79,216,0.08) !important;
-  transform: translateY(-1px);
+  box-shadow:
+    0 1px 2px rgba(13,31,53,0.04),
+    0 12px 28px rgba(27,79,216,0.08) !important;
+  transform: translateY(-2px);
 }
-
-/* Left accent strip — per type. RTL: strip on the right edge */
-.post-card[data-post-type]::before {
-  content: '';
-  position: absolute;
-  top: 16px; bottom: 16px;
-  width: 3px;
-  border-radius: 3px;
-  background: transparent;
-  transition: background 0.2s ease;
-}
-[dir="rtl"] .post-card[data-post-type]::before { right: 0; border-radius: 3px 0 0 3px; }
-[dir="ltr"] .post-card[data-post-type]::before { left: 0;  border-radius: 0 3px 3px 0; }
-
-.post-card[data-post-type="news"]::before     { background: var(--teal); }
-.post-card[data-post-type="opinion"]::before  { background: transparent; }
-.post-card[data-post-type="question"]::before { background: var(--gold); }
-.post-card[data-post-type="analysis"][data-direction="bullish"]::before { background: var(--green); }
-.post-card[data-post-type="analysis"][data-direction="bearish"]::before { background: var(--red);   }
-.post-card[data-post-type="analysis"]:not([data-direction])::before    { background: var(--primary);}
-
-/* Pinned post */
 #page-home .post-card.pinned-post {
-  background: linear-gradient(180deg, rgba(255,251,235,0.7) 0%, #fff 40%) !important;
-  border-color: rgba(217,119,6,0.30) !important;
-}
-#page-home .post-card.pinned-post::before {
-  background: var(--gold) !important;
+  border-color: rgba(217,119,6,0.35) !important;
+  background: linear-gradient(180deg, rgba(255,251,235,0.7) 0%, #fff 30%) !important;
 }
 
-/* Post header */
-#page-home .post-card .post-header { margin-bottom: 12px; gap: 12px; }
-#page-home .author-name {
-  font-size: 14.5px !important;
+/* Post header — author block */
+#page-home .post-card .post-header,
+#page-home .post-card > div:first-child {
+  margin-bottom: 12px;
+}
+#page-home .post-author {
+  gap: 8px !important;
+}
+#page-home .post-name {
+  font-size: 15px !important;
   font-weight: 700 !important;
   color: var(--text) !important;
   letter-spacing: -0.01em;
 }
-#page-home .author-handle, #page-home .post-time {
+#page-home .post-card .post-handle,
+#page-home .post-card .post-time {
   color: var(--text3) !important;
   font-size: 13px !important;
   font-weight: 500 !important;
-}
-#page-home .post-card .avatar {
-  border-radius: 12px !important;
-  box-shadow: 0 1px 3px rgba(13,31,53,0.08);
 }
 
 /* Post content */
 #page-home .post-content {
   font-size: 15.5px !important;
-  line-height: 1.78 !important;
+  line-height: 1.75 !important;
   color: var(--text) !important;
-  margin: 6px 0 14px !important;
+  font-weight: 400;
+  margin: 4px 0 14px !important;
 }
-.post-symbol {
-  background: var(--primary-l) !important;
-  color: var(--primary) !important;
-  padding: 1px 8px !important;
-  border-radius: 6px !important;
-  font-weight: 700 !important;
-  font-size: 0.95em !important;
-  transition: background 0.18s ease !important;
-}
-.post-symbol:hover { background: var(--primary-m) !important; }
-
-/* Analysis targets — clean tags */
-.analysis-targets {
-  display: flex; flex-wrap: wrap; gap: 8px;
-  margin: 10px 0 12px;
-}
-.target-tag {
-  background: var(--bg3) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 100px !important;
-  padding: 5px 11px !important;
-  font-size: 12.5px !important;
-  font-weight: 600 !important;
-  color: var(--text2) !important;
-}
-.analysis-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 5px 12px !important;
-  border-radius: 100px !important;
-  font-weight: 700 !important;
-  font-size: 12.5px !important;
-  margin-bottom: 10px;
-}
-.analysis-badge.bullish { background: var(--green-bg) !important; color: var(--green) !important; }
-.analysis-badge.bearish { background: var(--red-bg)   !important; color: var(--red)   !important; }
-.analysis-badge.neutral { background: var(--bg3)      !important; color: var(--text2) !important; }
 
 /* Post actions shelf */
-#page-home .post-actions,
-#page-explore .post-actions,
-#page-stock .post-actions {
+#page-home .post-actions {
   padding-top: 12px !important;
   border-top: 1px solid var(--border) !important;
-  margin-top: 4px;
-  display: flex !important;
+  display: flex;
+  align-items: center;
   gap: 4px !important;
+  margin-top: 4px;
 }
-#page-home .post-actions > button,
+#page-home .post-actions button,
 #page-home .post-actions > div {
-  flex: 1 !important;
+  flex: 1;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
   gap: 6px !important;
-  padding: 8px 10px !important;
+  padding: 7px 10px !important;
   border-radius: 100px !important;
   background: transparent !important;
   color: var(--text3) !important;
   font-size: 13px !important;
   font-weight: 500 !important;
   transition: background 0.18s ease, color 0.18s ease !important;
+  cursor: pointer;
 }
-#page-home .post-actions > button:hover,
+#page-home .post-actions button:hover,
 #page-home .post-actions > div:hover {
   background: var(--primary-l) !important;
   color: var(--primary) !important;
 }
+#page-home .post-actions button.liked,
+#page-home .post-actions .action-like.active {
+  color: var(--red) !important;
+}
+#page-home .post-actions button.liked:hover,
+#page-home .post-actions .action-like.active:hover {
+  background: var(--red-bg) !important;
+}
 
-/* New posts button */
+/* New posts button polish */
 #page-home .new-posts-btn button {
   border-radius: 100px !important;
   padding: 10px 24px !important;
   font-weight: 700 !important;
   font-size: 14px !important;
+  letter-spacing: -0.005em;
   box-shadow: 0 6px 20px rgba(27,79,216,0.32) !important;
+}
+
+/* Tabular numerics across feed counts/prices */
+#page-home .post-card .price,
+#page-home .post-card .change,
+#page-home .post-card [class*="count"],
+#page-home .post-actions .count {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum","zero";
+}
+
+/* Analysis post — direction badge inside card */
+#page-home .post-card .direction-badge,
+#page-home .post-card [class*="bullish"],
+#page-home .post-card [class*="bearish"] {
+  font-weight: 700 !important;
   letter-spacing: -0.005em;
 }
 
-/* ════════════════════════════════════════════════════════════════════════
-   RIGHT PANEL
-   ════════════════════════════════════════════════════════════════════════ */
-.right-panel { gap: 14px !important; }
-
-.rooms-widget-card {
-  background: linear-gradient(135deg, #1B4FD8 0%, #1E40AF 100%) !important;
-  border-radius: 16px !important;
-  padding: 14px !important;
-  box-shadow: 0 8px 24px rgba(27,79,216,0.22) !important;
-}
-.rooms-widget-card::before { display: none !important; }
-.rooms-widget-title {
-  font-size: 11px !important;
-  letter-spacing: 0.08em !important;
-  text-transform: uppercase !important;
-  margin-bottom: 10px !important;
-  color: rgba(255,255,255,0.85) !important;
-  font-weight: 700 !important;
-}
-.room-mini-item {
-  background: rgba(255,255,255,0.10) !important;
-  border: 1px solid rgba(255,255,255,0.12) !important;
-  border-radius: 10px !important;
-  padding: 10px 12px !important;
-  margin-bottom: 6px !important;
-  transition: background 0.18s ease, transform 0.15s ease !important;
-}
-.room-mini-item:hover {
-  background: rgba(255,255,255,0.18) !important;
-  transform: translateX(-2px) !important;
-}
-.rooms-widget-all {
-  background: rgba(255,255,255,0.12) !important;
-  border: 1px solid rgba(255,255,255,0.18) !important;
-  border-radius: 10px !important;
-  padding: 9px !important;
-  font-weight: 600 !important;
-  font-size: 12.5px !important;
-}
-
-.panel-card {
-  background: #fff !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 16px !important;
-  padding: 16px !important;
-  box-shadow: 0 1px 2px rgba(13,31,53,0.03) !important;
-  transition: box-shadow 0.25s ease, border-color 0.2s ease !important;
-}
-.panel-card:hover {
-  box-shadow: 0 4px 12px rgba(13,31,53,0.05), 0 12px 28px rgba(13,31,53,0.06) !important;
-  border-color: rgba(27,79,216,0.12) !important;
-}
-.panel-title {
-  font-size: 13px !important;
-  font-weight: 700 !important;
-  color: var(--text) !important;
-  letter-spacing: -0.005em !important;
-  margin-bottom: 12px !important;
-  padding-bottom: 10px !important;
-  border-bottom: 1px solid var(--border) !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-}
-
-/* Trending stocks */
-.trending-item {
-  padding: 10px 6px !important;
-  margin: 0 -6px !important;
-  border-radius: 8px !important;
-  transition: background 0.15s ease !important;
-}
-.trending-item:hover { background: var(--bg3) !important; }
-.trending-sym {
-  background: var(--primary-l) !important;
-  color: var(--primary) !important;
-  font-weight: 700 !important;
-  padding: 3px 10px !important;
-  border-radius: 100px !important;
-  font-size: 12.5px !important;
-}
-.trending-name { font-weight: 500 !important; font-size: 13px !important; }
-.trending-count { font-size: 11.5px !important; font-weight: 600 !important; }
-
-/* Profile card */
-.user-profile-card {
-  background: #fff !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 16px !important;
-  box-shadow: 0 1px 2px rgba(13,31,53,0.04) !important;
-}
-
-/* Reduced motion */
+/* Reduced motion respect */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  #page-home *, #page-home *::before, #page-home *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
 }
-
 </style>
 </head>
 <body>
@@ -2943,7 +2800,7 @@ function createPostCard(p, standalone = false) {
     </div>`;
   }
 
-  return `<div class="post-card${p.is_pinned ? ' pinned-post' : ''}${p.is_soft_deleted ? ' restricted-post' : ''}" data-post-type="${p.post_type || 'opinion'}"${p.direction ? ` data-direction="${p.direction}"` : ''} id="post-${p.id}" style="${standalone ? '' : 'cursor:pointer'}" ${cardClick}>
+  return `<div class="post-card${p.is_pinned ? ' pinned-post' : ''}${p.is_soft_deleted ? ' restricted-post' : ''}" id="post-${p.id}" style="${standalone ? '' : 'cursor:pointer'}" ${cardClick}>
     ${p.is_pinned ? `<div class="pin-badge">📌 منشور مثبت</div>` : ''}
     ${p.is_soft_deleted ? `<div class="pin-badge" style="color:var(--red)">🔒 منشور مقيد — مرئي للإدارة فقط</div>` : ''}
     <div class="post-header">
